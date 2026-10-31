@@ -1,0 +1,98 @@
+---
+export const prerender = false;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>页面未找到 · 博客管理后台</title>
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem('admin-theme');
+          if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          if (t === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      /* 主题变量与 AdminLayout 一致，保证深浅色正常 */
+      :root {
+        --bg: #fafafa; --surface: #ffffff; --text: #17191c; --muted: #747a83;
+        --line: #e6e8eb; --accent: #16834a; --accent-ink: #ffffff;
+        color-scheme: light;
+      }
+      :root.dark {
+        --bg: #111315; --surface: #181b1f; --text: #f1f3f5; --muted: #9aa1aa;
+        --line: #2b3036; --accent: #f2a33a; --accent-ink: #17191c;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text);
+        font-family: Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        animation: pageIn 0.3s ease;
+      }
+      @keyframes pageIn { from { opacity: 0; } to { opacity: 1; } }
+
+      /* 照抄博客前台 404 样式 */
+      .not-found {
+        position: relative; display: grid; place-items: center;
+        min-height: 100dvh; margin: 0 auto; padding: 32px 20px;
+      }
+      .not-found::before {
+        position: absolute; inset: 0; content: ""; pointer-events: none;
+        background: radial-gradient(ellipse at 50% 42%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 46%);
+      }
+      .not-found-content {
+        position: relative; width: min(100%, 680px); padding: 40px 0; text-align: center;
+      }
+      .not-found-code {
+        margin: 0; color: var(--accent);
+        font-size: clamp(8rem, 27vw, 15rem); font-weight: 850;
+        letter-spacing: -0.1em; line-height: 0.85;
+      }
+      .not-found-content h1 {
+        margin: 32px 0 10px;
+        font-size: clamp(1.7rem, 5vw, 2.5rem); letter-spacing: -0.05em;
+      }
+      .not-found-description { margin: 0; color: var(--muted); font-size: 1rem; }
+      .not-found-home {
+        display: inline-flex; align-items: center; gap: 12px;
+        margin-top: 30px; padding: 12px 19px;
+        border: 1px solid var(--accent); border-radius: 999px;
+        color: var(--accent-ink); background: var(--accent);
+        font-size: 0.95rem; font-weight: 700; text-decoration: none;
+        transition: transform 0.2s ease, filter 0.2s ease;
+      }
+      .not-found-home:hover { transform: translateY(-2px); filter: brightness(1.08); }
+      .not-found-home:focus-visible { outline: 3px solid var(--text); outline-offset: 4px; }
+      .not-found-home span { font-size: 1.15rem; }
+
+      @media (max-width: 640px) {
+        .not-found { padding: 24px 16px; }
+        .not-found-code { font-size: clamp(7rem, 32vw, 9rem); }
+        .not-found-content h1 { margin-top: 26px; font-size: clamp(1.55rem, 7vw, 2rem); }
+        .not-found-description { font-size: 0.94rem; }
+        .not-found-home { margin-top: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="not-found" aria-labelledby="not-found-heading">
+      <div class="not-found-content">
+        <p class="not-found-code" aria-hidden="true">404</p>
+        <h1 id="not-found-heading">这里什么也没有</h1>
+        <p class="not-found-description">这个页面可能已经移动，或者地址输入有误。</p>
+        <a class="not-found-home" href="/">
+          回到管理后台
+          <span aria-hidden="true">→</span>
+        </a>
+      </div>
+    </section>
+  </body>
+</html>

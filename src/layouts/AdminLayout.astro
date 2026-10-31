@@ -131,6 +131,83 @@ const nav = [
       }
       .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
 
+      /* ============ 移动端汉堡导航（照搬博客前台） ============ */
+      .mobile-menu-toggle, .mobile-nav-backdrop, .nav-drawer { display: none; }
+
+      @media (max-width: 760px) {
+        .topbar .nav { display: none; }
+        .topbar .theme-toggle { display: none; }
+
+        .mobile-menu-toggle {
+          display: grid; flex: 0 0 38px; gap: 5px; place-content: center;
+          width: 38px; height: 38px; border: 0; border-radius: 50%;
+          background: transparent; color: var(--text); cursor: pointer;
+          position: relative; flex-shrink: 0; margin-left: auto;
+          transition: background-color 0.35s ease;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation; user-select: none; -webkit-user-select: none;
+        }
+        .mobile-menu-toggle span {
+          display: block; width: 18px; height: 2px; border-radius: 2px;
+          background: currentColor; transition: opacity 0.3s ease;
+        }
+        .mobile-menu-toggle:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+        .mobile-menu-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .mobile-menu-toggle::after {
+          content: "×"; position: absolute; inset: 0;
+          display: grid; place-items: center;
+          opacity: 0; font-size: 1.7rem; line-height: 1;
+          transition: opacity 0.3s ease, filter 0.3s ease;
+          filter: blur(4px);
+        }
+        body.mobile-nav-open .mobile-menu-toggle span { opacity: 0; }
+        body.mobile-nav-open .mobile-menu-toggle::after { opacity: 1; filter: blur(0); }
+        body.mobile-nav-open .topbar { z-index: 130; }
+
+        .nav-drawer {
+          display: flex; flex-direction: column; align-items: stretch;
+          position: fixed; top: 0; right: 0; z-index: 120;
+          width: min(82vw, 320px); height: 100dvh;
+          margin: 0; padding: 78px 20px 24px;
+          border-left: 1px solid var(--line);
+          background: color-mix(in srgb, var(--surface) 82%, transparent);
+          -webkit-backdrop-filter: blur(10px) saturate(180%);
+          backdrop-filter: blur(10px) saturate(180%);
+          box-shadow: -18px 0 40px rgba(0, 0, 0, 0.18);
+          opacity: 0; visibility: hidden; pointer-events: none;
+          transform: translateX(16px);
+          transition: opacity 0.35s ease, visibility 0.35s ease, transform 0.35s ease;
+        }
+        :root.dark .nav-drawer {
+          -webkit-backdrop-filter: blur(10px) saturate(100%);
+          backdrop-filter: blur(10px) saturate(100%);
+        }
+        body.mobile-nav-open .nav-drawer {
+          opacity: 1; visibility: visible; pointer-events: auto; transform: none;
+        }
+        .nav-drawer a {
+          display: flex; align-items: center; min-height: 52px;
+          padding: 12px 16px; border-radius: 12px;
+          font-size: 17px; font-weight: 600; color: var(--text); text-decoration: none;
+          transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        .nav-drawer a:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+        .nav-drawer a.active {
+          background: color-mix(in srgb, var(--accent) 13%, transparent);
+          color: var(--accent);
+        }
+        .nav-drawer .drawer-theme { margin-top: 16px; min-height: 48px; font-size: 15px; }
+
+        .mobile-nav-backdrop {
+          position: fixed; z-index: 110; inset: 0; display: block;
+          visibility: hidden; opacity: 0;
+          background: rgba(0, 0, 0, 0.46);
+          transition: opacity 0.35s ease, visibility 0.35s ease;
+        }
+        body.mobile-nav-open .mobile-nav-backdrop { visibility: visible; opacity: 1; }
+        body.mobile-nav-open { overflow: hidden; }
+      }
+
       /* ============ 内容区 ============ */
       .content { max-width: 1080px; margin: 0 auto; padding: 26px 20px 64px; }
       .page-title { font-size: 24px; font-weight: 800; margin: 0 0 18px; letter-spacing: -0.02em; }
@@ -208,9 +285,49 @@ const nav = [
         display: flex; align-items: center; gap: 10px; min-height: 50px;
         font-size: 15px; font-weight: 600; color: var(--text); cursor: pointer; user-select: none;
       }
+      .check-field { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+      .check-field input[type="checkbox"] { width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0; accent-color: var(--accent); }
+      .check-field .flabel { color: var(--text); font-size: 14px; }
+      .static-note {
+        font-size: 14px; color: var(--text); background: var(--surface);
+        border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px;
+      }
       .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
       .inline-form { display: flex; gap: 10px; align-items: stretch; }
       .inline-form .input { flex: 1; min-width: 0; }
+
+      /* ============ 变量可视化编辑器（JS 动态渲染，用全局选择器） ============ */
+      .vv-section { margin-bottom: 12px; }
+      .vv-sec-title { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; overflow-wrap: anywhere; }
+      .vv-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+      .vv-row:last-child { border-bottom: none; }
+      .vv-row-label { font-size: 15px; font-weight: 600; }
+      .vv-row-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+      /* iOS 风格拨动开关 */
+      .vv-switch { position: relative; display: inline-block; width: 56px; height: 33px; flex-shrink: 0; }
+      .vv-switch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: pointer; z-index: 2; }
+      .vv-switch .vv-track { position: absolute; inset: 0; border-radius: 999px; background: color-mix(in srgb, var(--text) 18%, transparent); transition: background-color 0.2s ease; }
+      .vv-switch .vv-knob { position: absolute; top: 3px; left: 3px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28); transition: transform 0.2s ease; }
+      .vv-switch input:checked ~ .vv-track { background: var(--accent); }
+      .vv-switch input:checked ~ .vv-knob { transform: translateX(23px); }
+      .vv-switch input:focus-visible ~ .vv-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .vv-field { padding: 10px 0; border-bottom: 1px solid var(--line); }
+      .vv-field:last-child { border-bottom: none; }
+      .vv-field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+      .vv-field .input { width: 100%; }
+      .vv-array-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; }
+      .vv-array-head > span { font-size: 13px; font-weight: 600; }
+      .vv-item { border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; }
+      .vv-item-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; background: none; border: none; color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; min-height: 50px; text-align: left; }
+      .vv-item-head:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+      .vv-toggle-text { font-size: 12px; color: var(--muted); font-weight: 400; flex-shrink: 0; }
+      .vv-item-body { padding: 4px 14px 12px; border-top: 1px solid var(--line); }
+      .vv-item-del { margin-top: 10px; padding: 0; }
+      .vv-subobj { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 2px solid var(--line); }
+      .vv-subobj-title { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+      .vv-prim-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+      .vv-prim-row .input { flex: 1; min-width: 0; }
+      .vv-note { margin-top: 12px; }
 
       /* ============ 表格（移动端变卡片） ============ */
       .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -349,19 +466,33 @@ const nav = [
           ))}
         </nav>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">深色</button>
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-label="打开导航菜单" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
       </div>
     </header>
+    <nav class="nav-drawer" id="nav-drawer" aria-label="移动端导航">
+      {nav.map((item) => (
+        <a href={item.href} class={item.key === active ? 'active' : ''}>{item.label}</a>
+      ))}
+      <button class="theme-toggle drawer-theme" id="theme-toggle-drawer" type="button" aria-label="切换深色模式">深色</button>
+    </nav>
+    <div class="mobile-nav-backdrop" id="mobile-nav-backdrop"></div>
     <main class="content">
       <slot />
     </main>
     <script>
-      // 主题切换（机制与博客前台一致）
-      const themeBtn = document.getElementById('theme-toggle');
-      function syncThemeIcon() {
-        if (themeBtn) themeBtn.textContent = document.documentElement.classList.contains('dark') ? '浅色' : '深色';
+      // 主题切换（机制与博客前台一致；顶栏与抽屉各一个按钮，保持同步）
+      const themeBtns = [
+        document.getElementById('theme-toggle'),
+        document.getElementById('theme-toggle-drawer'),
+      ].filter(Boolean);
+      function syncThemeText() {
+        const label = document.documentElement.classList.contains('dark') ? '浅色' : '深色';
+        themeBtns.forEach((b) => { b.textContent = label; });
       }
-      syncThemeIcon();
-      themeBtn?.addEventListener('click', () => {
+      syncThemeText();
+      themeBtns.forEach((btn) => btn.addEventListener('click', () => {
         const root = document.documentElement;
         clearTimeout(window.__adminThemeT);
         root.classList.add('theme-changing');
@@ -370,8 +501,29 @@ const nav = [
         try {
           localStorage.setItem('admin-theme', root.classList.contains('dark') ? 'dark' : 'light');
         } catch (e) {}
-        syncThemeIcon();
+        syncThemeText();
         window.__adminThemeT = setTimeout(() => root.classList.remove('theme-changing'), 560);
+      }));
+
+      // 移动端汉堡导航（照搬博客前台）
+      const menuBtn = document.getElementById('mobile-menu-toggle');
+      const backdrop = document.getElementById('mobile-nav-backdrop');
+      function setMobileNav(open) {
+        document.body.classList.toggle('mobile-nav-open', open);
+        if (menuBtn) {
+          menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          menuBtn.setAttribute('aria-label', open ? '关闭导航菜单' : '打开导航菜单');
+        }
+      }
+      menuBtn?.addEventListener('click', () => {
+        setMobileNav(!document.body.classList.contains('mobile-nav-open'));
+      });
+      backdrop?.addEventListener('click', () => setMobileNav(false));
+      document.querySelectorAll('.nav-drawer a').forEach((a) => {
+        a.addEventListener('click', () => setMobileNav(false));
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') setMobileNav(false);
       });
     </script>
   </body>

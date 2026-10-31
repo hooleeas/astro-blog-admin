@@ -24,7 +24,7 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
       </div>
 
       <div id="tab-visual">
-        <p class="hint">按语言分键编辑：顶层 key 若为多语言对象（键为 zh-Hans / zh-Hant / ja / ko / en），按语言渲染输入框；其他结构用 JSON 文本框。<strong>可视化保存会丢失注释</strong>，需保留注释请用「原始文本」。</p>
+        <p class="hint">开关、文本与列表可视化编辑；多语言文案不在此编辑。<strong>可视化保存会丢失注释</strong>，需保留注释请用「原始文本」。</p>
         <div id="visual"></div>
         <div style="margin-top: 16px; display: flex; gap: 8px; align-items: center;">
           <button id="save-visual" class="btn" type="button">保存</button>
@@ -56,18 +56,13 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
     const app = document.getElementById('app');
     if (app) {
       const name = app.dataset.name;
-      const LANGS = [
-        ['zh-Hans', '简体中文'],
-        ['zh-Hant', '繁體中文'],
-        ['ja', '日本語'],
-        ['ko', '한국어'],
-        ['en', 'English'],
-      ];
-      const LANG_SET = new Set(LANGS.map(([c]) => c));
+      const LANG_SET = new Set(['zh-Hans', 'zh-Hant', 'ja', 'ko', 'en']);
+      // 布尔开关的中文标签（关键变量）
+      const BOOL_LABELS = { visible: '显示', showOnMobile: '移动端显示' };
 
       let sha = '';
-      let parsed = null;      // 当前解析出的对象
-      let orig = {};          // key -> { langs: Set, types: {}, values: {} }
+      let working = null;   // parsed 的深拷贝，输入框直接改它；未展示字段原样保留
+      let skippedLang = 0;  // 跳过的多语言对象计数
 
       const visualEl = document.getElementById('visual');
       const rawEl = document.getElementById('raw-editor');
@@ -78,18 +73,57 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
           '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
         }[c]));
       }
-
+      function el(tag, cls, html) {
+        const d = document.createElement(tag);
+        if (cls) d.className = cls;
+        if (html !== undefined) d.innerHTML = html;
+        return d;
+      }
+      const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
       function isLangMap(v) {
-        if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+        if (!isObj(v)) return false;
         const ks = Object.keys(v);
         return ks.length > 0 && ks.every((k) => LANG_SET.has(k));
       }
-
-      function cellType(v) {
-        if (typeof v === 'boolean') return 'boolean';
-        if (typeof v === 'number') return 'number';
-        if (v !== null && typeof v === 'object') return 'json';
-        return 'string';
+      const clone = (o) => JSON.parse(JSON.stringify(o));
+      function getAt(path) { let o = working; for (const k of path) o = o[k]; return o; }
+      function setAt(path, val) {
+        let o = working;
+        for (let i = 0; i < path.length - 1; i++) o = o[path[i]];
+        o[path[path.length - 1]] = val;
+      }
+      function hasRenderable(v) {
+        if (typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string' || v === null) return true;
+        if (Array.isArray(v)) return true;
+        if (isObj(v)) {
+          if (isLangMap(v)) return false;
+          return Object.values(v).some(hasRenderable);
+        }
+        return false;
+      }
+      // 新增数组项时的空模板（多语言字段留空对象）
+      function blankLike(v) {
+        if (typeof v === 'boolean') return false;
+        if (typeof v === 'number') return 0;
+        if (typeof v === 'string') return '';
+        if (Array.isArray(v)) return [];
+        if (isObj(v)) {
+          if (isLangMap(v)) return {};
+          const o = {};
+          for (const [k, vv] of Object.entries(v)) o[k] = blankLike(vv);
+          return o;
+        }
+        return null;
+      }
+      function itemSummary(item, i) {
+        if (isObj(item)) {
+          for (const v of Object.values(item)) {
+            if (typeof v === 'string' && v) return v.length > 24 ? v.slice(0, 24) + '…' : v;
+          }
+        } else if (typeof item === 'string' && item) {
+          return item.length > 24 ? item.slice(0, 24) + '…' : item;
+        }
+        return '#' + (i + 1);
       }
 
       // ---- 加载 ----
@@ -112,111 +146,221 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
           document.querySelector('[data-tab="visual"]').disabled = true;
           return;
         }
-        parsed = res.data.parsed || {};
+        working = clone(res.data.parsed || {});
         renderVisual();
       }
 
-      // ---- 可视化渲染 ----
+      // ---- 可视化渲染（递归） ----
       function renderVisual() {
         visualEl.innerHTML = '';
-        orig = {};
-        for (const [key, val] of Object.entries(parsed)) {
-          const section = document.createElement('div');
-          section.className = 'card kv';
-          const h = document.createElement('h3');
-          h.innerHTML = '<code class="mono">' + esc(key) + '</code>';
-          section.appendChild(h);
-
-          if (isLangMap(val)) {
-            const langs = new Set(Object.keys(val));
-            const types = {};
-            const values = {};
-            const grid = document.createElement('div');
-            grid.className = 'lang-group';
-            grid.dataset.key = key;
-            for (const [code, label] of LANGS) {
-              const v = val[code];
-              const t = cellType(v);
-              types[code] = t;
-              values[code] = v;
-              const field = document.createElement('div');
-              field.className = 'lang-field';
-              field.dataset.lang = code;
-              field.dataset.type = t;
-              let inputHtml;
-              if (t === 'boolean') {
-                inputHtml = `<input type="checkbox" ${v ? 'checked' : ''} />`;
-              } else if (t === 'number') {
-                inputHtml = `<input class="input" type="number" value="${v ?? ''}" />`;
-              } else if (t === 'json') {
-                const j = v === undefined ? '' : JSON.stringify(v, null, 2);
-                inputHtml = `<textarea class="input mono" rows="4">${esc(j)}</textarea>`;
-              } else {
-                const s = v === undefined ? '' : String(v);
-                inputHtml = (s.length > 100 || s.includes('\n'))
-                  ? `<textarea class="input" rows="3">${esc(s)}</textarea>`
-                  : `<input class="input" type="text" value="${esc(s)}" />`;
-              }
-              field.innerHTML = `<label>${esc(label)} <span class="lcode">${esc(code)}</span></label>${inputHtml}`;
-              grid.appendChild(field);
-            }
-            orig[key] = { langs, types, values };
-            section.appendChild(grid);
+        skippedLang = 0;
+        if (!isObj(working)) {
+          visualEl.innerHTML = '<p class="hint">该文件顶层不是对象，可视化编辑不可用，请用「原始文本」。</p>';
+          return;
+        }
+        for (const [k, v] of Object.entries(working)) {
+          if (isLangMap(v)) { skippedLang++; continue; }
+          if (isObj(v)) {
+            if (hasRenderable(v)) renderObjectCard(v, [k], k);
+            else skippedLang++;
           } else {
-            const ta = document.createElement('textarea');
-            ta.className = 'input mono';
-            ta.rows = 6;
-            ta.dataset.jkey = key;
-            ta.value = JSON.stringify(val, null, 2);
-            section.appendChild(ta);
+            const card = el('div', 'card vv-section');
+            card.appendChild(el('h3', 'mono vv-sec-title', esc(k)));
+            const body = el('div');
+            body.appendChild(renderField(k, v, [k]));
+            card.appendChild(body);
+            visualEl.appendChild(card);
           }
-          visualEl.appendChild(section);
+        }
+        if (skippedLang > 0) {
+          visualEl.appendChild(el('p', 'hint vv-note', '多语言文案不在此编辑（如需修改请用「原始文本」）。'));
         }
       }
 
-      // ---- 可视化收集 ----
-      function collectVisual() {
-        const obj = {};
-        const bad = [];
-        visualEl.querySelectorAll('.lang-group').forEach((g) => {
-          const key = g.dataset.key;
-          const o = {};
-          g.querySelectorAll('.lang-field').forEach((f) => {
-            const lang = f.dataset.lang;
-            const t = f.dataset.type;
-            const wasPresent = orig[key].langs.has(lang);
-            if (t === 'boolean') {
-              o[lang] = f.querySelector('input').checked;
-            } else if (t === 'number') {
-              const s = f.querySelector('input').value;
-              if (s === '') {
-                if (!wasPresent) return;
-                o[lang] = orig[key].values[lang];
-              } else {
-                const n = Number(s);
-                if (Number.isNaN(n)) { bad.push(key + '.' + lang); return; }
-                o[lang] = n;
-              }
-            } else if (t === 'json') {
-              const s = f.querySelector('textarea').value;
-              if (s.trim() === '' && !wasPresent) return;
-              try { o[lang] = JSON.parse(s); }
-              catch { bad.push(key + '.' + lang); }
-            } else {
-              const el = f.querySelector('input, textarea');
-              const s = el.value;
-              if (s === '' && !wasPresent) return;
-              o[lang] = s;
-            }
+      // 对象渲染为一张卡片，标题为点分路径；子对象递归为同级卡片
+      function renderObjectCard(obj, pathArr, pathStr) {
+        const card = el('div', 'card vv-section');
+        card.appendChild(el('h3', 'mono vv-sec-title', esc(pathStr)));
+        const body = el('div');
+        let fieldCount = 0;
+        const subKeys = [];
+        for (const [k, v] of Object.entries(obj)) {
+          if (isLangMap(v)) { skippedLang++; continue; }
+          if (isObj(v)) {
+            if (hasRenderable(v)) subKeys.push(k);
+            else skippedLang++;
+            continue;
+          }
+          body.appendChild(renderField(k, v, [...pathArr, k]));
+          fieldCount++;
+        }
+        if (fieldCount > 0) {
+          card.appendChild(body);
+          visualEl.appendChild(card);
+        }
+        for (const k of subKeys) renderObjectCard(obj[k], [...pathArr, k], pathStr + '.' + k);
+      }
+
+      function renderField(k, v, pathArr) {
+        if (typeof v === 'boolean') return renderBool(k, v, pathArr);
+        if (typeof v === 'number') return renderNumber(k, v, pathArr);
+        if (Array.isArray(v)) return renderArrayBlock(k, v, pathArr);
+        return renderText(k, v, pathArr); // string 或 null
+      }
+
+      function makeSwitch(checked, label, onChange) {
+        const sw = el('label', 'vv-switch');
+        const input = el('input');
+        input.type = 'checkbox';
+        input.checked = !!checked;
+        input.setAttribute('aria-label', label);
+        input.addEventListener('change', () => onChange(input.checked));
+        sw.appendChild(input);
+        sw.appendChild(el('span', 'vv-track'));
+        sw.appendChild(el('span', 'vv-knob'));
+        return sw;
+      }
+
+      function renderBool(k, v, pathArr) {
+        const label = BOOL_LABELS[k] || k;
+        const row = el('div', 'vv-row');
+        row.appendChild(el('div', null,
+          `<div class="vv-row-label">${esc(label)}</div>` +
+          (BOOL_LABELS[k] ? `<div class="vv-row-sub mono">${esc(k)}</div>` : '')));
+        row.appendChild(makeSwitch(v, label, (checked) => setAt(pathArr, checked)));
+        return row;
+      }
+
+      function renderNumber(k, v, pathArr) {
+        const wrap = el('div', 'vv-field');
+        wrap.appendChild(el('label', null, esc(k)));
+        const input = el('input', 'input');
+        input.type = 'number';
+        input.value = v;
+        input.addEventListener('change', () => {
+          const n = Number(input.value);
+          if (input.value === '' || Number.isNaN(n)) input.value = getAt(pathArr);
+          else setAt(pathArr, n);
+        });
+        wrap.appendChild(input);
+        return wrap;
+      }
+
+      function renderText(k, v, pathArr) {
+        const wrap = el('div', 'vv-field');
+        wrap.appendChild(el('label', null, esc(k)));
+        const s = v === null ? '' : String(v);
+        const wasNull = v === null;
+        const input = (s.length > 120 || s.includes('\n'))
+          ? el('textarea', 'input mono') : el('input', 'input');
+        if (input.tagName === 'TEXTAREA') input.rows = 3;
+        else input.type = 'text';
+        input.value = s;
+        input.spellcheck = false;
+        input.addEventListener('input', () => {
+          setAt(pathArr, (wasNull && input.value === '') ? null : input.value);
+        });
+        wrap.appendChild(input);
+        return wrap;
+      }
+
+      function renderArrayBlock(k, arr, pathArr) {
+        const wrap = el('div', 'vv-array');
+        const head = el('div', 'vv-array-head');
+        head.appendChild(el('span', null, `${esc(k)}（${arr.length} 项）`));
+        const addBtn = el('button', 'btn-ghost btn-sm');
+        addBtn.type = 'button';
+        addBtn.textContent = '新增';
+        addBtn.addEventListener('click', () => {
+          const a = getAt(pathArr);
+          a.push(clone(blankLike(a.length ? a[0] : '')));
+          renderVisual();
+        });
+        head.appendChild(addBtn);
+        wrap.appendChild(head);
+        const list = el('div');
+        arr.forEach((item, i) => list.appendChild(renderArrayItem(item, pathArr, i)));
+        wrap.appendChild(list);
+        return wrap;
+      }
+
+      function renderArrayItem(item, pathArr, i) {
+        const itemPath = [...pathArr, i];
+        const delBtn = (label) => {
+          const b = el('button', 'link danger');
+          b.type = 'button';
+          b.textContent = label;
+          b.addEventListener('click', () => {
+            if (!confirm('确定删除这一项吗？')) return;
+            getAt(pathArr).splice(i, 1);
+            renderVisual();
           });
-          obj[key] = o;
-        });
-        visualEl.querySelectorAll('[data-jkey]').forEach((ta) => {
-          const key = ta.dataset.jkey;
-          try { obj[key] = JSON.parse(ta.value); }
-          catch { bad.push(key); }
-        });
-        return { obj, bad };
+          return b;
+        };
+        if (isObj(item)) {
+          const box = el('div', 'vv-item');
+          const headBtn = el('button', 'vv-item-head');
+          headBtn.type = 'button';
+          headBtn.appendChild(el('span', null, esc(itemSummary(item, i))));
+          const tg = el('span', 'vv-toggle-text', '展开');
+          headBtn.appendChild(tg);
+          const body = el('div', 'vv-item-body hidden');
+          let anyField = false;
+          for (const [k, v] of Object.entries(item)) {
+            if (isLangMap(v)) { skippedLang++; continue; }
+            if (isObj(v)) {
+              if (hasRenderable(v)) {
+                const sub = el('div', 'vv-subobj');
+                sub.appendChild(el('div', 'vv-subobj-title mono', esc(k)));
+                for (const [sk, sv] of Object.entries(v)) {
+                  if (isLangMap(sv) || isObj(sv)) { if (isLangMap(sv)) skippedLang++; continue; }
+                  sub.appendChild(renderField(sk, sv, [...itemPath, k, sk]));
+                  anyField = true;
+                }
+                body.appendChild(sub);
+              } else skippedLang++;
+              continue;
+            }
+            body.appendChild(renderField(k, v, [...itemPath, k]));
+            anyField = true;
+          }
+          if (!anyField) body.appendChild(el('p', 'hint', '该项无可编辑字段。'));
+          const del = delBtn('删除这一项');
+          del.classList.add('vv-item-del');
+          body.appendChild(del);
+          headBtn.addEventListener('click', () => {
+            const hidden = body.classList.toggle('hidden');
+            tg.textContent = hidden ? '展开' : '收起';
+          });
+          box.appendChild(headBtn);
+          box.appendChild(body);
+          return box;
+        }
+        // 原始值项
+        const row = el('div', 'vv-prim-row');
+        const t = typeof item;
+        if (t === 'boolean') {
+          row.appendChild(makeSwitch(item, '开关', (checked) => setAt(itemPath, checked)));
+        } else if (t === 'number') {
+          const input = el('input', 'input');
+          input.type = 'number';
+          input.value = item;
+          input.addEventListener('change', () => {
+            const n = Number(input.value);
+            if (input.value === '' || Number.isNaN(n)) input.value = getAt(itemPath);
+            else setAt(itemPath, n);
+          });
+          row.appendChild(input);
+        } else {
+          const input = el('input', 'input');
+          input.type = 'text';
+          input.value = item === null ? '' : String(item);
+          input.spellcheck = false;
+          input.addEventListener('input', () => setAt(itemPath, input.value));
+          row.appendChild(input);
+        }
+        row.appendChild(delBtn('删除'));
+        return row;
       }
 
       async function putContent(content, statusEl) {
@@ -235,7 +379,7 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
         if (cur.ok && !cur.data.parseError) {
           sha = cur.data.sha;
           rawEl.value = cur.data.raw;
-          parsed = cur.data.parsed || {};
+          working = clone(cur.data.parsed || {});
           renderVisual();
         }
         setTimeout(() => { statusEl.textContent = ''; }, 2000);
@@ -244,12 +388,7 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
 
       document.getElementById('save-visual').addEventListener('click', async () => {
         const statusEl = document.getElementById('visual-status');
-        const { obj, bad } = collectVisual();
-        if (bad.length) {
-          alert('以下字段解析失败，请检查：\n' + bad.join('\n'));
-          return;
-        }
-        const text = JSON.stringify(obj, null, 2);
+        const text = JSON.stringify(working, null, 2);
         // 本地 jsonc 校验（理论上必过，防万一）
         const errs = [];
         parse(text, errs, { allowTrailingComma: true });
@@ -267,7 +406,7 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
         refreshAfterSave(res, statusEl);
       });
 
-      // ---- 原始文本 ----
+      // ---- 原始文本（不动） ----
       const errBox = document.getElementById('raw-errors');
       document.getElementById('save-raw').addEventListener('click', async () => {
         const statusEl = document.getElementById('raw-status');
@@ -305,14 +444,4 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
     }
   </script>
 
-  <style is:global>
-    /* 变量编辑器特有：语言分组（JS 动态渲染，需全局选择器） */
-    .kv { margin-bottom: 12px; }
-    .kv h3 { margin: 0 0 12px; font-size: 14px; }
-    .lang-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .lang-field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-    .lang-field .lcode { color: var(--muted); font-weight: 400; font-size: 12px; }
-    .lang-field input[type="checkbox"] { width: 22px; height: 22px; margin-top: 6px; }
-    @media (max-width: 640px) { .lang-group { grid-template-columns: 1fr; } }
-  </style>
 </AdminLayout>
