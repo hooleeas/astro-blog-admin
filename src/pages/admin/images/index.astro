@@ -1,0 +1,215 @@
+---
+export const prerender = false;
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="图床" active="images">
+  <h1>图床</h1>
+  <p class="desc">图片上传到你自己的 WebDAV（如 OpenList），返回可直接引用的直链。</p>
+
+  <div id="cfg-warn" class="warn" hidden>
+    尚未配置 WebDAV，请先到 <a href="/admin/settings">设置</a> 页填写地址、账号与目录。
+  </div>
+
+  <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择图片上传">
+    <p class="dz-main">把图片拖到这里，或 <span class="dz-link">点击选择</span></p>
+    <p class="dz-sub">支持 png / jpg / jpeg / gif / webp / svg / avif，单个不超过 10MB</p>
+    <input id="file-input" type="file" accept="image/*" multiple hidden />
+  </div>
+
+  <div id="progress-wrap" class="progress-wrap" hidden>
+    <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+    <p id="progress-text" class="progress-text"></p>
+  </div>
+
+  <div id="results" class="results"></div>
+
+  <style>
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .desc { color: var(--muted); margin: 0 0 16px; }
+    .warn {
+      background: #fef3c7; border: 1px solid #f59e0b; color: #92400e;
+      border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px;
+    }
+    .warn a { color: #b45309; font-weight: 600; }
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: var(--radius);
+      padding: 40px 20px; text-align: center; cursor: pointer;
+      background: var(--surface); transition: border-color .15s, background .15s;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: #eff6ff; }
+    .dz-main { margin: 0 0 6px; font-size: 16px; }
+    .dz-link { color: var(--accent); font-weight: 600; }
+    .dz-sub { margin: 0; color: var(--muted); font-size: 13px; }
+    .progress-wrap { margin-top: 16px; }
+    .progress-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+    .progress-text { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+    .results { margin-top: 20px; display: grid; gap: 12px; }
+    .card {
+      display: flex; gap: 12px; align-items: center; background: var(--surface);
+      border: 1px solid var(--border); border-radius: var(--radius); padding: 12px;
+    }
+    .card img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+    .card .info { flex: 1; min-width: 0; }
+    .card .name { font-size: 13px; color: var(--muted); margin: 0 0 4px; word-break: break-all; }
+    .card .url { font-size: 13px; margin: 0 0 8px; word-break: break-all; }
+    .card .url a { color: var(--accent); }
+    .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: var(--accent-hover); }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #1f2430; color: #fff; padding: 10px 18px; border-radius: 8px;
+      font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 99; }
+    .toast.show { opacity: 1; }
+  </style>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('file-input');
+    const warn = document.getElementById('cfg-warn');
+    const results = document.getElementById('results');
+    const progressWrap = document.getElementById('progress-wrap');
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+    const toast = document.getElementById('toast');
+    let toastTimer = 0;
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function copyText(text, label) {
+      const done = () => showToast(label + '已复制');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+      } else {
+        fallbackCopy(text, done);
+      }
+    }
+    function fallbackCopy(text, done) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); } catch { showToast('复制失败，请手动复制'); }
+      document.body.removeChild(ta);
+    }
+
+    // 页面加载时检查是否已配置 WebDAV
+    fetch('/api/settings').then(r => r.json()).then(res => {
+      if (!res.ok) warn.hidden = false;
+    }).catch(() => { warn.hidden = false; });
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+    ['dragenter', 'dragover'].forEach(ev => dropzone.addEventListener(ev, (e) => {
+      e.preventDefault(); dropzone.classList.add('dragover');
+    }));
+    ['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, (e) => {
+      e.preventDefault(); dropzone.classList.remove('dragover');
+    }));
+    dropzone.addEventListener('drop', (e) => {
+      const files = Array.from(e.dataTransfer.files || []);
+      if (files.length) uploadAll(files);
+    });
+    fileInput.addEventListener('change', () => {
+      const files = Array.from(fileInput.files || []);
+      fileInput.value = '';
+      if (files.length) uploadAll(files);
+    });
+
+    async function uploadAll(files) {
+      for (const f of files) {
+        await uploadOne(f);
+      }
+    }
+
+    function uploadOne(file) {
+      return new Promise((resolve) => {
+        progressWrap.hidden = false;
+        progressFill.style.width = '0%';
+        progressText.textContent = '上传中：' + file.name;
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload');
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            progressFill.style.width = pct + '%';
+            progressText.textContent = '上传中：' + file.name + '（' + pct + '%）';
+          }
+        });
+        xhr.addEventListener('load', () => {
+          let res = null;
+          try { res = JSON.parse(xhr.responseText); } catch {}
+          if (xhr.status === 200 && res && res.ok) {
+            progressFill.style.width = '100%';
+            progressText.textContent = '上传完成：' + file.name;
+            addResult(res.data.url, res.data.filename);
+          } else {
+            progressText.textContent = '上传失败：' + (res && res.error ? res.error : 'HTTP ' + xhr.status);
+          }
+          resolve();
+        });
+        xhr.addEventListener('error', () => {
+          progressText.textContent = '上传失败：网络错误';
+          resolve();
+        });
+        const form = new FormData();
+        form.append('file', file);
+        xhr.send(form);
+      });
+    }
+
+    function addResult(url, filename) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const md = '![](' + url + ')';
+
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = filename;
+      img.loading = 'lazy';
+
+      const info = document.createElement('div');
+      info.className = 'info';
+      const name = document.createElement('p');
+      name.className = 'name';
+      name.textContent = filename;
+      const urlP = document.createElement('p');
+      urlP.className = 'url';
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = url;
+      urlP.appendChild(a);
+      const btns = document.createElement('div');
+      btns.className = 'btns';
+      const b1 = document.createElement('button');
+      b1.className = 'btn primary'; b1.textContent = '复制链接';
+      b1.addEventListener('click', () => copyText(url, '链接'));
+      const b2 = document.createElement('button');
+      b2.className = 'btn'; b2.textContent = '复制 Markdown';
+      b2.addEventListener('click', () => copyText(md, 'Markdown 片段'));
+      btns.append(b1, b2);
+
+      info.append(name, urlP, btns);
+      card.append(img, info);
+      results.prepend(card);
+    }
+  </script>
+</AdminLayout>

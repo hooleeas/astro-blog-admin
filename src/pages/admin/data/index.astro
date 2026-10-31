@@ -1,0 +1,42 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+
+export const prerender = false;
+
+const files = [
+  { name: 'config', title: '站点配置', desc: 'config.jsonc：站点标题、副标题、链接等基础配置' },
+  { name: 'posts', title: '文章变量', desc: 'posts.jsonc：文章列表页相关文案' },
+  { name: 'about', title: '关于页面', desc: 'about.jsonc：关于页面的多语言文案' },
+  { name: 'apple', title: 'Apple 相关', desc: 'apple.jsonc：Apple 平台相关配置与文案' },
+  { name: 'services', title: '服务', desc: 'services.jsonc：服务页面的多语言文案' },
+];
+---
+
+<AdminLayout title="变量管理" active="data">
+  <h1 class="page-title">变量 <span style="font-size: 13px; color: var(--muted); font-weight: 400;">src/data/*.jsonc</span></h1>
+  <div class="grid">
+    {files.map((f) => (
+      <a class="module-card" href={`/admin/data/edit?name=${f.name}`}>
+        <div class="title">⚙️ {f.title} <code class="mono">{f.name}.jsonc</code></div>
+        <div class="desc">{f.desc}</div>
+      </a>
+    ))}
+  </div>
+  <p style="font-size: 13px; color: var(--muted); margin-top: 16px;">
+    保存时服务端会用 jsonc-parser 校验语法，语法错误将拒绝保存并指出位置。
+  </p>
+
+  <style>
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .module-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; text-decoration: none; color: var(--text);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .module-card:hover { border-color: #bfdbfe; box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08); }
+    .title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</AdminLayout>
