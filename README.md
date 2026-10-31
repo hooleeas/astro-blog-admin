@@ -4,15 +4,16 @@
 
 - 框架：Astro 5（`output: 'server'`，SSR）
 - 部署目标：Cloudflare Pages（`@astrojs/cloudflare` adapter）
-- 鉴权：管理员密码 + HMAC-SHA256 签名的 httpOnly 会话 cookie（7 天有效期）
+- 鉴权：GitHub OAuth 登录（仅仓库主人可进），会话为 HMAC-SHA256 签名的 httpOnly cookie，登录拿到的 token 直接用于读写博客仓库
 - 仓库公开，**任何密钥都不得进入代码或提交历史**，一律走环境变量
 
 ## 环境变量
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
-| `ADMIN_PASSWORD` | ✅ | 管理员登录密码（部署者自行设定，强密码） |
-| `GITHUB_PAT` | ✅ | GitHub 个人访问令牌，需要 `repo` 权限，用于读写博客仓库 |
+| `GITHUB_CLIENT_ID` | ✅ | GitHub OAuth App 的 Client ID |
+| `GITHUB_CLIENT_SECRET` | ✅ | GitHub OAuth App 的 Client Secret（只存 Pages 环境变量，不进代码） |
+| `GITHUB_OWNER` | | 允许登录的 GitHub 用户名，默认 `hooleeas` |
 | `GITHUB_REPO` | ✅ | 博客仓库，如 `hooleeas/astro-blog` |
 | `GITHUB_BRANCH` | | 博客仓库分支，默认 `main` |
 

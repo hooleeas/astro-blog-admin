@@ -2,13 +2,16 @@
 # .dev.vars 已在 .gitignore 中，不会被提交
 # 生产环境这些变量在 Cloudflare Pages 后台（Settings → Environment variables）配置
 
-# 管理员登录密码（必填）
-ADMIN_PASSWORD=
+# GitHub OAuth App 的 Client ID（必填）
+GITHUB_CLIENT_ID=
 
-# GitHub PAT（必填）：用于读写 astro-blog 仓库，需要 repo 权限
-GITHUB_PAT=
+# GitHub OAuth App 的 Client Secret（必填，也用作会话签名密钥）
+GITHUB_CLIENT_SECRET=
 
-# 目标博客仓库（必填），格式 owner/repo
+# 允许登录的 GitHub 用户名（默认 hooleeas）
+GITHUB_OWNER=hooleeas
+
+# 目标博客仓库，格式 owner/repo
 GITHUB_REPO=hooleeas/astro-blog
 
 # 目标分支

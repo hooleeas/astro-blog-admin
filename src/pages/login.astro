@@ -40,75 +40,32 @@ export const prerender = false;
         border-radius: var(--radius);
         padding: 32px 28px;
         box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+        text-align: center;
       }
-      .card h1 { font-size: 18px; margin: 0 0 4px; text-align: center; }
-      .card p { font-size: 13px; color: var(--muted); margin: 0 0 20px; text-align: center; }
-      .field { margin-bottom: 16px; }
-      .field label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
-      .input {
-        width: 100%;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 11px 12px;
-        font-size: 15px;
-      }
-      .input:focus { outline: 2px solid #bfdbfe; border-color: var(--accent); }
+      .card h1 { font-size: 18px; margin: 0 0 4px; }
+      .card p { font-size: 13px; color: var(--muted); margin: 0 0 24px; }
       .btn {
+        display: block;
         width: 100%;
         border: none;
-        background: var(--accent);
+        background: #1f2430;
         color: #fff;
         border-radius: 8px;
-        padding: 11px;
+        padding: 12px;
         font-size: 15px;
         cursor: pointer;
+        text-decoration: none;
       }
-      .btn:hover { background: var(--accent-hover); }
-      .btn:disabled { opacity: 0.6; cursor: default; }
-      .error { font-size: 13px; color: #dc2626; min-height: 20px; margin-top: 12px; text-align: center; }
+      .btn:hover { background: #000; }
+      .note { font-size: 12px; color: var(--muted); margin-top: 16px; }
     </style>
   </head>
   <body>
     <div class="card">
       <h1>📝 博客管理后台</h1>
-      <p>请输入管理员密码登录</p>
-      <form id="login-form">
-        <div class="field">
-          <label for="password">密码</label>
-          <input class="input" id="password" type="password" name="password" autocomplete="current-password" autofocus />
-        </div>
-        <button class="btn" id="submit-btn" type="submit">登录</button>
-        <div class="error" id="error"></div>
-      </form>
+      <p>使用 GitHub 账号登录（仅仓库主人可进）</p>
+      <a class="btn" href="/api/auth/login">使用 GitHub 登录</a>
+      <div class="note">登录后即获得仓库读写权限，无需额外配置</div>
     </div>
-    <script>
-      const form = document.getElementById('login-form');
-      const input = document.getElementById('password');
-      const btn = document.getElementById('submit-btn');
-      const err = document.getElementById('error');
-
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        err.textContent = '';
-        btn.disabled = true;
-        try {
-          const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ password: input.value }),
-          });
-          const data = await res.json();
-          if (res.ok && data.ok) {
-            location.href = '/admin';
-          } else {
-            err.textContent = data.error || '登录失败';
-            btn.disabled = false;
-          }
-        } catch {
-          err.textContent = '网络错误，请重试';
-          btn.disabled = false;
-        }
-      });
-    </script>
   </body>
 </html>

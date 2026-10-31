@@ -1,49 +1,53 @@
 import type { APIRoute } from 'astro';
 import { getEnv } from '../../../lib/env';
-import {
-  SESSION_COOKIE,
-  SESSION_MAX_AGE,
-  signSession,
-  timingSafeEqual,
-} from '../../../lib/session';
+import { STATE_COOKIE } from '../../../lib/session';
 
 export const prerender = false;
 
-export const POST: APIRoute = async ({ request, locals }) => {
+const STATE_MAX_AGE = 600; // 10 分钟
+
+function randomState(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * GET /api/auth/login → 302 跳到 GitHub OAuth 授权页。
+ * state 存短期 httpOnly cookie，callback 时校验防 CSRF。
+ */
+export const GET: APIRoute = async ({ request, locals }) => {
   const env = getEnv(locals);
-
-  if (!env.ADMIN_PASSWORD) {
-    return Response.json({ ok: false, error: '服务端未配置 ADMIN_PASSWORD' }, { status: 500 });
+  if (!env.GITHUB_CLIENT_ID) {
+    return Response.json({ ok: false, error: '服务端未配置 GITHUB_CLIENT_ID' }, { status: 500 });
   }
 
-  let body: any = {};
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ ok: false, error: '请求体不是合法 JSON' }, { status: 400 });
-  }
+  const state = randomState();
+  const url = new URL(request.url);
+  const redirectUri = `${url.origin}/api/auth/callback`;
+  const authorize = new URL('https://github.com/login/oauth/authorize');
+  authorize.searchParams.set('client_id', env.GITHUB_CLIENT_ID);
+  authorize.searchParams.set('redirect_uri', redirectUri);
+  authorize.searchParams.set('scope', 'repo');
+  authorize.searchParams.set('state', state);
 
-  const password = typeof body.password === 'string' ? body.password : '';
-  if (!timingSafeEqual(password, env.ADMIN_PASSWORD)) {
-    return Response.json({ ok: false, error: '密码错误' }, { status: 401 });
-  }
-
-  const sessionValue = await signSession(env.ADMIN_PASSWORD);
-  const isHttps = new URL(request.url).protocol === 'https:';
-  const cookie = [
-    `${SESSION_COOKIE}=${sessionValue}`,
+  const isHttps = url.protocol === 'https:';
+  const stateCookie = [
+    `${STATE_COOKIE}=${state}`,
     'Path=/',
-    `Max-Age=${SESSION_MAX_AGE}`,
+    `Max-Age=${STATE_MAX_AGE}`,
     'HttpOnly',
     'SameSite=Lax',
     ...(isHttps ? ['Secure'] : []),
   ].join('; ');
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
+  return new Response(null, {
+    status: 302,
     headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'set-cookie': cookie,
+      Location: authorize.toString(),
+      'set-cookie': stateCookie,
     },
   });
 };

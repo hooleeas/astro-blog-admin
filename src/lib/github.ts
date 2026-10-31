@@ -1,6 +1,6 @@
 // Worker 2：GitHub Contents API / Git Data API 封装
-// 首参一律传 Astro locals；凭据经 ./env.js 的 getEnv 读取
-// （GITHUB_PAT 必填，GITHUB_REPO 默认 hooleeas/astro-blog，GITHUB_BRANCH 默认 main）。
+// 首参一律传 Astro locals；GitHub token 由 middleware 在校验会话后写入 locals.githubToken
+// （GITHUB_REPO 默认 hooleeas/astro-blog，GITHUB_BRANCH 默认 main）。
 // 兼容 Cloudflare Workers：base64 用 TextEncoder + btoa 分段实现，不用 Node Buffer。
 import { getEnv } from './env.js';
 
@@ -20,17 +20,18 @@ export class GithubError extends Error {
 interface RepoConfig {
   repo: string;
   branch: string;
-  pat: string;
+  token: string;
 }
 
 function repoConfig(locals: unknown): RepoConfig {
   const env = getEnv(locals as any);
-  const pat = env.GITHUB_PAT;
-  if (!pat) throw new GithubError(500, 'GITHUB_PAT 未配置');
+  // token 由 middleware 校验会话后写入 locals（OAuth 登录时签发）
+  const token = (locals as any)?.githubToken as string | undefined;
+  if (!token) throw new GithubError(401, '未登录或会话已失效');
   return {
     repo: env.GITHUB_REPO || DEFAULT_REPO,
     branch: env.GITHUB_BRANCH || DEFAULT_BRANCH,
-    pat,
+    token,
   };
 }
 
@@ -62,11 +63,11 @@ function encodePath(path: string): string {
 
 /** 通用请求。非 2xx 抛 GithubError（带 status，便于调用方识别 404）。 */
 export async function gh(locals: unknown, path: string, method = 'GET', body?: unknown): Promise<any> {
-  const { repo, pat } = repoConfig(locals);
+  const { repo, token } = repoConfig(locals);
   const res = await fetch(`${API_BASE}/repos/${repo}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${pat}`,
+      Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
       'Content-Type': 'application/json',

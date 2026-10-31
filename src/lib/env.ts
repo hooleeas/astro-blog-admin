@@ -1,10 +1,14 @@
 import type { APIContext } from 'astro';
 
 export interface RuntimeEnv {
-  GITHUB_PAT?: string;
+  /** GitHub OAuth App 的 Client ID（登录用） */
+  GITHUB_CLIENT_ID?: string;
+  /** GitHub OAuth App 的 Client Secret（登录换 token + 会话签名密钥） */
+  GITHUB_CLIENT_SECRET?: string;
+  /** 允许登录的 GitHub 用户名，默认 hooleeas */
+  GITHUB_OWNER?: string;
   GITHUB_REPO?: string;
   GITHUB_BRANCH?: string;
-  ADMIN_PASSWORD?: string;
   ADMIN_KV?: any;
   [k: string]: any;
 }
