@@ -70,6 +70,7 @@ export async function gh(locals: unknown, path: string, method = 'GET', body?: u
       Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'astro-blog-admin',
       'Content-Type': 'application/json',
     },
     body: body === undefined ? undefined : JSON.stringify(body),

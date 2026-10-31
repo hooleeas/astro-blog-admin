@@ -83,10 +83,11 @@ export const GET: APIRoute = async ({ request, cookies, locals }) => {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'astro-blog-admin',
     },
   });
   if (!userRes.ok) {
-    return Response.json({ ok: false, error: 'GitHub 取用户信息失败' }, { status: 502 });
+    return Response.json({ ok: false, error: `GitHub 取用户信息失败（${userRes.status}）` }, { status: 502 });
   }
   const userData = (await userRes.json()) as { login?: string };
   const owner = env.GITHUB_OWNER || 'hooleeas';
