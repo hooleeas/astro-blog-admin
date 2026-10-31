@@ -1,0 +1,11 @@
+# astro-blog-admin — Cloudflare Pages 部署配置
+# 注意：KV id 与所有环境变量都由部署者在 Cloudflare Pages 后台配置，
+# 本文件只留占位，仓库里不得放任何密钥。
+
+name = "astro-blog-admin"
+compatibility_date = "2025-06-01"
+
+# 可选：会话相关（本项目用签发 cookie 做会话，KV 非必需）
+[[kv_namespaces]]
+binding = "ADMIN_KV"
+id = "07281de96af64295bcaec6a749234a86"  # astro-blog-admin（2026-11-01 已创建）
