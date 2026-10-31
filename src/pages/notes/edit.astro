@@ -1,0 +1,105 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+
+export const prerender = false;
+
+const file = Astro.url.searchParams.get('file') ?? '';
+const valid = /^[A-Za-z0-9._-]+\.md$/.test(file);
+---
+
+<AdminLayout title="编辑随记" active="notes">
+  <h1 class="page-title">编辑随记</h1>
+
+  {!valid && (
+    <div class="card"><p style="color: #dc2626;">文件名不合法。</p><a href="/notes">← 返回列表</a></div>
+  )}
+
+  {valid && (
+    <div id="app" data-file={file}>
+      <div class="card" style="margin-bottom: 16px;">
+        <div style="font-size: 13px; color: var(--muted); margin-bottom: 12px;">
+          文件：<code id="file-name"></code>
+        </div>
+        <div class="form-grid">
+          <label>日期（date）
+            <input id="f-date" class="input" type="date" required />
+          </label>
+          <label class="check">草稿（draft）
+            <input id="f-draft" type="checkbox" />
+          </label>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px;">正文（Markdown）</label>
+        <textarea id="f-body" class="input mono" rows="24" placeholder="随记正文…"></textarea>
+      </div>
+
+      <div class="actions">
+        <button id="save-btn" class="btn" type="button">保存</button>
+        <a class="link" href="/notes">← 返回列表</a>
+        <span id="save-status" class="status"></span>
+      </div>
+    </div>
+  )}
+
+  <script>
+    const app = document.getElementById('app');
+    if (app) {
+      const file = app.dataset.file;
+      const dateEl = document.getElementById('f-date');
+      const draftEl = document.getElementById('f-draft');
+      const bodyEl = document.getElementById('f-body');
+      const statusEl = document.getElementById('save-status');
+      let sha = '';
+
+      document.getElementById('file-name').textContent = file;
+
+      async function load() {
+        statusEl.textContent = '加载中…';
+        const r = await fetch('/api/notes/' + encodeURIComponent(file));
+        const res = await r.json();
+        if (!res.ok) {
+          statusEl.textContent = '加载失败：' + res.error;
+          return;
+        }
+        sha = res.data.sha;
+        dateEl.value = res.data.frontmatter.date || '';
+        draftEl.checked = !!res.data.frontmatter.draft;
+        bodyEl.value = res.data.body || '';
+        statusEl.textContent = '';
+      }
+
+      document.getElementById('save-btn').addEventListener('click', async () => {
+        const date = dateEl.value;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          alert('日期格式不正确');
+          return;
+        }
+        statusEl.textContent = '保存中…';
+        const r = await fetch('/api/notes/' + encodeURIComponent(file), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            frontmatter: { date, draft: draftEl.checked },
+            body: bodyEl.value,
+            sha,
+          }),
+        });
+        const res = await r.json();
+        if (!res.ok) {
+          statusEl.textContent = '';
+          alert('保存失败：' + res.error);
+          return;
+        }
+        statusEl.textContent = '已保存 ✓';
+        // 重新取 sha，避免并发覆盖
+        const cur = await (await fetch('/api/notes/' + encodeURIComponent(file))).json();
+        if (cur.ok) sha = cur.data.sha;
+        setTimeout(() => { statusEl.textContent = ''; }, 2000);
+      });
+
+      load();
+    }
+  </script>
+</AdminLayout>

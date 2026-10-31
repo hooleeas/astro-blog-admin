@@ -5,6 +5,7 @@ import {
   fail,
   escapeJsString,
   PAGE_SLUG_RE,
+  PROTECTED_PAGES,
   readRepoTemplate,
   type Gh,
 } from '../../../lib/content.js';
@@ -44,7 +45,7 @@ export async function GET({ locals }: APIContext) {
       .map((p) => p.slice(PAGES_PREFIX.length, -'.astro'.length))
       .filter((s) => PAGE_SLUG_RE.test(s))
       .sort();
-    return ok({ pages: slugs.map((slug) => ({ slug, path: `${PAGES_PREFIX}${slug}.astro` })) });
+    return ok({ pages: slugs.map((slug) => ({ slug, path: `${PAGES_PREFIX}${slug}.astro`, protected: PROTECTED_PAGES.has(slug) })) });
   } catch (e) {
     return fail('读取页面列表失败：' + (e as Error)?.message, 500);
   }

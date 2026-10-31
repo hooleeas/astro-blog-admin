@@ -1,0 +1,96 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+
+export const prerender = false;
+---
+
+<AdminLayout title="文章管理" active="posts">
+  <h1 class="page-title">文章</h1>
+
+  <div class="card" style="margin-bottom: 16px;">
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      <a class="btn" href="/posts/new" style="text-decoration: none;">＋ 新建文章</a>
+      <span style="font-size: 12px; color: var(--muted);">新建会同时生成 5 个语言的 draft 文件，共用一个 translationKey。</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="list-status" style="color: var(--muted); font-size: 14px;">加载中…</div>
+    <div id="list" style="overflow-x: auto;"></div>
+  </div>
+
+  <script>
+    const LANGS = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko'];
+    const listEl = document.getElementById('list');
+    const statusEl = document.getElementById('list-status');
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[c]));
+    }
+
+    async function api(url, opts) {
+      const r = await fetch(url, opts);
+      return r.json();
+    }
+
+    function langChip(lang, slot) {
+      if (!slot) return `<span class="lang-chip missing" title="${lang}：缺失">${lang} 缺</span>`;
+      const badge = slot.draft
+        ? '<span class="badge draft">草稿</span>'
+        : '<span class="badge pub">已发布</span>';
+      return `<span class="lang-chip" title="${lang}：${esc(slot.slug)}">${lang} ${badge}</span>`;
+    }
+
+    async function load() {
+      statusEl.textContent = '加载中…';
+      listEl.innerHTML = '';
+      const res = await api('/api/posts');
+      if (!res.ok) {
+        statusEl.textContent = '加载失败：' + res.error;
+        return;
+      }
+      const groups = res.data.groups;
+      if (!groups.length) {
+        statusEl.textContent = '暂无文章。';
+        return;
+      }
+      statusEl.textContent = `共 ${groups.length} 篇`;
+      const table = document.createElement('table');
+      table.className = 'tbl';
+      table.innerHTML = `<thead><tr>
+        <th>标题</th><th>语言版本</th><th>发布时间</th><th style="text-align:right;">操作</th>
+      </tr></thead>`;
+      const tbody = document.createElement('tbody');
+      for (const g of groups) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td data-label="标题" style="max-width: 320px;">${esc(g.title)}<div class="mono" style="color: var(--muted); font-size: 12px;">${esc(g.key)}</div></td>
+          <td data-label="语言版本"><div class="chips">${LANGS.map((L) => langChip(L, g.langs[L])).join('')}</div></td>
+          <td data-label="发布时间" class="mono">${esc(g.pubDate || '—')}</td>
+          <td class="cell-actions no-label">
+            <a class="link" href="/posts/edit?key=${encodeURIComponent(g.key)}">编辑</a>
+            <button class="link danger" data-del="${esc(g.key)}" data-count="${g.count}" data-title="${esc(g.title)}" type="button">删除</button>
+          </td>`;
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      listEl.appendChild(table);
+
+      listEl.querySelectorAll('[data-del]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const key = btn.getAttribute('data-del');
+          const count = btn.getAttribute('data-count');
+          const title = btn.getAttribute('data-title');
+          if (!confirm(`确定删除文章「${title}」吗？\n将同时删除该文章全部 ${count} 个语言版本的文件，此操作不可撤销。`)) return;
+          const del = await api('/api/posts/' + encodeURIComponent(key), { method: 'DELETE' });
+          if (!del.ok) alert('删除失败：' + del.error);
+          else load();
+        });
+      });
+    }
+
+    load();
+  </script>
+</AdminLayout>

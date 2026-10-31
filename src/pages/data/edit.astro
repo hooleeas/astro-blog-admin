@@ -1,0 +1,318 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+
+export const prerender = false;
+
+const name = Astro.url.searchParams.get('name') ?? '';
+const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
+---
+
+<AdminLayout title="编辑变量" active="data">
+  <h1 class="page-title">编辑变量 <code class="mono">{valid ? `${name}.jsonc` : ''}</code></h1>
+
+  {!valid && (
+    <div class="card"><p style="color: #dc2626;">变量名不合法。</p><a href="/data">← 返回变量列表</a></div>
+  )}
+
+  {valid && (
+    <div id="app" data-name={name}>
+      <div id="parse-banner" class="banner hidden"></div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="visual" type="button">可视化编辑</button>
+        <button class="tab" data-tab="raw" type="button">原始文本</button>
+      </div>
+
+      <div id="tab-visual">
+        <p class="hint">按语言分键编辑：顶层 key 若为多语言对象（键为 zh-Hans / zh-Hant / ja / ko / en），按语言渲染输入框；其他结构用 JSON 文本框。<strong>可视化保存会丢失注释</strong>，需保留注释请用「原始文本」。</p>
+        <div id="visual"></div>
+        <div style="margin-top: 16px; display: flex; gap: 8px; align-items: center;">
+          <button id="save-visual" class="btn" type="button">保存</button>
+          <span id="visual-status" class="status"></span>
+        </div>
+      </div>
+
+      <div id="tab-raw" class="hidden">
+        <p class="hint">直接编辑 <code>src/data/{name}.jsonc</code> 全文（支持注释与尾随逗号）。保存前服务端会校验语法。</p>
+        <div class="card" style="margin-bottom: 16px;">
+          <textarea id="raw-editor" class="input mono" rows="30" spellcheck="false"></textarea>
+        </div>
+        <div id="raw-errors" class="banner hidden"></div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="save-raw" class="btn" type="button">保存</button>
+          <span id="raw-status" class="status"></span>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <a href="/data" style="font-size: 14px; color: var(--muted);">← 返回变量列表</a>
+      </div>
+    </div>
+  )}
+
+  <script>
+    import { parse } from 'jsonc-parser';
+
+    const app = document.getElementById('app');
+    if (app) {
+      const name = app.dataset.name;
+      const LANGS = [
+        ['zh-Hans', '简体中文'],
+        ['zh-Hant', '繁體中文'],
+        ['ja', '日本語'],
+        ['ko', '한국어'],
+        ['en', 'English'],
+      ];
+      const LANG_SET = new Set(LANGS.map(([c]) => c));
+
+      let sha = '';
+      let parsed = null;      // 当前解析出的对象
+      let orig = {};          // key -> { langs: Set, types: {}, values: {} }
+
+      const visualEl = document.getElementById('visual');
+      const rawEl = document.getElementById('raw-editor');
+      const bannerEl = document.getElementById('parse-banner');
+
+      function esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+      }
+
+      function isLangMap(v) {
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+        const ks = Object.keys(v);
+        return ks.length > 0 && ks.every((k) => LANG_SET.has(k));
+      }
+
+      function cellType(v) {
+        if (typeof v === 'boolean') return 'boolean';
+        if (typeof v === 'number') return 'number';
+        if (v !== null && typeof v === 'object') return 'json';
+        return 'string';
+      }
+
+      // ---- 加载 ----
+      async function load() {
+        const r = await fetch('/api/data/' + encodeURIComponent(name));
+        const res = await r.json();
+        if (!res.ok) {
+          bannerEl.textContent = '加载失败：' + res.error;
+          bannerEl.classList.remove('hidden');
+          return;
+        }
+        sha = res.data.sha;
+        rawEl.value = res.data.raw || '';
+        if (res.data.parseError) {
+          const e = res.data.parseError[0] || res.data.parseError;
+          bannerEl.innerHTML = '当前文件存在 JSONC 语法错误，可视化编辑已禁用，请先在「原始文本」中修复：' +
+            esc(e.message) + `（第 ${e.line} 行第 ${e.character} 列）`;
+          bannerEl.classList.remove('hidden');
+          switchTab('raw');
+          document.querySelector('[data-tab="visual"]').disabled = true;
+          return;
+        }
+        parsed = res.data.parsed || {};
+        renderVisual();
+      }
+
+      // ---- 可视化渲染 ----
+      function renderVisual() {
+        visualEl.innerHTML = '';
+        orig = {};
+        for (const [key, val] of Object.entries(parsed)) {
+          const section = document.createElement('div');
+          section.className = 'card kv';
+          const h = document.createElement('h3');
+          h.innerHTML = '<code class="mono">' + esc(key) + '</code>';
+          section.appendChild(h);
+
+          if (isLangMap(val)) {
+            const langs = new Set(Object.keys(val));
+            const types = {};
+            const values = {};
+            const grid = document.createElement('div');
+            grid.className = 'lang-group';
+            grid.dataset.key = key;
+            for (const [code, label] of LANGS) {
+              const v = val[code];
+              const t = cellType(v);
+              types[code] = t;
+              values[code] = v;
+              const field = document.createElement('div');
+              field.className = 'lang-field';
+              field.dataset.lang = code;
+              field.dataset.type = t;
+              let inputHtml;
+              if (t === 'boolean') {
+                inputHtml = `<input type="checkbox" ${v ? 'checked' : ''} />`;
+              } else if (t === 'number') {
+                inputHtml = `<input class="input" type="number" value="${v ?? ''}" />`;
+              } else if (t === 'json') {
+                const j = v === undefined ? '' : JSON.stringify(v, null, 2);
+                inputHtml = `<textarea class="input mono" rows="4">${esc(j)}</textarea>`;
+              } else {
+                const s = v === undefined ? '' : String(v);
+                inputHtml = (s.length > 100 || s.includes('\n'))
+                  ? `<textarea class="input" rows="3">${esc(s)}</textarea>`
+                  : `<input class="input" type="text" value="${esc(s)}" />`;
+              }
+              field.innerHTML = `<label>${esc(label)} <span class="lcode">${esc(code)}</span></label>${inputHtml}`;
+              grid.appendChild(field);
+            }
+            orig[key] = { langs, types, values };
+            section.appendChild(grid);
+          } else {
+            const ta = document.createElement('textarea');
+            ta.className = 'input mono';
+            ta.rows = 6;
+            ta.dataset.jkey = key;
+            ta.value = JSON.stringify(val, null, 2);
+            section.appendChild(ta);
+          }
+          visualEl.appendChild(section);
+        }
+      }
+
+      // ---- 可视化收集 ----
+      function collectVisual() {
+        const obj = {};
+        const bad = [];
+        visualEl.querySelectorAll('.lang-group').forEach((g) => {
+          const key = g.dataset.key;
+          const o = {};
+          g.querySelectorAll('.lang-field').forEach((f) => {
+            const lang = f.dataset.lang;
+            const t = f.dataset.type;
+            const wasPresent = orig[key].langs.has(lang);
+            if (t === 'boolean') {
+              o[lang] = f.querySelector('input').checked;
+            } else if (t === 'number') {
+              const s = f.querySelector('input').value;
+              if (s === '') {
+                if (!wasPresent) return;
+                o[lang] = orig[key].values[lang];
+              } else {
+                const n = Number(s);
+                if (Number.isNaN(n)) { bad.push(key + '.' + lang); return; }
+                o[lang] = n;
+              }
+            } else if (t === 'json') {
+              const s = f.querySelector('textarea').value;
+              if (s.trim() === '' && !wasPresent) return;
+              try { o[lang] = JSON.parse(s); }
+              catch { bad.push(key + '.' + lang); }
+            } else {
+              const el = f.querySelector('input, textarea');
+              const s = el.value;
+              if (s === '' && !wasPresent) return;
+              o[lang] = s;
+            }
+          });
+          obj[key] = o;
+        });
+        visualEl.querySelectorAll('[data-jkey]').forEach((ta) => {
+          const key = ta.dataset.jkey;
+          try { obj[key] = JSON.parse(ta.value); }
+          catch { bad.push(key); }
+        });
+        return { obj, bad };
+      }
+
+      async function putContent(content, statusEl) {
+        const r = await fetch('/api/data/' + encodeURIComponent(name), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, sha }),
+        });
+        return r.json();
+      }
+
+      async function refreshAfterSave(res, statusEl) {
+        if (!res.ok) return false;
+        statusEl.textContent = '已保存 ✓';
+        const cur = await (await fetch('/api/data/' + encodeURIComponent(name))).json();
+        if (cur.ok && !cur.data.parseError) {
+          sha = cur.data.sha;
+          rawEl.value = cur.data.raw;
+          parsed = cur.data.parsed || {};
+          renderVisual();
+        }
+        setTimeout(() => { statusEl.textContent = ''; }, 2000);
+        return true;
+      }
+
+      document.getElementById('save-visual').addEventListener('click', async () => {
+        const statusEl = document.getElementById('visual-status');
+        const { obj, bad } = collectVisual();
+        if (bad.length) {
+          alert('以下字段解析失败，请检查：\n' + bad.join('\n'));
+          return;
+        }
+        const text = JSON.stringify(obj, null, 2);
+        // 本地 jsonc 校验（理论上必过，防万一）
+        const errs = [];
+        parse(text, errs, { allowTrailingComma: true });
+        if (errs.length) {
+          alert('本地 JSONC 校验失败，保存已中止');
+          return;
+        }
+        statusEl.textContent = '保存中…';
+        const res = await putContent(text, statusEl);
+        if (!res.ok) {
+          statusEl.textContent = '';
+          alert('保存失败：' + res.error);
+          return;
+        }
+        refreshAfterSave(res, statusEl);
+      });
+
+      // ---- 原始文本 ----
+      const errBox = document.getElementById('raw-errors');
+      document.getElementById('save-raw').addEventListener('click', async () => {
+        const statusEl = document.getElementById('raw-status');
+        errBox.classList.add('hidden');
+        errBox.innerHTML = '';
+        statusEl.textContent = '保存中…';
+        const res = await putContent(rawEl.value, statusEl);
+        if (!res.ok) {
+          statusEl.textContent = '';
+          if (res.parseErrors && res.parseErrors.length) {
+            errBox.innerHTML = '<strong>JSONC 语法错误，保存已中止：</strong><ul>' +
+              res.parseErrors.map((e) =>
+                `<li>第 ${e.line} 行第 ${e.character} 列：${esc(e.message)}</li>`).join('') +
+              '</ul>';
+            errBox.classList.remove('hidden');
+          } else {
+            alert('保存失败：' + res.error);
+          }
+          return;
+        }
+        refreshAfterSave(res, statusEl);
+      });
+
+      // ---- tabs ----
+      function switchTab(which) {
+        document.querySelectorAll('.tab').forEach((t) =>
+          t.classList.toggle('active', t.dataset.tab === which));
+        document.getElementById('tab-visual').classList.toggle('hidden', which !== 'visual');
+        document.getElementById('tab-raw').classList.toggle('hidden', which !== 'raw');
+      }
+      document.querySelectorAll('.tab').forEach((t) =>
+        t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+      load();
+    }
+  </script>
+
+  <style is:global>
+    /* 变量编辑器特有：语言分组（JS 动态渲染，需全局选择器） */
+    .kv { margin-bottom: 12px; }
+    .kv h3 { margin: 0 0 12px; font-size: 14px; }
+    .lang-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .lang-field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .lang-field .lcode { color: var(--muted); font-weight: 400; font-size: 12px; }
+    .lang-field input[type="checkbox"] { width: 22px; height: 22px; margin-top: 6px; }
+    @media (max-width: 640px) { .lang-group { grid-template-columns: 1fr; } }
+  </style>
+</AdminLayout>

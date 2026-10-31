@@ -7,12 +7,12 @@ interface Props {
 const { title = '管理后台', active = '' } = Astro.props;
 
 const nav = [
-  { key: 'posts', label: '文章', href: '/admin/posts' },
-  { key: 'notes', label: '随记', href: '/admin/notes' },
-  { key: 'pages', label: '页面', href: '/admin/pages' },
-  { key: 'data', label: '变量', href: '/admin/data' },
-  { key: 'images', label: '图床', href: '/admin/images' },
-  { key: 'settings', label: '设置', href: '/admin/settings' },
+  { key: 'posts', label: '文章', href: '/posts' },
+  { key: 'notes', label: '随记', href: '/notes' },
+  { key: 'pages', label: '页面', href: '/pages' },
+  { key: 'data', label: '变量', href: '/data' },
+  { key: 'images', label: '图床', href: '/images' },
+  { key: 'settings', label: '设置', href: '/settings' },
 ];
 ---
 
@@ -107,7 +107,7 @@ const nav = [
         white-space: nowrap; text-decoration: none; color: var(--text); flex-shrink: 0;
       }
       .nav {
-        display: flex; gap: 2px; flex: 1; overflow-x: auto;
+        display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto;
         scrollbar-width: none; -webkit-overflow-scrolling: touch;
       }
       .nav::-webkit-scrollbar { display: none; }
@@ -123,13 +123,13 @@ const nav = [
         color: var(--accent); font-weight: 700;
       }
       .theme-toggle {
-        width: 40px; height: 40px; flex-shrink: 0;
+        height: 36px; padding: 0 14px; flex-shrink: 0;
         display: inline-flex; align-items: center; justify-content: center;
         border: 1px solid var(--line); background: var(--surface); color: var(--text);
-        border-radius: 50%; cursor: pointer; font-size: 17px; line-height: 1;
-        transition: transform 0.25s ease, border-color 0.2s ease, background-color 0.3s ease;
+        border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 600; line-height: 1;
+        transition: border-color 0.2s ease, background-color 0.3s ease, color 0.2s ease;
       }
-      .theme-toggle:hover { border-color: var(--accent); transform: rotate(20deg); }
+      .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
 
       /* ============ 内容区 ============ */
       .content { max-width: 1080px; margin: 0 auto; padding: 26px 20px 64px; }
@@ -159,6 +159,11 @@ const nav = [
       .module-card .desc { font-size: 13px; color: var(--muted); line-height: 1.6; margin: 0; }
 
       /* ============ 按钮 ============ */
+      .tag {
+        display: inline-block; font-size: 11px; font-weight: 600; color: var(--muted);
+        border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px;
+        vertical-align: 1px; margin-left: 6px; white-space: nowrap;
+      }
       .btn {
         display: inline-flex; align-items: center; justify-content: center; gap: 8px;
         min-height: 44px; padding: 11px 24px; border: none; border-radius: 999px;
@@ -337,14 +342,13 @@ const nav = [
   <body>
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand" href="/admin">📝 博客管理</a>
+        <a class="brand" href="/">博客管理</a>
         <nav class="nav">
           {nav.map((item) => (
             <a href={item.href} class={item.key === active ? 'active' : ''}>{item.label}</a>
           ))}
         </nav>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">🌙</button>
-        <button class="btn-ghost btn-sm" id="logout-btn" type="button" style="flex-shrink: 0;">退出</button>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">深色</button>
       </div>
     </header>
     <main class="content">
@@ -354,7 +358,7 @@ const nav = [
       // 主题切换（机制与博客前台一致）
       const themeBtn = document.getElementById('theme-toggle');
       function syncThemeIcon() {
-        if (themeBtn) themeBtn.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+        if (themeBtn) themeBtn.textContent = document.documentElement.classList.contains('dark') ? '浅色' : '深色';
       }
       syncThemeIcon();
       themeBtn?.addEventListener('click', () => {
@@ -368,11 +372,6 @@ const nav = [
         } catch (e) {}
         syncThemeIcon();
         window.__adminThemeT = setTimeout(() => root.classList.remove('theme-changing'), 560);
-      });
-      // 退出登录
-      document.getElementById('logout-btn')?.addEventListener('click', async () => {
-        try { await fetch('/api/auth/logout', { method: 'POST' }); }
-        finally { location.href = '/login'; }
       });
     </script>
   </body>

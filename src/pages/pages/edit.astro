@@ -1,0 +1,86 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+
+export const prerender = false;
+
+const slug = Astro.url.searchParams.get('slug') ?? '';
+const valid = /^[A-Za-z0-9_-]+$/.test(slug);
+---
+
+<AdminLayout title="编辑页面" active="pages">
+  <h1 class="page-title">编辑页面</h1>
+
+  {!valid && (
+    <div class="card"><p style="color: #dc2626;">slug 不合法。</p><a href="/pages">← 返回列表</a></div>
+  )}
+
+  {valid && (
+    <div id="app" data-slug={slug}>
+      <div class="card" style="margin-bottom: 16px;">
+        <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">
+          文件：<code id="file-name"></code> · 访问路径：<code id="page-url"></code>
+        </div>
+        <p style="font-size: 13px; color: var(--muted); margin: 0;">
+          注意：下面是 <strong>.astro 源码</strong>，直接编辑代码。语法错误会导致页面构建失败，请谨慎修改。
+        </p>
+      </div>
+
+      <div class="card" style="margin-bottom: 16px;">
+        <textarea id="f-content" class="input mono" rows="28" spellcheck="false"></textarea>
+      </div>
+
+      <div class="actions">
+        <button id="save-btn" class="btn" type="button">保存</button>
+        <a class="link" href="/pages">← 返回列表</a>
+        <span id="save-status" class="status"></span>
+      </div>
+    </div>
+  )}
+
+  <script>
+    const app = document.getElementById('app');
+    if (app) {
+      const slug = app.dataset.slug;
+      const contentEl = document.getElementById('f-content');
+      const statusEl = document.getElementById('save-status');
+      let sha = '';
+
+      document.getElementById('file-name').textContent = `src/pages/${slug}.astro`;
+      document.getElementById('page-url').textContent = `/${slug}`;
+
+      async function load() {
+        statusEl.textContent = '加载中…';
+        const r = await fetch('/api/pages/' + encodeURIComponent(slug));
+        const res = await r.json();
+        if (!res.ok) {
+          statusEl.textContent = '加载失败：' + res.error;
+          return;
+        }
+        sha = res.data.sha;
+        contentEl.value = res.data.content || '';
+        statusEl.textContent = '';
+      }
+
+      document.getElementById('save-btn').addEventListener('click', async () => {
+        statusEl.textContent = '保存中…';
+        const r = await fetch('/api/pages/' + encodeURIComponent(slug), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: contentEl.value, sha }),
+        });
+        const res = await r.json();
+        if (!res.ok) {
+          statusEl.textContent = '';
+          alert('保存失败：' + res.error);
+          return;
+        }
+        statusEl.textContent = '已保存 ✓';
+        const cur = await (await fetch('/api/pages/' + encodeURIComponent(slug))).json();
+        if (cur.ok) sha = cur.data.sha;
+        setTimeout(() => { statusEl.textContent = ''; }, 2000);
+      });
+
+      load();
+    }
+  </script>
+</AdminLayout>

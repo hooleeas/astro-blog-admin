@@ -1,6 +1,6 @@
 import type { APIContext } from 'astro';
 import { getFile, putFile, deleteFile } from '../../../lib/github.js';
-import { ok, fail, PAGE_SLUG_RE, type Gh } from '../../../lib/content.js';
+import { ok, fail, PAGE_SLUG_RE, PROTECTED_PAGES, type Gh } from '../../../lib/content.js';
 
 export const prerender = false;
 
@@ -47,10 +47,11 @@ export async function PUT({ locals, params, request }: APIContext) {
   return ok({ slug, file });
 }
 
-/** DELETE /api/pages/[slug] — 删除，body: { sha }（或 ?sha=） */
+/** DELETE /api/pages/[slug] — 删除，body: { sha }（或 ?sha=）；默认页面禁止删除 */
 export async function DELETE({ locals, params, request }: APIContext) {
   const slug = validSlug(params);
   if (!slug) return fail('slug 不合法');
+  if (PROTECTED_PAGES.has(slug)) return fail('默认页面不允许删除', 403);
   let sha = '';
   try {
     const b = await request.json();
