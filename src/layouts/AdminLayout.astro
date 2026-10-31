@@ -292,6 +292,45 @@ const nav = [
         font-size: 14px; color: var(--text); background: var(--surface);
         border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px;
       }
+
+      /* ============ 图床页（JS 动态渲染，需全局选择器；页面级 is:global 会被构建丢弃） ============ */
+        /* 图床页特有（上传结果由 JS 动态渲染，需全局选择器） */
+        .dropzone {
+          border: 2px dashed var(--line); border-radius: var(--radius-lg);
+          padding: 44px 20px; text-align: center; cursor: pointer;
+          background: var(--surface);
+          transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+        }
+        .dropzone:hover, .dropzone.dragover {
+          border-color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+        }
+        .dropzone:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 2px; }
+        .dz-main { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+        .dz-link { color: var(--accent); font-weight: 700; }
+        .dz-sub { margin: 0; color: var(--muted); font-size: 13px; }
+        .progress-wrap { margin-top: 16px; }
+        .progress-bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.2s ease; }
+        .progress-text { color: var(--muted); font-size: 13px; margin: 6px 0 0; overflow-wrap: anywhere; }
+        .results { margin-top: 20px; display: grid; gap: 12px; }
+        .result-card {
+          display: flex; gap: 14px; align-items: center; background: var(--surface);
+          border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
+          transition: border-color 0.2s ease, background-color 0.3s ease;
+        }
+        .result-card img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); flex-shrink: 0; }
+        .result-card .info { flex: 1; min-width: 0; }
+        .result-card .name { font-size: 13px; color: var(--muted); margin: 0 0 4px; overflow-wrap: anywhere; }
+        .result-card .url { font-size: 13px; margin: 0 0 10px; overflow-wrap: anywhere; word-break: break-all; }
+        .result-card .url a { color: var(--accent); }
+        .result-card .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+        @media (max-width: 640px) {
+          .dropzone { padding: 32px 16px; }
+          .result-card { flex-wrap: wrap; }
+          .result-card .info { flex: 1 1 100%; }
+          .result-card .btns .btn { flex: 1; }
+        }
       .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
       .inline-form { display: flex; gap: 10px; align-items: stretch; }
       .inline-form .input { flex: 1; min-width: 0; }
