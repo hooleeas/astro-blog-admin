@@ -37,6 +37,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       password?: unknown;
       dir?: unknown;
       publicBaseUrl?: unknown;
+      webp?: unknown;
     } | null;
     if (!body || typeof body !== 'object') {
       return json({ ok: false, error: '请求体必须是 JSON' }, 400);
@@ -73,6 +74,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       password,
       dir,
       publicBaseUrl: publicBaseUrl.replace(/\/+$/, ''),
+      webp: body.webp !== false,
     });
     return json({ ok: true });
   } catch (e) {

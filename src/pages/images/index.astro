@@ -13,7 +13,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 
   <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择图片上传">
     <p class="dz-main">把图片拖到这里，或 <span class="dz-link">点击选择</span></p>
-    <p class="dz-sub">支持 png / jpg / jpeg / gif / webp / svg / avif，单个不超过 10MB</p>
+    <p class="dz-sub">支持 png / jpg / jpeg / gif / webp / svg / avif，单个不超过 10MB；PNG / JPG 默认在浏览器端转为 WebP（可在设置页关闭）</p>
     <input id="file-input" type="file" accept="image/*" multiple hidden />
   </div>
 
@@ -103,9 +103,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       document.body.removeChild(ta);
     }
 
-    // 页面加载时检查是否已配置 WebDAV
+    // 页面加载时检查是否已配置 WebDAV，并读取 webp 开关
+    let webpEnabled = true;
     fetch('/api/settings').then(r => r.json()).then(res => {
-      if (!res.ok) warn.hidden = false;
+      if (!res.ok) { warn.hidden = false; return; }
+      webpEnabled = res.data.webp !== false;
     }).catch(() => { warn.hidden = false; });
 
     dropzone.addEventListener('click', () => fileInput.click());
@@ -128,9 +130,33 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       if (files.length) uploadAll(files);
     });
 
+    const CONVERTIBLE = ['image/png', 'image/jpeg'];
+
+    // PNG/JPG 在浏览器端转 WebP（canvas），保持原文件名、后缀换 .webp
+    async function maybeToWebp(file) {
+      if (!webpEnabled || !CONVERTIBLE.includes(file.type)) return file;
+      try {
+        const bitmap = await createImageBitmap(file);
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        const blob = await new Promise((res) => canvas.toBlob(res, 'image/webp', 0.92));
+        if (!blob) return file;
+        const name = file.name.replace(/\.[^.]+$/, '') + '.webp';
+        return new File([blob], name, { type: 'image/webp' });
+      } catch {
+        return file; // 转换失败则原图上传
+      }
+    }
+
     async function uploadAll(files) {
       for (const f of files) {
-        await uploadOne(f);
+        progressText.textContent = '处理中：' + f.name;
+        const ready = await maybeToWebp(f);
+        await uploadOne(ready);
       }
     }
 

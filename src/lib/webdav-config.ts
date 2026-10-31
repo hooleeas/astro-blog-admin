@@ -7,6 +7,8 @@ export interface WebdavConfig {
   password: string;
   dir: string;
   publicBaseUrl: string;
+  /** 是否上传时转 WebP（默认 true，可在设置页开关） */
+  webp: boolean;
 }
 
 export interface WebdavConfigPublic {
@@ -16,7 +18,12 @@ export interface WebdavConfigPublic {
   publicBaseUrl: string;
   /** 是否已设置密码（只给布尔值，不回显原值） */
   hasPassword: boolean;
+  /** 是否上传时转 WebP */
+  webp: boolean;
 }
+
+/** 图床图片固定存放目录（用户要求：/img/文件名.webp） */
+export const IMG_DIR = 'img';
 
 export interface ConfigError {
   status: number;
@@ -63,13 +70,14 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
     password: String(parsed.password || ''),
     dir: String(parsed.dir || '').replace(/^\/+|\/+$/g, ''),
     publicBaseUrl: String(parsed.publicBaseUrl || '').replace(/\/+$/, ''),
+    webp: parsed.webp !== false,
   };
 }
 
 /** 写 WebDAV 配置到 KV。password 由调用方决定（空则调用方先填入旧值）。 */
 export async function saveWebdavConfig(
   locals: unknown,
-  cfg: { url: string; username: string; password: string; dir: string; publicBaseUrl: string },
+  cfg: { url: string; username: string; password: string; dir: string; publicBaseUrl: string; webp: boolean },
 ): Promise<void> {
   const kv = getKV(locals);
   await kv.put(
@@ -80,6 +88,7 @@ export async function saveWebdavConfig(
       password: cfg.password,
       dir: cfg.dir,
       publicBaseUrl: cfg.publicBaseUrl,
+      webp: cfg.webp,
       updatedAt: new Date().toISOString(),
     }),
   );
@@ -93,6 +102,7 @@ export function toPublic(cfg: WebdavConfig): WebdavConfigPublic {
     dir: cfg.dir,
     publicBaseUrl: cfg.publicBaseUrl,
     hasPassword: cfg.password.length > 0,
+    webp: cfg.webp,
   };
 }
 
@@ -102,6 +112,5 @@ export function toPublic(cfg: WebdavConfig): WebdavConfigPublic {
  */
 export function buildPublicUrl(cfg: WebdavConfig, filename: string): string {
   const base = cfg.publicBaseUrl || cfg.url;
-  const dir = cfg.dir ? `/${cfg.dir}` : '';
-  return `${base}${dir}/${filename}`;
+  return `${base}/${IMG_DIR}/${filename}`;
 }

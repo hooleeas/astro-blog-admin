@@ -22,10 +22,15 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       <input class="input" id="password" name="password" type="password" placeholder="未设置" />
       <span class="hint">留空则保留已保存的密码，不会清空</span>
     </label>
-    <label class="field">
+    <div class="field">
       <span class="flabel">上传目录</span>
-      <input class="input" name="dir" type="text" placeholder="blog-images" />
-      <span class="hint">图片存到 WebDAV 下的哪个目录，留空则放根目录</span>
+      <div class="static-note"><code class="mono">/img/</code></div>
+      <span class="hint">图片统一存放于 WebDAV 的 /img/ 目录</span>
+    </div>
+    <label class="field check-field">
+      <input type="checkbox" name="webp" checked />
+      <span class="flabel">上传时转换为 WebP</span>
+      <span class="hint">开启后，PNG / JPG 图片在上传前会在浏览器端转为 WebP（文件名后缀 .webp）；GIF / SVG / AVIF / WebP 本身不受影响</span>
     </label>
     <label class="field">
       <span class="flabel">公开访问地址</span>
@@ -57,7 +62,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         const d = res.data;
         form.url.value = d.url || '';
         form.username.value = d.username || '';
-        form.dir.value = d.dir || '';
+        form.webp.checked = d.webp !== false;
         form.publicBaseUrl.value = d.publicBaseUrl || '';
         passwordInput.placeholder = d.hasPassword ? '已设置（留空保留原密码）' : '未设置';
       }
@@ -70,7 +75,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         url: form.url.value.trim(),
         username: form.username.value.trim(),
         password: passwordInput.value,
-        dir: form.dir.value.trim(),
+        webp: form.webp.checked,
         publicBaseUrl: form.publicBaseUrl.value.trim(),
       };
       try {
