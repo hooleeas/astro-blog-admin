@@ -9,8 +9,8 @@ export const prerender = false;
 
   <div class="card" style="margin-bottom: 16px;">
     <h2 style="font-size: 15px; margin: 0 0 12px;">新建随记</h2>
-    <div style="display: flex; gap: 8px;">
-      <input id="new-slug" class="input" placeholder="输入标题或 slug，如：今日随想" style="flex: 1;" />
+    <div class="inline-form">
+      <input id="new-slug" class="input" placeholder="输入标题或 slug，如：今日随想" />
       <button id="new-btn" class="btn" type="button">新建</button>
     </div>
     <p style="font-size: 12px; color: var(--muted); margin: 8px 0 0;">
@@ -61,10 +61,10 @@ export const prerender = false;
       for (const n of notes) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="mono">${esc(n.date || '—')}</td>
-          <td class="mono">${esc(n.file)}</td>
-          <td>${n.draft ? '<span class="badge draft">草稿</span>' : '<span class="badge pub">已发布</span>'}</td>
-          <td style="text-align: right; white-space: nowrap;">
+          <td data-label="日期" class="mono">${esc(n.date || '—')}</td>
+          <td data-label="文件名" class="mono">${esc(n.file)}</td>
+          <td data-label="状态">${n.draft ? '<span class="badge draft">草稿</span>' : '<span class="badge pub">已发布</span>'}</td>
+          <td class="cell-actions no-label">
             <a class="link" href="/admin/notes/edit?file=${encodeURIComponent(n.file)}">编辑</a>
             <button class="link danger" data-del="${esc(n.file)}" type="button">删除</button>
           </td>`;
@@ -108,17 +108,4 @@ export const prerender = false;
 
     load();
   </script>
-
-  <style>
-    .tbl { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
-    .tbl th, .tbl td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; }
-    .tbl th { color: var(--muted); font-weight: 600; font-size: 13px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-    .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; }
-    .badge.draft { background: #fef3c7; color: #92400e; }
-    .badge.pub { background: #dcfce7; color: #166534; }
-    .link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 14px; padding: 4px 6px; text-decoration: none; }
-    .link:hover { text-decoration: underline; }
-    .link.danger { color: #dc2626; }
-  </style>
 </AdminLayout>

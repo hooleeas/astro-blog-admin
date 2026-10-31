@@ -71,9 +71,9 @@ export const prerender = false;
       for (const p of pages) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="mono">${esc(p.slug)}</td>
-          <td class="mono muted">/${esc(p.slug)}</td>
-          <td style="text-align: right; white-space: nowrap;">
+          <td data-label="slug" class="mono">${esc(p.slug)}</td>
+          <td data-label="路径" class="mono" style="color: var(--muted);">/${esc(p.slug)}</td>
+          <td class="cell-actions no-label">
             <a class="link" href="/admin/pages/edit?slug=${encodeURIComponent(p.slug)}">编辑</a>
             <button class="link danger" data-del="${esc(p.slug)}" type="button">删除</button>
           </td>`;
@@ -118,18 +118,4 @@ export const prerender = false;
 
     load();
   </script>
-
-  <style>
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; font-size: 14px; }
-    .form-grid label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
-    .tbl { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
-    .tbl th, .tbl td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; }
-    .tbl th { color: var(--muted); font-weight: 600; font-size: 13px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-    .mono.muted { color: var(--muted); }
-    .link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 14px; padding: 4px 6px; text-decoration: none; }
-    .link:hover { text-decoration: underline; }
-    .link.danger { color: #dc2626; }
-    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
-  </style>
 </AdminLayout>

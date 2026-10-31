@@ -16,27 +16,21 @@ const key = Astro.url.searchParams.get('key') ?? '';
   {key && (
     <div id="app" data-key={key}>
       <div class="card" style="margin-bottom: 16px;">
-        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 200px;">
-            <div style="font-size: 13px; color: var(--muted);">translationKey</div>
-            <div class="mono" id="key-label" style="font-size: 14px;"></div>
-          </div>
-          <button id="del-all-btn" class="btn danger" type="button">删除整篇文章</button>
-        </div>
-        <p style="font-size: 12px; color: var(--muted); margin: 8px 0 0;">
-          删除整篇会同时删除该文章全部语言版本的文件，此操作不可撤销。
-        </p>
+        <div style="font-size: 13px; color: var(--muted);">translationKey</div>
+        <div class="mono" id="key-label" style="font-size: 14px;"></div>
       </div>
 
       <div id="tabs" class="tabs"></div>
       <div id="status" style="font-size: 13px; color: var(--muted); margin-bottom: 12px;">加载中…</div>
       <div id="panel"></div>
 
-      <div style="display: flex; gap: 8px; align-items: center; margin-top: 16px;">
+      <div class="actions">
         <button id="save-btn" class="btn" type="button">保存当前语言</button>
-        <a href="/admin/posts" style="font-size: 14px; color: var(--muted);">← 返回列表</a>
-        <span id="save-status" style="font-size: 13px; color: var(--muted);"></span>
+        <button id="del-all-btn" class="btn btn-danger" type="button">删除整篇文章</button>
+        <a class="link" href="/admin/posts">← 返回列表</a>
+        <span id="save-status" class="status"></span>
       </div>
+      <p class="hint" style="margin-top: 10px;">删除整篇会同时删除该文章全部语言版本的文件，此操作不可撤销。</p>
     </div>
   )}
 
@@ -93,9 +87,9 @@ const key = Astro.url.searchParams.get('key') ?? '';
         const fm = v.frontmatter || {};
         panelEl.innerHTML = `
           <div class="card" style="margin-bottom: 16px;">
-            <div style="font-size: 13px; color: var(--muted); margin-bottom: 12px;">
-              文件：<code>${esc('src/content/posts/' + activeLang + '/' + v.slug + '.md')}</code>
-              <button id="del-lang-btn" class="link danger" type="button" style="margin-left: 12px;">删除此语言版本（慎用）</button>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 13px; color: var(--muted); margin-bottom: 12px;">
+              <span>文件：<code>${esc('src/content/posts/' + activeLang + '/' + v.slug + '.md')}</code></span>
+              <button id="del-lang-btn" class="link danger" type="button">删除此语言版本（慎用）</button>
             </div>
             <div class="form-grid">
               ${field('f-title', '标题（title）*', fm.title)}
@@ -219,25 +213,4 @@ const key = Astro.url.searchParams.get('key') ?? '';
       load();
     }
   </script>
-
-  <style>
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-    .tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-    .tab { border: 1px solid var(--border); background: var(--surface); border-radius: 8px;
-      padding: 8px 14px; font-size: 13px; cursor: pointer; color: var(--muted); }
-    .tab:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
-    .tab.active { background: #eff6ff; border-color: var(--accent); color: var(--accent); font-weight: 600; }
-    .tab.missing { opacity: 0.45; cursor: not-allowed; border-style: dashed; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .form-grid label { display: block; font-size: 13px; color: var(--muted); }
-    .form-grid .input { margin-top: 4px; }
-    .form-grid label.check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 14px; }
-    .form-grid label.check input { width: 18px; height: 18px; }
-    .link.danger { background: none; border: none; color: #dc2626; cursor: pointer; font-size: 12px; padding: 2px 4px; }
-    .link.danger:hover { text-decoration: underline; }
-    .btn.danger { background: #dc2626; }
-    .btn.danger:hover { background: #b91c1c; }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
-  </style>
 </AdminLayout>

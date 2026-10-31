@@ -4,68 +4,41 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 ---
 
 <AdminLayout title="设置" active="settings">
-  <h1>设置</h1>
+  <h1 class="page-title">设置</h1>
   <p class="desc">WebDAV 图床配置保存在服务器 KV 中，不会进入代码仓库。</p>
 
-  <form id="cfg-form" class="form" autocomplete="off">
+  <form id="cfg-form" class="form" autocomplete="off" style="max-width: 560px;">
     <label class="field">
-      <span class="label">WebDAV 地址 <em>*</em></span>
-      <input name="url" type="url" required placeholder="https://openlist.example.com/dav" />
+      <span class="flabel">WebDAV 地址 <em style="color: var(--danger); font-style: normal;">*</em></span>
+      <input class="input" name="url" type="url" required placeholder="https://openlist.example.com/dav" />
       <span class="hint">以 http:// 或 https:// 开头，如 OpenList 的 WebDAV 地址</span>
     </label>
     <label class="field">
-      <span class="label">用户名</span>
-      <input name="username" type="text" placeholder="WebDAV 账号" />
+      <span class="flabel">用户名</span>
+      <input class="input" name="username" type="text" placeholder="WebDAV 账号" />
     </label>
     <label class="field">
-      <span class="label">密码</span>
-      <input id="password" name="password" type="password" placeholder="未设置" />
+      <span class="flabel">密码</span>
+      <input class="input" id="password" name="password" type="password" placeholder="未设置" />
       <span class="hint">留空则保留已保存的密码，不会清空</span>
     </label>
     <label class="field">
-      <span class="label">上传目录</span>
-      <input name="dir" type="text" placeholder="blog-images" />
+      <span class="flabel">上传目录</span>
+      <input class="input" name="dir" type="text" placeholder="blog-images" />
       <span class="hint">图片存到 WebDAV 下的哪个目录，留空则放根目录</span>
     </label>
     <label class="field">
-      <span class="label">公开访问地址</span>
-      <input name="publicBaseUrl" type="url" placeholder="https://img.example.com" />
+      <span class="flabel">公开访问地址</span>
+      <input class="input" name="publicBaseUrl" type="url" placeholder="https://img.example.com" />
       <span class="hint">用户看到的直链前缀；留空则直接用 WebDAV 地址拼接</span>
     </label>
     <div class="actions">
-      <button type="submit" class="btn primary">保存</button>
-      <button type="button" id="test-btn" class="btn">测试连接</button>
+      <button type="submit" class="btn">保存</button>
+      <button type="button" id="test-btn" class="btn btn-ghost">测试连接</button>
     </div>
   </form>
 
   <p id="msg" class="msg" role="status"></p>
-
-  <style>
-    h1 { margin: 0 0 4px; font-size: 22px; }
-    .desc { color: var(--muted); margin: 0 0 20px; }
-    .form { max-width: 560px; display: grid; gap: 16px; }
-    .field { display: grid; gap: 6px; }
-    .label { font-size: 14px; font-weight: 600; }
-    .label em { color: #dc2626; font-style: normal; }
-    .hint { font-size: 12px; color: var(--muted); }
-    input {
-      border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
-      font-size: 14px; background: var(--surface); color: var(--text); width: 100%;
-    }
-    input:focus { outline: none; border-color: var(--accent); }
-    .actions { display: flex; gap: 10px; margin-top: 4px; }
-    .btn {
-      border: 1px solid var(--border); background: var(--surface); color: var(--text);
-      border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer;
-    }
-    .btn:hover { border-color: var(--accent); color: var(--accent); }
-    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .btn.primary:hover { background: var(--accent-hover); color: #fff; }
-    .btn:disabled { opacity: .6; cursor: default; }
-    .msg { margin-top: 16px; font-size: 14px; min-height: 20px; }
-    .msg.ok { color: #15803d; }
-    .msg.err { color: #dc2626; }
-  </style>
 
   <script>
     const form = document.getElementById('cfg-form');

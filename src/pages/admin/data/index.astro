@@ -25,18 +25,4 @@ const files = [
   <p style="font-size: 13px; color: var(--muted); margin-top: 16px;">
     保存时服务端会用 jsonc-parser 校验语法，语法错误将拒绝保存并指出位置。
   </p>
-
-  <style>
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-    .module-card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 20px; text-decoration: none; color: var(--text);
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    .module-card:hover { border-color: #bfdbfe; box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08); }
-    .title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-    .desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
-    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
-  </style>
 </AdminLayout>

@@ -29,10 +29,10 @@ const valid = /^[A-Za-z0-9_-]+$/.test(slug);
         <textarea id="f-content" class="input mono" rows="28" spellcheck="false"></textarea>
       </div>
 
-      <div style="display: flex; gap: 8px; align-items: center;">
+      <div class="actions">
         <button id="save-btn" class="btn" type="button">保存</button>
-        <a href="/admin/pages" style="font-size: 14px; color: var(--muted);">← 返回列表</a>
-        <span id="save-status" style="font-size: 13px; color: var(--muted);"></span>
+        <a class="link" href="/admin/pages">← 返回列表</a>
+        <span id="save-status" class="status"></span>
       </div>
     </div>
   )}
@@ -83,9 +83,4 @@ const valid = /^[A-Za-z0-9_-]+$/.test(slug);
       load();
     }
   </script>
-
-  <style>
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    textarea.mono { line-height: 1.6; resize: vertical; font-size: 13px; tab-size: 2; }
-  </style>
 </AdminLayout>

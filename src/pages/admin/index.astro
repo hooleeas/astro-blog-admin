@@ -25,34 +25,3 @@ const modules = [
     ))}
   </div>
 </AdminLayout>
-
-<style>
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
-  .module-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 24px 20px;
-    text-decoration: none;
-    color: var(--text);
-    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-  }
-  .module-card:hover {
-    border-color: #bfdbfe;
-    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08);
-    transform: translateY(-2px);
-  }
-  .icon { font-size: 28px; margin-bottom: 10px; }
-  .title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-  .desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
-  @media (max-width: 800px) {
-    .grid { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (max-width: 480px) {
-    .grid { grid-template-columns: 1fr; }
-  }
-</style>

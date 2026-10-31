@@ -35,10 +35,10 @@ const valid = /^[A-Za-z0-9._-]+\.md$/.test(file);
         <textarea id="f-body" class="input mono" rows="24" placeholder="随记正文…"></textarea>
       </div>
 
-      <div style="display: flex; gap: 8px; align-items: center;">
+      <div class="actions">
         <button id="save-btn" class="btn" type="button">保存</button>
-        <a href="/admin/notes" style="font-size: 14px; color: var(--muted);">← 返回列表</a>
-        <span id="save-status" style="font-size: 13px; color: var(--muted);"></span>
+        <a class="link" href="/admin/notes">← 返回列表</a>
+        <span id="save-status" class="status"></span>
       </div>
     </div>
   )}
@@ -102,14 +102,4 @@ const valid = /^[A-Za-z0-9._-]+\.md$/.test(file);
       load();
     }
   </script>
-
-  <style>
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 14px; }
-    .form-grid label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
-    .form-grid label.check { flex-direction: row; align-items: center; gap: 8px; }
-    .form-grid input[type="checkbox"] { width: 18px; height: 18px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    textarea.mono { line-height: 1.6; resize: vertical; }
-    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
-  </style>
 </AdminLayout>

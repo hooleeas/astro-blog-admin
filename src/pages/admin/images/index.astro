@@ -4,7 +4,7 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 ---
 
 <AdminLayout title="图床" active="images">
-  <h1>图床</h1>
+  <h1 class="page-title">图床</h1>
   <p class="desc">图片上传到你自己的 WebDAV（如 OpenList），返回可直接引用的直链。</p>
 
   <div id="cfg-warn" class="warn" hidden>
@@ -24,49 +24,44 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 
   <div id="results" class="results"></div>
 
-  <style>
-    h1 { margin: 0 0 4px; font-size: 22px; }
-    .desc { color: var(--muted); margin: 0 0 16px; }
-    .warn {
-      background: #fef3c7; border: 1px solid #f59e0b; color: #92400e;
-      border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px;
-    }
-    .warn a { color: #b45309; font-weight: 600; }
+  <style is:global>
+    /* 图床页特有（上传结果由 JS 动态渲染，需全局选择器） */
     .dropzone {
-      border: 2px dashed var(--border); border-radius: var(--radius);
-      padding: 40px 20px; text-align: center; cursor: pointer;
-      background: var(--surface); transition: border-color .15s, background .15s;
+      border: 2px dashed var(--line); border-radius: var(--radius-lg);
+      padding: 44px 20px; text-align: center; cursor: pointer;
+      background: var(--surface);
+      transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
     }
-    .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: #eff6ff; }
-    .dz-main { margin: 0 0 6px; font-size: 16px; }
-    .dz-link { color: var(--accent); font-weight: 600; }
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+    }
+    .dropzone:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 2px; }
+    .dz-main { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+    .dz-link { color: var(--accent); font-weight: 700; }
     .dz-sub { margin: 0; color: var(--muted); font-size: 13px; }
     .progress-wrap { margin-top: 16px; }
-    .progress-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
-    .progress-fill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
-    .progress-text { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+    .progress-bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.2s ease; }
+    .progress-text { color: var(--muted); font-size: 13px; margin: 6px 0 0; overflow-wrap: anywhere; }
     .results { margin-top: 20px; display: grid; gap: 12px; }
-    .card {
-      display: flex; gap: 12px; align-items: center; background: var(--surface);
-      border: 1px solid var(--border); border-radius: var(--radius); padding: 12px;
+    .result-card {
+      display: flex; gap: 14px; align-items: center; background: var(--surface);
+      border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
+      transition: border-color 0.2s ease, background-color 0.3s ease;
     }
-    .card img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
-    .card .info { flex: 1; min-width: 0; }
-    .card .name { font-size: 13px; color: var(--muted); margin: 0 0 4px; word-break: break-all; }
-    .card .url { font-size: 13px; margin: 0 0 8px; word-break: break-all; }
-    .card .url a { color: var(--accent); }
-    .btns { display: flex; gap: 8px; flex-wrap: wrap; }
-    .btn {
-      border: 1px solid var(--border); background: var(--surface); color: var(--text);
-      border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+    .result-card img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); flex-shrink: 0; }
+    .result-card .info { flex: 1; min-width: 0; }
+    .result-card .name { font-size: 13px; color: var(--muted); margin: 0 0 4px; overflow-wrap: anywhere; }
+    .result-card .url { font-size: 13px; margin: 0 0 10px; overflow-wrap: anywhere; word-break: break-all; }
+    .result-card .url a { color: var(--accent); }
+    .result-card .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    @media (max-width: 640px) {
+      .dropzone { padding: 32px 16px; }
+      .result-card { flex-wrap: wrap; }
+      .result-card .info { flex: 1 1 100%; }
+      .result-card .btns .btn { flex: 1; }
     }
-    .btn:hover { border-color: var(--accent); color: var(--accent); }
-    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .btn.primary:hover { background: var(--accent-hover); }
-    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background: #1f2430; color: #fff; padding: 10px 18px; border-radius: 8px;
-      font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 99; }
-    .toast.show { opacity: 1; }
   </style>
 
   <div id="toast" class="toast"></div>
@@ -178,7 +173,7 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 
     function addResult(url, filename) {
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'result-card';
       const md = '![](' + url + ')';
 
       const img = document.createElement('img');
@@ -200,10 +195,10 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
       const btns = document.createElement('div');
       btns.className = 'btns';
       const b1 = document.createElement('button');
-      b1.className = 'btn primary'; b1.textContent = '复制链接';
+      b1.className = 'btn btn-sm'; b1.textContent = '复制链接';
       b1.addEventListener('click', () => copyText(url, '链接'));
       const b2 = document.createElement('button');
-      b2.className = 'btn'; b2.textContent = '复制 Markdown';
+      b2.className = 'btn btn-ghost btn-sm'; b2.textContent = '复制 Markdown';
       b2.addEventListener('click', () => copyText(md, 'Markdown 片段'));
       btns.append(b1, b2);
 
