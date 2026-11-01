@@ -97,6 +97,7 @@ const nav = [
       }
       .topbar-inner {
         isolation: isolate;
+        position: relative;
         height: 64px;
         width: min(1080px, calc(100% - 32px));
         margin: 4px auto 10px; padding: 0 22px;
@@ -115,42 +116,43 @@ const nav = [
         backdrop-filter: blur(10px) saturate(100%);
       }
       .brand {
-        font-weight: 800; font-size: 16px; letter-spacing: -0.02em;
+        font-weight: 800; font-size: 1.55rem; letter-spacing: -0.02em;
         white-space: nowrap; text-decoration: none; color: var(--text); flex-shrink: 0;
       }
       .nav {
-        display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto;
-        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+        position: absolute; left: 50%; transform: translateX(-50%);
+        display: flex; align-items: center; gap: 10px; white-space: nowrap;
       }
-      .nav::-webkit-scrollbar { display: none; }
       .nav a {
-        display: inline-flex; align-items: center; min-height: 40px; padding: 8px 14px;
-        border-radius: 999px; text-decoration: none; color: var(--muted);
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 36px; padding: 8px 18px;
+        border-radius: 999px; text-decoration: none; color: var(--text);
         font-size: 14px; white-space: nowrap; flex-shrink: 0;
         transition: background-color 0.2s ease, color 0.2s ease;
       }
-      .nav a:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+      .nav a:hover { background: rgba(23, 25, 28, 0.10); color: var(--text); }
+      :root.dark .nav a:hover { background: rgba(255, 255, 255, 0.14); }
       .nav a.active {
         background: color-mix(in srgb, var(--accent) 13%, transparent);
         color: var(--accent); font-weight: 700;
       }
       .theme-toggle {
-        height: 36px; padding: 0 14px; flex-shrink: 0;
-        display: inline-flex; align-items: center; justify-content: center;
+        width: 36px; height: 36px; flex-shrink: 0;
+        display: grid; place-items: center;
         border: 1px solid var(--line); background: var(--surface); color: var(--text);
-        border-radius: 999px; cursor: pointer; font-size: 13px; font-weight: 600; line-height: 1;
-        transition: border-color 0.2s ease, background-color 0.3s ease, color 0.2s ease;
+        border-radius: 50%; cursor: pointer; font-size: 18px; line-height: 1;
+        transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
       }
-      .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+      .theme-toggle:hover { background: rgba(23, 25, 28, 0.10); border-color: var(--accent); color: var(--accent); }
+      :root.dark .theme-toggle:hover { background: rgba(255, 255, 255, 0.14); }
+      .topbar-inner > .theme-toggle { margin-left: auto; }
 
       /* ============ 移动端汉堡导航（照搬博客前台） ============ */
       .mobile-menu-toggle, .mobile-nav-backdrop, .nav-drawer { display: none; }
 
       @media (max-width: 760px) {
         .topbar .nav { display: none; }
-        .topbar .theme-toggle {
-          margin-left: auto; height: 34px; padding: 0 12px; font-size: 13px;
-        }
+        .topbar .theme-toggle { margin-left: auto; width: 38px; height: 38px; font-size: 19px; }
 
         .mobile-menu-toggle {
           display: grid; flex: 0 0 38px; gap: 5px; place-content: center;
@@ -180,7 +182,7 @@ const nav = [
 
         .nav-drawer {
           display: flex; flex-direction: column; align-items: stretch;
-          position: fixed; top: 68px; right: 12px; z-index: 120;
+          position: fixed; top: 92px; right: 16px; z-index: 120;
           width: min(60vw, 220px); height: auto;
           margin: 0; padding: 8px;
           border: 1px solid var(--line); border-radius: 20px;
@@ -517,7 +519,7 @@ const nav = [
             <a href={item.href} class={item.key === active ? 'active' : ''}>{item.label}</a>
           ))}
         </nav>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">深色</button>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">◐</button>
         <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-label="打开导航菜单" aria-expanded="false">
           <span></span><span></span><span></span>
         </button>
@@ -535,11 +537,7 @@ const nav = [
     <script>
       // 主题切换（机制与博客前台一致）
       const themeBtn = document.getElementById('theme-toggle');
-      function syncThemeText() {
-        if (!themeBtn) return;
-        themeBtn.textContent = document.documentElement.classList.contains('dark') ? '浅色' : '深色';
-      }
-      syncThemeText();
+      function syncThemeText() { /* 图标固定为 ◐，与博客前台一致，无需切换文字 */ }
       themeBtn?.addEventListener('click', () => {
         const root = document.documentElement;
         clearTimeout(window.__adminThemeT);
