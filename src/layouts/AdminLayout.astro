@@ -136,13 +136,15 @@ const nav = [
 
       @media (max-width: 760px) {
         .topbar .nav { display: none; }
-        .topbar .theme-toggle { display: none; }
+        .topbar .theme-toggle {
+          margin-left: auto; height: 34px; padding: 0 12px; font-size: 13px;
+        }
 
         .mobile-menu-toggle {
           display: grid; flex: 0 0 38px; gap: 5px; place-content: center;
           width: 38px; height: 38px; border: 0; border-radius: 50%;
           background: transparent; color: var(--text); cursor: pointer;
-          position: relative; flex-shrink: 0; margin-left: auto;
+          position: relative; flex-shrink: 0;
           transition: background-color 0.35s ease;
           -webkit-tap-highlight-color: transparent;
           touch-action: manipulation; user-select: none; -webkit-user-select: none;
@@ -166,17 +168,17 @@ const nav = [
 
         .nav-drawer {
           display: flex; flex-direction: column; align-items: stretch;
-          position: fixed; top: 0; right: 0; z-index: 120;
-          width: min(82vw, 320px); height: 100dvh;
-          margin: 0; padding: 78px 20px 24px;
-          border-left: 1px solid var(--line);
+          position: fixed; top: 68px; right: 12px; z-index: 120;
+          width: min(60vw, 220px); height: auto;
+          margin: 0; padding: 8px;
+          border: 1px solid var(--line); border-radius: 20px;
           background: color-mix(in srgb, var(--surface) 82%, transparent);
           -webkit-backdrop-filter: blur(10px) saturate(180%);
           backdrop-filter: blur(10px) saturate(180%);
-          box-shadow: -18px 0 40px rgba(0, 0, 0, 0.18);
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
           opacity: 0; visibility: hidden; pointer-events: none;
-          transform: translateX(16px);
-          transition: opacity 0.35s ease, visibility 0.35s ease, transform 0.35s ease;
+          transform: translateY(-8px);
+          transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.25s ease;
         }
         :root.dark .nav-drawer {
           -webkit-backdrop-filter: blur(10px) saturate(100%);
@@ -186,9 +188,9 @@ const nav = [
           opacity: 1; visibility: visible; pointer-events: auto; transform: none;
         }
         .nav-drawer a {
-          display: flex; align-items: center; min-height: 52px;
-          padding: 12px 16px; border-radius: 12px;
-          font-size: 17px; font-weight: 600; color: var(--text); text-decoration: none;
+          display: flex; align-items: center; justify-content: center; min-height: 44px;
+          padding: 10px 16px; border-radius: 12px;
+          font-size: 15px; font-weight: 600; color: var(--text); text-decoration: none;
           transition: background-color 0.2s ease, color 0.2s ease;
         }
         .nav-drawer a:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
@@ -196,7 +198,6 @@ const nav = [
           background: color-mix(in srgb, var(--accent) 13%, transparent);
           color: var(--accent);
         }
-        .nav-drawer .drawer-theme { margin-top: 16px; min-height: 48px; font-size: 15px; }
 
         .mobile-nav-backdrop {
           position: fixed; z-index: 110; inset: 0; display: block;
@@ -514,24 +515,20 @@ const nav = [
       {nav.map((item) => (
         <a href={item.href} class={item.key === active ? 'active' : ''}>{item.label}</a>
       ))}
-      <button class="theme-toggle drawer-theme" id="theme-toggle-drawer" type="button" aria-label="切换深色模式">深色</button>
     </nav>
     <div class="mobile-nav-backdrop" id="mobile-nav-backdrop"></div>
     <main class="content">
       <slot />
     </main>
     <script>
-      // 主题切换（机制与博客前台一致；顶栏与抽屉各一个按钮，保持同步）
-      const themeBtns = [
-        document.getElementById('theme-toggle'),
-        document.getElementById('theme-toggle-drawer'),
-      ].filter(Boolean);
+      // 主题切换（机制与博客前台一致）
+      const themeBtn = document.getElementById('theme-toggle');
       function syncThemeText() {
-        const label = document.documentElement.classList.contains('dark') ? '浅色' : '深色';
-        themeBtns.forEach((b) => { b.textContent = label; });
+        if (!themeBtn) return;
+        themeBtn.textContent = document.documentElement.classList.contains('dark') ? '浅色' : '深色';
       }
       syncThemeText();
-      themeBtns.forEach((btn) => btn.addEventListener('click', () => {
+      themeBtn?.addEventListener('click', () => {
         const root = document.documentElement;
         clearTimeout(window.__adminThemeT);
         root.classList.add('theme-changing');
@@ -542,7 +539,7 @@ const nav = [
         } catch (e) {}
         syncThemeText();
         window.__adminThemeT = setTimeout(() => root.classList.remove('theme-changing'), 560);
-      }));
+      });
 
       // 移动端汉堡导航（照搬博客前台）
       const menuBtn = document.getElementById('mobile-menu-toggle');
