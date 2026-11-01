@@ -99,7 +99,7 @@ const nav = [
         isolation: isolate;
         position: relative;
         height: 64px;
-        width: min(1080px, calc(100% - 32px));
+        width: min(1320px, calc(100% - 40px));
         margin: 4px auto 10px; padding: 0 22px;
         display: flex; align-items: center; gap: 8px;
         border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
@@ -224,7 +224,7 @@ const nav = [
       }
 
       /* ============ 内容区 ============ */
-      .content { max-width: 1080px; margin: 0 auto; padding: 16px 20px 64px; }
+      .content { width: min(1320px, calc(100% - 40px)); margin: 0 auto; padding: 16px 0 64px; }
       .page-title { font-size: 24px; font-weight: 800; margin: 0 0 18px; letter-spacing: -0.02em; }
       .desc { color: var(--muted); margin: 0 0 18px; font-size: 14px; line-height: 1.7; }
 
