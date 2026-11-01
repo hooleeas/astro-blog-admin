@@ -92,15 +92,27 @@ const nav = [
 
       /* ============ 顶栏 ============ */
       .topbar {
-        position: sticky; top: 0; z-index: 50;
-        background: color-mix(in srgb, var(--surface) 88%, transparent);
-        backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-        border-bottom: 1px solid var(--line);
-        transition: background-color 0.3s ease, border-color 0.3s ease;
+        position: sticky; top: 16px; z-index: 100;
+        border: 0; background: transparent;
       }
       .topbar-inner {
-        max-width: 1080px; margin: 0 auto; padding: 0 16px; height: 60px;
+        isolation: isolate;
+        height: 64px;
+        width: min(1080px, calc(100% - 32px));
+        margin: 4px auto 10px; padding: 0 22px;
         display: flex; align-items: center; gap: 8px;
+        border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--surface) 82%, transparent);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        backdrop-filter: blur(10px) saturate(180%);
+        box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 20%, transparent), 0 10px 32px rgba(0, 0, 0, 0.16);
+        transition: background-color 0.3s ease, border-color 0.3s ease;
+      }
+      .topbar-inner > * { position: relative; z-index: 1; }
+      :root.dark .topbar-inner {
+        -webkit-backdrop-filter: blur(10px) saturate(100%);
+        backdrop-filter: blur(10px) saturate(100%);
       }
       .brand {
         font-weight: 800; font-size: 16px; letter-spacing: -0.02em;
@@ -210,7 +222,7 @@ const nav = [
       }
 
       /* ============ 内容区 ============ */
-      .content { max-width: 1080px; margin: 0 auto; padding: 26px 20px 64px; }
+      .content { max-width: 1080px; margin: 0 auto; padding: 16px 20px 64px; }
       .page-title { font-size: 24px; font-weight: 800; margin: 0 0 18px; letter-spacing: -0.02em; }
       .desc { color: var(--muted); margin: 0 0 18px; font-size: 14px; line-height: 1.7; }
 
