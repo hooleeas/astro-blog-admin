@@ -1,64 +1,85 @@
 # astro-blog-admin
 
-[astro-blog](https://github.com/hooleeas/astro-blog) 的中文管理后台：管理文章、随记、页面、站点变量与图床。
+[astro-blog](https://github.com/hooleeas/astro-blog) 的管理后台，用于管理文章、随记、页面、站点设置和图床。
 
-- 框架：Astro 5（`output: 'server'`，SSR）
-- 部署目标：Cloudflare Pages（`@astrojs/cloudflare` adapter）
-- 鉴权：GitHub OAuth 登录（仅仓库主人可进），会话为 HMAC-SHA256 签名的 httpOnly cookie，登录拿到的 token 直接用于读写博客仓库
-- 仓库公开，**任何密钥都不得进入代码或提交历史**，一律走环境变量
+- 框架：Astro 5，SSR
+- 云端部署：Cloudflare Pages（`@astrojs/cloudflare` adapter）
+- 云端鉴权：GitHub OAuth，仅 `GITHUB_OWNER` 指定的账号可登录
+- 本地预览：显式开启后，限本机回环地址免登录，内容 API 使用本地文件
+- 仓库公开，**不要把密钥写入代码或提交历史**；本地密钥放在已忽略的 `.dev.vars`，云端密钥放 Cloudflare 环境变量
 
-## 环境变量
+## 本地测试
 
-| 变量 | 必填 | 说明 |
-|---|---|---|
-| `GITHUB_CLIENT_ID` | ✅ | GitHub OAuth App 的 Client ID |
-| `GITHUB_CLIENT_SECRET` | ✅ | GitHub OAuth App 的 Client Secret（只存 Pages 环境变量，不进代码） |
-| `GITHUB_OWNER` | | 允许登录的 GitHub 用户名，默认 `hooleeas` |
-| `GITHUB_REPO` | ✅ | 博客仓库，如 `hooleeas/astro-blog` |
-| `GITHUB_BRANCH` | | 博客仓库分支，默认 `main` |
+需要 Node.js、npm，以及可访问的 WebDAV 服务。后台和博客站点要分别启动：
 
-可选：`ADMIN_KV`（KV 命名空间绑定，当前鉴权不依赖 KV，预留扩展用）。
+### 1. 配置并启动管理后台
 
-## 本地开发
+在管理后台目录执行：
 
 ```bash
-cp .dev.vars.example .dev.vars   # 填写真实值（.dev.vars 已 gitignore，不会提交）
+cd astro-blog-admin
 npm install
-npm run dev
+cp .dev.vars.example .dev.vars
+npm run dev -- --host 127.0.0.1 --port 4321
 ```
 
-打开 http://localhost:4321/login 登录。
+`.dev.vars.example` 已设置 `ADMIN_LOCAL_PREVIEW=true`。此模式仅在开发环境且通过 `localhost`、`127.0.0.1` 或 `::1` 访问时生效，可直接打开 http://127.0.0.1:4321，不需要 GitHub OAuth。不要把本地后台暴露到公网。
+
+本地仍需 `ADMIN_KV` 绑定，用于保存图床的 WebDAV 设置；项目通过 `wrangler.toml` 配置此绑定，Astro/Cloudflare 本地开发时使用本地模拟的 KV。首次使用时打开图床“设置”，填写 WebDAV 地址、账号、密码并测试连接。此配置只保存在本地 KV，不会同步到 Cloudflare。
+
+### 2. 启动博客站点
+
+在另一个终端回到仓库根目录（`astro-blog-admin` 的上一级）：
+
+```bash
+npm install
+npm run dev -- --host 127.0.0.1 --port 4323
+```
+
+`LOCAL_SITE_URL` 默认是 `http://127.0.0.1:4323`。后台通过这个站点预览本地图片；若修改端口，也要同步修改 `.dev.vars` 中的 `LOCAL_SITE_URL`。
+
+### 3. 验证功能
+
+打开 http://127.0.0.1:4321/images 上传图片，然后进入“管理”检查图片列表、搜索、复制链接和删除。图片预览链接应指向 `127.0.0.1:4323/img/...`。
+
+本地预览会将文章、随记、页面和站点设置的编辑直接写入仓库文件；图片原图仍会上传到 WebDAV，同时图片副本写入博客的 `public/img/`。删除图片也会删除 WebDAV 原图和本地副本。因此测试前应确认目标文件和 WebDAV 目录，避免使用真实内容测试删除。
+
+## 环境变量与绑定
+
+| 名称 | 用途 |
+|---|---|
+| `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID；云端登录必填，本地预览不需要 |
+| `GITHUB_CLIENT_SECRET` | OAuth Client Secret，同时用于会话签名；云端必填 |
+| `GITHUB_OWNER` | 唯一允许登录的 GitHub 用户名，默认 `hooleeas` |
+| `GITHUB_REPO` | 博客内容仓库，默认 `hooleeas/astro-blog` |
+| `GITHUB_BRANCH` | 博客仓库分支，默认 `main` |
+| `GITHUB_PAGES_REPO` | 图片发布目标仓库，默认 `hooleeas/hooleeas.github.io` |
+| `GITHUB_PAGES_BRANCH` | 图片发布目标分支，默认 `main` |
+| `ADMIN_LOCAL_PREVIEW` | 本地免登录及本地文件预览开关；本地测试设为 `true`，不要在云端启用 |
+| `LOCAL_SITE_URL` | 本地博客站点地址，默认 `http://127.0.0.1:4323` |
+| `ADMIN_KV` | Cloudflare KV 命名空间绑定；必需，用于保存 WebDAV 配置。项目绑定名为 `ADMIN_KV` |
+
+WebDAV 地址、账号、密码通过图床“设置”保存到当前环境的 KV。**本地 KV 和 Cloudflare KV 相互独立**，需要分别配置。
+
+## 图床
+
+图片统一存放在 WebDAV 的 `/img/` 目录，上传保留原始文件名（开启 WebP 转换时仅将扩展名改为 `.webp`）；遇到同名文件会失败，不覆盖现有文件。
+
+- 本地预览：图片写入博客仓库的 `public/img/`，返回 `LOCAL_SITE_URL` 地址，不会发布到 GitHub Pages 图片仓库。
+- 云端：图片发布到 `GITHUB_PAGES_REPO` 的根目录 `img/`，返回 jsDelivr CDN 地址。
+- “管理”页可查看、搜索、复制链接和删除图片；删除会清理当前环境的站点副本和 WebDAV 原图。
 
 ## 部署到 Cloudflare Pages
 
-1. 在 Cloudflare Dashboard 新建 Pages 项目，连接本仓库。
-2. Build 配置：Framework preset 选 Astro，Build command `npm run build`，Build output directory `dist`。
-3. （可选）如需 KV：创建 KV 命名空间，把 `wrangler.toml` 里 `REPLACE_WITH_KV_ID` 换成真实 id，再提交。
-4. 在 Pages 项目 **Settings → Environment variables**（Production 与 Preview）配置上面表格中的环境变量。
-5. （可选）绑定自定义域名 `admin.hooleeas.com`：Pages 项目 → Custom domains。
+1. 在 Cloudflare Pages 创建项目并连接仓库。若后台位于 `astro-blog-admin` 子目录，设置项目 Root directory 为 `astro-blog-admin`。
+2. Build command 使用 `npm run build`，Build output directory 使用 `dist`。
+3. 确认已绑定 KV 命名空间，binding 名为 `ADMIN_KV`（`wrangler.toml` 中已有绑定配置）。
+4. 在 Pages 的 Production 和 Preview 环境变量中分别配置 OAuth、内容仓库及图片仓库变量。不要设置 `ADMIN_LOCAL_PREVIEW=true`。
+5. 在 GitHub OAuth App 中将授权回调 URL 配置为 `https://你的后台域名/api/auth/callback`。登录账号需与 `GITHUB_OWNER` 一致，并具有内容仓库和图片仓库所需权限。
+6. 部署完成后，登录云端后台，在图床“设置”中单独配置并测试 WebDAV。云端 WebDAV 配置不会从本地复制过去。
+
+云端内容编辑通过 GitHub API 修改博客仓库；图床图片保存到 WebDAV，并发布到配置的 GitHub Pages 图片仓库。
 
 ## API 约定
 
-所有 API 统一返回：
-
-- 成功：`{ ok: true, data }`
-- 失败：`{ ok: false, error: '错误信息' }`
-
-## 目录结构
-
-```
-src/
-├── lib/
-│   ├── env.ts        # 运行时环境变量读取（Pages 上走 locals.runtime.env）
-│   └── session.ts    # 会话 cookie 签发 / 校验（Web Crypto HMAC-SHA256）
-├── middleware.ts     # 全局守卫：保护 /admin/* 与 /api/*
-├── layouts/
-│   └── AdminLayout.astro  # 后台布局（导航 + 退出）
-└── pages/
-    ├── login.astro         # 登录页
-    ├── admin/
-    │   └── index.astro     # 仪表盘
-    └── api/auth/
-        ├── login.ts
-        └── logout.ts
-```
+成功响应：`{ "ok": true, "data": ... }`；失败响应：`{ "ok": false, "error": "错误信息" }`。

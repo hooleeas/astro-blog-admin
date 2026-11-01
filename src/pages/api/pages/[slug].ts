@@ -1,6 +1,7 @@
 import type { APIContext } from 'astro';
 import { getFile, putFile, deleteFile } from '../../../lib/github.js';
 import { ok, fail, PAGE_SLUG_RE, PROTECTED_PAGES, type Gh } from '../../../lib/content.js';
+import { getEnv } from '../../../lib/env.js';
 
 export const prerender = false;
 
@@ -12,11 +13,28 @@ function validSlug(params: APIContext['params']): string | null {
   return PAGE_SLUG_RE.test(slug) ? slug : null;
 }
 
+function isLocalPreview(locals: APIContext['locals'], request: Request) {
+  const hostname = new URL(request.url).hostname;
+  return import.meta.env.DEV &&
+    getEnv(locals).ADMIN_LOCAL_PREVIEW === 'true' &&
+    (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]');
+}
+
 /** GET /api/pages/[slug] — 读页面源码 */
-export async function GET({ locals, params }: APIContext) {
+export async function GET({ locals, params, request }: APIContext) {
   const slug = validSlug(params);
   if (!slug) return fail('slug 不合法（仅允许字母、数字、_-）');
   const file = `${slug}.astro`;
+  if (isLocalPreview(locals, request)) {
+    try {
+      const { readLocalPage } = await import('../../../lib/local-data.js');
+      const { sha, content } = await readLocalPage(slug);
+      return ok({ slug, file, sha, content });
+    } catch (error) {
+      const status = (error as NodeJS.ErrnoException).code === 'ENOENT' ? 404 : 500;
+      return fail(status === 404 ? '页面不存在' : `读取本地页面失败：${(error as Error).message}`, status);
+    }
+  }
   try {
     const { sha, content } = await gh.getFile(locals, PAGES_PREFIX + file);
     return ok({ slug, file, sha, content });
@@ -39,6 +57,18 @@ export async function PUT({ locals, params, request }: APIContext) {
   const sha = String(body?.sha ?? '');
   if (!sha) return fail('缺少 sha（请先重新加载再保存）');
   const file = `${slug}.astro`;
+  if (isLocalPreview(locals, request)) {
+    try {
+      const { writeLocalPage } = await import('../../../lib/local-data.js');
+      const nextSha = await writeLocalPage(slug, content, sha);
+      return ok({ slug, file, sha: nextSha });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'CONFLICT') return fail('本地页面已被其他操作修改，请重新加载后再保存', 409);
+      if (code === 'ENOENT') return fail('页面不存在', 404);
+      return fail(`保存本地页面失败：${(error as Error).message}`, 500);
+    }
+  }
   try {
     await gh.putFile(locals, PAGES_PREFIX + file, content, `admin: 更新页面 ${file}`, sha);
   } catch (e) {
@@ -62,6 +92,22 @@ export async function DELETE({ locals, params, request }: APIContext) {
   if (!sha) sha = new URL(request.url).searchParams.get('sha') ?? '';
   if (!sha) return fail('缺少 sha');
   const file = `${slug}.astro`;
+  if (isLocalPreview(locals, request)) {
+    try {
+      const { deleteLocalPage } = await import('../../../lib/local-data.js');
+      await deleteLocalPage(slug, sha);
+      return ok({
+        slug,
+        file,
+        warning: `页面已删除，访问 /${slug} 会返回 404`,
+      });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'CONFLICT') return fail('本地页面已被其他操作修改，请重新加载后再删除', 409);
+      if (code === 'ENOENT') return fail('页面不存在', 404);
+      return fail(`删除本地页面失败：${(error as Error).message}`, 500);
+    }
+  }
   try {
     await gh.deleteFile(locals, PAGES_PREFIX + file, sha, `admin: 删除页面 ${file}`);
   } catch (e) {

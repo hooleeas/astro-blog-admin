@@ -9,6 +9,7 @@ import {
   readRepoTemplate,
   type Gh,
 } from '../../../lib/content.js';
+import { getEnv } from '../../../lib/env.js';
 
 export const prerender = false;
 
@@ -36,8 +37,38 @@ const pageSubtitle = "...";
 
 const gh = { getFile, putFile, listTree } as unknown as Gh;
 
+function isLocalPreview(locals: APIContext['locals'], request: Request) {
+  const hostname = new URL(request.url).hostname;
+  return import.meta.env.DEV &&
+    getEnv(locals).ADMIN_LOCAL_PREVIEW === 'true' &&
+    (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]');
+}
+
 /** GET /api/pages — 页面 slug 列表 */
-export async function GET({ locals }: APIContext) {
+export async function GET({ locals, request }: APIContext) {
+  if (isLocalPreview(locals, request)) {
+    try {
+      const { listLocalRepoFiles } = await import('../../../lib/local-data.js');
+      const files = await listLocalRepoFiles('src/pages');
+      const slugs = files
+        .filter((entry) => entry.path.startsWith(PAGES_PREFIX))
+        .map((entry) => entry.path.slice(PAGES_PREFIX.length))
+        .filter((path) => path.endsWith('.astro') && !path.includes('/'))
+        .map((path) => path.slice(0, -'.astro'.length))
+        .filter((slug) => PAGE_SLUG_RE.test(slug))
+        .sort();
+      return ok({
+        pages: slugs.map((slug) => ({
+          slug,
+          path: `${PAGES_PREFIX}${slug}.astro`,
+          protected: PROTECTED_PAGES.has(slug),
+        })),
+      });
+    } catch (e) {
+      return fail('读取本地页面列表失败：' + (e as Error)?.message, 500);
+    }
+  }
+
   try {
     const paths = await gh.listTree(locals);
     const slugs = paths
@@ -67,24 +98,57 @@ export async function POST({ locals, request }: APIContext) {
 
   const file = `${slug}.astro`;
   const path = PAGES_PREFIX + file;
+  const localPreview = isLocalPreview(locals, request);
 
-  try {
-    await gh.getFile(locals, path);
-    return fail(`页面已存在：${file}`);
-  } catch {
-    /* 不存在，继续新建 */
+  if (localPreview) {
+    try {
+      const { readLocalPage } = await import('../../../lib/local-data.js');
+      await readLocalPage(slug);
+      return fail(`页面已存在：${file}`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        return fail(`读取本地页面失败：${(error as Error).message}`, 500);
+      }
+    }
+  } else {
+    try {
+      await gh.getFile(locals, path);
+      return fail(`页面已存在：${file}`);
+    } catch {
+      // The page does not exist, so it can be created.
+    }
   }
 
-  let tpl = await readRepoTemplate(gh, locals, TEMPLATE_PATH);
+  let tpl: string | null;
+  if (localPreview) {
+    try {
+      const { readLocalPageTemplate } = await import('../../../lib/local-data.js');
+      tpl = await readLocalPageTemplate();
+    } catch (error) {
+      return fail(`读取本地页面模板失败：${(error as Error).message}`, 500);
+    }
+  } else {
+    tpl = await readRepoTemplate(gh, locals, TEMPLATE_PATH);
+  }
   if (!tpl) tpl = BUILTIN_TPL;
   tpl = tpl
     .replace(/^const pageTitle = .*;$/m, `const pageTitle = "${escapeJsString(title)}";`)
     .replace(/^const pageSubtitle = .*;$/m, `const pageSubtitle = "${escapeJsString(subtitle)}";`);
 
-  try {
-    await gh.putFile(locals, path, tpl, `admin: 新建页面 ${file}`);
-  } catch (e) {
-    return fail('创建失败：' + (e as Error)?.message, 500);
+  if (localPreview) {
+    try {
+      const { createLocalPage } = await import('../../../lib/local-data.js');
+      await createLocalPage(slug, tpl);
+    } catch (error) {
+      const status = (error as NodeJS.ErrnoException).code === 'EEXIST' ? 409 : 500;
+      return fail(status === 409 ? `页面已存在：${file}` : `创建本地页面失败：${(error as Error).message}`, status);
+    }
+  } else {
+    try {
+      await gh.putFile(locals, path, tpl, `admin: 新建页面 ${file}`);
+    } catch (e) {
+      return fail('创建失败：' + (e as Error)?.message, 500);
+    }
   }
   return ok({ slug, file, path }, 201);
 }

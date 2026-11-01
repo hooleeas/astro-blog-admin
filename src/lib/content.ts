@@ -95,7 +95,7 @@ export async function readRepoTemplate(gh: Gh, locals: unknown, path: string): P
 }
 
 // ---- 白名单 ----
-export const NOTE_FILE_RE = /^[A-Za-z0-9._-]+\.md$/; // 随记文件名（防路径穿越）
+export const NOTE_FILE_RE = /^[\p{L}\p{N}._-]+\.md$/u; // 随记文件名（防路径穿越）
 export const PAGE_SLUG_RE = /^[A-Za-z0-9_-]+$/; // 页面 slug（防路径穿越）
 /** 博客自带的默认页面，后台不允许删除（用户要求） */
 export const PROTECTED_PAGES = new Set(['404', 'about', 'apple', 'archive', 'charity', 'index', 'notes']);

@@ -4,16 +4,16 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 ---
 
 <AdminLayout title="图床" active="images">
-  <h1 class="page-title">图床</h1>
-  <p class="desc">图片上传到你自己的 WebDAV（如 OpenList），返回可直接引用的直链。</p>
-
   <div id="cfg-warn" class="warn" hidden>
-    尚未配置 WebDAV，请先到 <a href="/settings">设置</a> 页填写地址、账号与目录。
+    尚未配置 WebDAV，请先
+    <button class="settings-inline-open" type="button" data-open-settings>打开设置</button>
+    填写地址、账号与目录。
   </div>
 
-  <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择图片上传">
-    <p class="dz-main">把图片拖到这里，或 <span class="dz-link">点击选择</span></p>
-    <p class="dz-sub">支持 png / jpg / jpeg / gif / webp / svg / avif，单个不超过 10MB；PNG / JPG 默认在浏览器端转为 WebP（可在设置页关闭）</p>
+  <p class="dz-sub upload-guidance">支持 JPG、PNG、GIF、WebP、SVG、AVIF，单张最大 10 MB；JPG 和 PNG 默认转换为 WebP。</p>
+  <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择或粘贴图片上传">
+    <p class="dz-main">⌘V / Ctrl+V 粘贴图片上传</p>
+    <p class="dz-sub">将光标移到此处后粘贴；也可拖拽图片，或<span class="dz-link">点击选择</span>。</p>
     <input id="file-input" type="file" accept="image/*" multiple hidden />
   </div>
 
@@ -24,29 +24,204 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 
   <div id="results" class="results"></div>
 
+  <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+    <header class="settings-dialog-head">
+      <div>
+        <h2 id="settings-title">图床设置</h2>
+        <p>WebDAV 配置保存在服务器 KV 中，不会进入代码仓库。</p>
+      </div>
+      <button class="settings-close" type="button" aria-label="关闭设置" data-close-settings>&times;</button>
+    </header>
+    <div class="settings-dialog-content">
+      <form id="cfg-form" class="form" autocomplete="off">
+        <label class="field">
+          <span class="flabel">WebDAV 地址 <em style="color: var(--danger); font-style: normal;">*</em></span>
+          <input class="input" name="url" type="url" required placeholder="https://openlist.example.com/dav" />
+          <span class="hint">以 http:// 或 https:// 开头，如 OpenList 的 WebDAV 地址</span>
+        </label>
+        <label class="field">
+          <span class="flabel">用户名</span>
+          <input class="input" name="username" type="text" placeholder="WebDAV 账号" />
+        </label>
+        <label class="field">
+          <span class="flabel">密码</span>
+          <input class="input" id="settings-password" name="password" type="password" placeholder="未设置" />
+          <span class="hint">留空则保留已保存的密码，不会清空</span>
+        </label>
+        <div class="field">
+          <span class="flabel">上传目录</span>
+          <div class="static-note"><code class="mono">/img/</code></div>
+          <span class="hint">图片统一存放于 WebDAV 的 /img/ 目录</span>
+        </div>
+        <label class="field check-field">
+          <span class="toggle-switch">
+            <input type="checkbox" name="webp" role="switch" aria-label="上传时转换为 WebP" checked />
+            <span class="toggle-switch-track"></span>
+            <span class="toggle-switch-thumb"></span>
+          </span>
+          <span>
+            <span class="flabel">上传时转换为 WebP</span>
+            <span class="hint">开启后，PNG / JPG 图片在上传前会在浏览器端转为 WebP（文件名后缀 .webp）；GIF / SVG / AVIF / WebP 本身不受影响</span>
+          </span>
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn">保存</button>
+          <button type="button" id="test-settings" class="btn btn-ghost">测试连接</button>
+        </div>
+      </form>
+      <p id="settings-msg" class="msg" role="status" aria-live="polite"></p>
+    </div>
+  </dialog>
+
 
 
   <div id="toast" class="toast"></div>
 
   <script>
-    const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('file-input');
-    const warn = document.getElementById('cfg-warn');
-    const results = document.getElementById('results');
-    const progressWrap = document.getElementById('progress-wrap');
-    const progressFill = document.getElementById('progress-fill');
-    const progressText = document.getElementById('progress-text');
-    const toast = document.getElementById('toast');
+    let activePasteHandler: ((event: ClipboardEvent) => void) | null = null;
+
+    function initializeImagePage() {
+      const pageDropzone = document.querySelector<HTMLElement>('#dropzone');
+      if (pageDropzone?.dataset.initialized === 'true') return;
+
+      if (activePasteHandler) {
+        document.removeEventListener('paste', activePasteHandler);
+        activePasteHandler = null;
+      }
+
+      if (!pageDropzone) return;
+      pageDropzone.dataset.initialized = 'true';
+
+    function requiredElement<T extends Element>(root: ParentNode, selector: string): T {
+      const element = root.querySelector<T>(selector);
+      if (!element) throw new Error(`缺少必要的页面元素：${selector}`);
+      return element;
+    }
+
+    const dropzone = requiredElement<HTMLElement>(document, '#dropzone');
+    const fileInput = requiredElement<HTMLInputElement>(document, '#file-input');
+    const warn = requiredElement<HTMLElement>(document, '#cfg-warn');
+    const results = requiredElement<HTMLElement>(document, '#results');
+    const progressWrap = requiredElement<HTMLElement>(document, '#progress-wrap');
+    const progressFill = requiredElement<HTMLElement>(document, '#progress-fill');
+    const progressText = requiredElement<HTMLElement>(document, '#progress-text');
+    const toast = requiredElement<HTMLElement>(document, '#toast');
     let toastTimer = 0;
 
-    function showToast(msg) {
+    function setupSettingsDialog() {
+      const dialog = document.querySelector<HTMLDialogElement>('#settings-dialog');
+      if (!dialog || dialog.dataset.initialized) return;
+      dialog.dataset.initialized = 'true';
+
+      const form = requiredElement<HTMLFormElement>(document, '#cfg-form');
+      const msg = requiredElement<HTMLElement>(document, '#settings-msg');
+      const testBtn = requiredElement<HTMLButtonElement>(document, '#test-settings');
+      const passwordInput = requiredElement<HTMLInputElement>(document, '#settings-password');
+      const urlInput = requiredElement<HTMLInputElement>(form, '[name="url"]');
+      const usernameInput = requiredElement<HTMLInputElement>(form, '[name="username"]');
+      const webpInput = requiredElement<HTMLInputElement>(form, '[name="webp"]');
+      const closeButton = requiredElement<HTMLButtonElement>(dialog, '[data-close-settings]');
+
+      function setSettingsMsg(text: string, ok: boolean) {
+        msg.textContent = text;
+        msg.className = 'msg ' + (ok ? 'ok' : 'err');
+      }
+
+      function closeDialog() {
+        dialog?.close();
+        if (window.location.search.includes('settings=1')) {
+          window.history.replaceState(window.history.state, '', '/images');
+        }
+      }
+
+      closeButton.addEventListener('click', closeDialog);
+      dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) closeDialog();
+      });
+
+      fetch('/api/settings').then((r) => r.json()).then((res) => {
+        if (res.ok && res.data) {
+          const d = res.data;
+          urlInput.value = d.url || '';
+          usernameInput.value = d.username || '';
+          webpInput.checked = d.webp !== false;
+          passwordInput.placeholder = d.hasPassword ? '已设置（留空保留原密码）' : '未设置';
+        }
+      }).catch(() => setSettingsMsg('读取设置失败：网络错误', false));
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        setSettingsMsg('保存中…', true);
+        const body = {
+          url: urlInput.value.trim(),
+          username: usernameInput.value.trim(),
+          password: passwordInput.value,
+          webp: webpInput.checked,
+        };
+        try {
+          const response = await fetch('/api/settings', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const result = await response.json();
+          if (result.ok) {
+            setSettingsMsg('已保存', true);
+            passwordInput.value = '';
+            passwordInput.placeholder = '已设置（留空保留原密码）';
+          } else {
+            setSettingsMsg(result.error || '保存失败', false);
+          }
+        } catch {
+          setSettingsMsg('保存失败：网络错误', false);
+        }
+      });
+
+      testBtn.addEventListener('click', async () => {
+        testBtn.disabled = true;
+        setSettingsMsg('正在测试连接…', true);
+        try {
+          const response = await fetch('/api/settings/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              url: urlInput.value.trim(),
+              username: usernameInput.value.trim(),
+              password: passwordInput.value,
+            }),
+          });
+          const result = await response.json();
+          if (result.ok) {
+            setSettingsMsg(result.data?.message || '连接成功', true);
+          } else if (response.status === 401) {
+            setSettingsMsg('连接失败：WebDAV 拒绝了当前账号或密码（401），请核对 WebDAV 专用凭据。', false);
+          } else if (response.status === 403) {
+            setSettingsMsg('连接失败：账号无权访问该 WebDAV 地址（403），请检查账号权限和服务路径。', false);
+          } else {
+            setSettingsMsg(result.error || '连接失败', false);
+          }
+        } catch {
+          setSettingsMsg('连接失败：网络错误', false);
+        } finally {
+          testBtn.disabled = false;
+        }
+      });
+
+      if (new URLSearchParams(window.location.search).get('settings') === '1') {
+        dialog.showModal();
+      }
+    }
+
+    setupSettingsDialog();
+
+    function showToast(msg: string) {
       toast.textContent = msg;
       toast.classList.add('show');
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+      toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2200);
     }
 
-    function copyText(text, label) {
+    function copyText(text: string, label: string) {
       const done = () => showToast(label + '已复制');
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
@@ -54,7 +229,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         fallbackCopy(text, done);
       }
     }
-    function fallbackCopy(text, done) {
+    function fallbackCopy(text: string, done: () => void) {
       const ta = document.createElement('textarea');
       ta.value = text;
       ta.style.position = 'fixed';
@@ -83,9 +258,21 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       e.preventDefault(); dropzone.classList.remove('dragover');
     }));
     dropzone.addEventListener('drop', (e) => {
-      const files = Array.from(e.dataTransfer.files || []);
+      const files = Array.from(e.dataTransfer?.files || []);
       if (files.length) uploadAll(files);
     });
+    activePasteHandler = (event) => {
+      if (!dropzone.matches(':hover') && !dropzone.contains(document.activeElement)) return;
+      const clipboardItems = Array.from(event.clipboardData?.items ?? []);
+      const files = clipboardItems
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => file !== null);
+      if (!files.length) return;
+      event.preventDefault();
+      uploadAll(files);
+    };
+    document.addEventListener('paste', activePasteHandler);
     fileInput.addEventListener('change', () => {
       const files = Array.from(fileInput.files || []);
       fileInput.value = '';
@@ -95,7 +282,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
     const CONVERTIBLE = ['image/png', 'image/jpeg'];
 
     // PNG/JPG 在浏览器端转 WebP（canvas），保持原文件名、后缀换 .webp
-    async function maybeToWebp(file) {
+    async function maybeToWebp(file: File): Promise<File> {
       if (!webpEnabled || !CONVERTIBLE.includes(file.type)) return file;
       try {
         const bitmap = await createImageBitmap(file);
@@ -103,9 +290,10 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         canvas.width = bitmap.width;
         canvas.height = bitmap.height;
         const ctx = canvas.getContext('2d');
+        if (!ctx) return file;
         ctx.drawImage(bitmap, 0, 0);
         bitmap.close();
-        const blob = await new Promise((res) => canvas.toBlob(res, 'image/webp', 0.92));
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.92));
         if (!blob) return file;
         const name = file.name.replace(/\.[^.]+$/, '') + '.webp';
         return new File([blob], name, { type: 'image/webp' });
@@ -114,7 +302,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       }
     }
 
-    async function uploadAll(files) {
+    async function uploadAll(files: File[]) {
       for (const f of files) {
         progressText.textContent = '处理中：' + f.name;
         const ready = await maybeToWebp(f);
@@ -122,8 +310,8 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       }
     }
 
-    function uploadOne(file) {
-      return new Promise((resolve) => {
+    function uploadOne(file: File): Promise<void> {
+      return new Promise<void>((resolve) => {
         progressWrap.hidden = false;
         progressFill.style.width = '0%';
         progressText.textContent = '上传中：' + file.name;
@@ -159,7 +347,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       });
     }
 
-    function addResult(url, filename) {
+    function addResult(url: string, filename: string) {
       const card = document.createElement('div');
       card.className = 'result-card';
       const md = '![](' + url + ')';
@@ -194,5 +382,74 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       card.append(img, info);
       results.prepend(card);
     }
+    }
+
+    document.addEventListener('click', (event) => {
+      if (!(event.target instanceof Element)) return;
+      if (!event.target.closest('#open-image-settings, #open-settings, [data-open-settings]')) return;
+      document.querySelector<HTMLDialogElement>('#settings-dialog')?.showModal();
+    });
+    document.addEventListener('astro:page-load', initializeImagePage);
+    initializeImagePage();
   </script>
+
+  <style is:global>
+    .settings-dialog {
+      width: min(620px, calc(100% - 32px));
+      max-height: min(90dvh, 760px);
+      padding: 0;
+      overflow: auto;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+    }
+    .settings-dialog::backdrop { background: rgba(0, 0, 0, 0.48); backdrop-filter: blur(4px); }
+    .settings-dialog-head {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 22px 24px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .settings-dialog-head h2 { margin: 0; font-size: 20px; }
+    .settings-dialog-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .settings-dialog-content { padding: 18px 24px 24px; }
+    .settings-close {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      place-items: center;
+      padding: 0;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--text) 6%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      font-size: 25px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .settings-close:hover { color: var(--text); background: color-mix(in srgb, var(--text) 11%, transparent); }
+    .settings-inline-open {
+      padding: 0;
+      color: inherit;
+      background: none;
+      border: 0;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    @media (max-width: 520px) {
+      .settings-dialog-head { padding: 18px 18px 12px; }
+      .settings-dialog-content { padding: 16px 18px 20px; }
+    }
+  </style>
 </AdminLayout>

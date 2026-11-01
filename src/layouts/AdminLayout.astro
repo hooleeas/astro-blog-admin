@@ -1,18 +1,20 @@
 ---
+import { ClientRouter } from 'astro:transitions';
+
 interface Props {
   title?: string;
   active?: string;
+  noteEditor?: boolean;
 }
 
-const { title = '管理后台', active = '' } = Astro.props;
+const { title = '管理后台', active = '', noteEditor = false } = Astro.props;
+const embedded = Astro.url.searchParams.get('embedded') === '1';
 
 const nav = [
   { key: 'posts', label: '文章', href: '/posts' },
   { key: 'notes', label: '随记', href: '/notes' },
-  { key: 'pages', label: '页面', href: '/pages' },
-  { key: 'data', label: '变量', href: '/data' },
+  { key: 'pages', label: '站点', href: '/pages' },
   { key: 'images', label: '图床', href: '/images' },
-  { key: 'settings', label: '设置', href: '/settings' },
 ];
 ---
 
@@ -22,6 +24,7 @@ const nav = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} · 博客管理后台</title>
+    <ClientRouter />
     <script is:inline>
       (function () {
         try {
@@ -41,32 +44,53 @@ const nav = [
       @property --accent { syntax: "<color>"; inherits: true; initial-value: #16834a; }
       @property --accent-ink { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
       @property --danger { syntax: "<color>"; inherits: true; initial-value: #dc2626; }
+      @property --header-glass-bg { syntax: "<color>"; inherits: true; initial-value: rgba(255, 255, 255, 0.35); }
+      @property --header-text { syntax: "<color>"; inherits: true; initial-value: #17191c; }
+      @property --header-line { syntax: "<color>"; inherits: true; initial-value: #e6e8eb; }
 
       :root {
         --bg: #fafafa; --surface: #ffffff; --text: #17191c; --muted: #747a83;
         --line: #e6e8eb; --accent: #16834a; --accent-ink: #ffffff; --danger: #dc2626;
+        --header-glass-bg: rgba(255, 255, 255, 0.35); --header-text: #17191c; --header-line: #e6e8eb;
         --amber-bg: #fef3c7; --amber-text: #92400e;
         --green-bg: #dcfce7; --green-text: #166534;
         --radius: 14px; --radius-lg: 20px;
         color-scheme: light;
+        background-color: var(--bg);
       }
       :root.dark {
         --bg: #111315; --surface: #181b1f; --text: #f1f3f5; --muted: #9aa1aa;
         --line: #2b3036; --accent: #f2a33a; --accent-ink: #17191c; --danger: #f87171;
+        --header-glass-bg: rgba(8, 8, 8, 0.35); --header-text: #f5f5f5; --header-line: #353535;
         --amber-bg: rgba(242, 163, 58, 0.14); --amber-text: #f2c063;
         --green-bg: rgba(52, 211, 153, 0.13); --green-text: #6ee7b7;
         color-scheme: dark;
       }
-      :root.theme-changing {
-        transition:
-          --bg 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
-          --surface 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
-          --text 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
-          --muted 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
-          --line 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
-          --accent 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
-          --accent-ink 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
-          --danger 520ms cubic-bezier(0.2, 0.65, 0.3, 1);
+      @media (prefers-reduced-motion: no-preference) {
+        :root.theme-changing {
+          transition:
+            --bg 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --surface 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --text 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --muted 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --line 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --accent 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --accent-ink 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --danger 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --header-glass-bg 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --header-text 520ms cubic-bezier(0.2, 0.65, 0.3, 1),
+            --header-line 520ms cubic-bezier(0.2, 0.65, 0.3, 1);
+        }
+        :root.theme-changing .topbar-inner {
+          transition: box-shadow 520ms cubic-bezier(0.2, 0.65, 0.3, 1);
+        }
+        :root.theme-changing .card,
+        :root.theme-changing .module-card,
+        :root.theme-changing .input,
+        :root.theme-changing .dropzone,
+        :root.theme-changing .result-card {
+          transition-property: border-color, box-shadow, transform;
+        }
       }
 
       /* ============ 基础 ============ */
@@ -76,8 +100,6 @@ const nav = [
         margin: 0; background: var(--bg); color: var(--text);
         font-family: Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
         font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased;
-        transition: background-color 0.3s ease, color 0.3s ease;
-        animation: pageIn 0.3s ease;
       }
       button, input, select, textarea { font-family: inherit; }
       img { max-width: 100%; }
@@ -86,7 +108,6 @@ const nav = [
       .hidden { display: none !important; }
       [hidden] { display: none !important; }
 
-      @keyframes pageIn { from { opacity: 0; } to { opacity: 1; } }
       @keyframes panelIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
       #panel > *, #visual > *, #list > *, #results > * { animation: panelIn 0.28s ease; }
 
@@ -96,136 +117,278 @@ const nav = [
         border: 0; background: transparent;
       }
       .topbar-inner {
+        position: relative;
+        height: 40px;
+        width: min(1320px, calc(100% - 40px));
+        margin: 4px auto 10px;
+        display: flex; align-items: center; justify-content: center; gap: 12px;
+      }
+      .topbar-controls {
+        position: absolute;
+        left: 50%;
+        top: 0;
+        transform: translateX(-50%);
+      }
+      .topbar-navigation {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .topbar-actions {
+        position: absolute;
+        top: 0;
+        left: calc(100% + 8px);
+        display: flex;
+        width: max-content;
+        align-items: center;
+        gap: 8px;
+      }
+      .topbar-actions .btn { flex: 0 0 auto; white-space: nowrap; }
+      .topbar-actions .note-delete-button {
+        min-height: 38px; padding: 8px 16px; border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
+        border-radius: 999px; background: color-mix(in srgb, var(--surface) 72%, transparent);
+        color: var(--danger); font-size: 13px; font-weight: 700;
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+        backdrop-filter: blur(12px) saturate(180%);
+        box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent), 0 4px 14px rgba(0, 0, 0, 0.12);
+        transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .topbar-actions .note-delete-button:hover {
+        border-color: color-mix(in srgb, var(--header-text) 48%, var(--surface));
+        background: color-mix(in srgb, color-mix(in srgb, var(--surface) 72%, var(--header-text) 28%) 82%, transparent);
+        color: var(--text);
+        box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 72%, transparent),
+          inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent), 0 8px 22px rgba(0, 0, 0, 0.2);
+      }
+      .nav-capsule {
         isolation: isolate;
         position: relative;
-        height: 64px;
-        width: min(1320px, calc(100% - 40px));
-        margin: 4px auto 10px; padding: 0 22px;
-        display: flex; align-items: center; gap: 8px;
-        border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+        height: 40px;
+        width: fit-content;
+        max-width: calc(100% - 48px);
+        display: flex; align-items: stretch;
+        border: 1px solid color-mix(in srgb, var(--header-text) 14%, transparent);
         border-radius: 999px;
-        background: color-mix(in srgb, var(--surface) 82%, transparent);
+        background: var(--header-glass-bg);
         -webkit-backdrop-filter: blur(10px) saturate(180%);
         backdrop-filter: blur(10px) saturate(180%);
-        box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 20%, transparent), 0 10px 32px rgba(0, 0, 0, 0.16);
-        transition: background-color 0.3s ease, border-color 0.3s ease;
+        box-shadow: inset 0 1px 0 color-mix(in srgb, var(--header-text) 9%, transparent), 0 10px 32px rgba(0, 0, 0, 0.16);
       }
-      .topbar-inner > * { position: relative; z-index: 1; }
-      :root.dark .topbar-inner {
-        -webkit-backdrop-filter: blur(10px) saturate(100%);
-        backdrop-filter: blur(10px) saturate(100%);
+      .navigation-indicator {
+        position: absolute;
+        z-index: 0;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        pointer-events: none;
+        border: 1px solid color-mix(in srgb, var(--header-text) 12%, transparent);
+        border-radius: 999px;
+        background: linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--header-text) 11%, transparent),
+          color-mix(in srgb, var(--header-text) 4%, transparent)
+        );
+        box-shadow:
+          inset 0 1px color-mix(in srgb, var(--header-text) 16%, transparent),
+          0 3px 10px rgba(0, 0, 0, 0.09);
+        will-change: transform, width, height;
+        transform: translate3d(0, 0, 0);
+        backface-visibility: hidden;
+        transition:
+          transform 520ms cubic-bezier(0.22, 1.35, 0.36, 1),
+          width 420ms cubic-bezier(0.22, 1.15, 0.36, 1),
+          height 280ms cubic-bezier(0.2, 0.75, 0.25, 1),
+          opacity 220ms ease;
       }
-      .brand {
-        font-weight: 800; font-size: 1.55rem; letter-spacing: -0.02em;
-        white-space: nowrap; text-decoration: none; color: var(--text); flex-shrink: 0;
+      .topbar.is-navigation-dragging { z-index: 130; }
+      .nav-capsule.is-long-pressing { z-index: 2; }
+      .nav-capsule.is-long-pressing > .navigation-indicator { z-index: 2; }
+      .nav-capsule.is-long-pressing .navigation-indicator {
+        border-radius: 999px;
+        border-color: color-mix(in srgb, var(--header-text) 24%, transparent);
+        background:
+          radial-gradient(ellipse at 28% 18%, color-mix(in srgb, #fff 32%, transparent), transparent 46%),
+          linear-gradient(
+            145deg,
+            color-mix(in srgb, var(--header-text) 20%, transparent),
+            color-mix(in srgb, var(--header-text) 7%, transparent)
+          );
+        box-shadow:
+          inset 0 1px 2px color-mix(in srgb, #fff 34%, transparent),
+          0 10px 32px rgba(0, 0, 0, 0.2);
       }
+      .nav-capsule.is-dragging .navigation-indicator { transition: none; }
+      .nav { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+      .nav-capsule > * { position: relative; z-index: 1; }
+      .nav-capsule > .navigation-indicator { position: absolute; z-index: 0; }
       .nav {
-        position: absolute; left: 50%; transform: translateX(-50%);
-        display: flex; align-items: center; gap: 10px; white-space: nowrap;
+        position: relative; height: 100%;
+        display: flex; align-items: stretch; gap: 0;
+        width: auto; white-space: nowrap;
       }
       .nav a {
         display: inline-flex; align-items: center; justify-content: center;
-        min-height: 36px; padding: 8px 18px;
-        border-radius: 999px; text-decoration: none; color: var(--text);
-        font-size: 14px; white-space: nowrap; flex-shrink: 0;
-        transition: background-color 0.2s ease, color 0.2s ease;
+        flex: 0 0 auto; min-width: 0; height: 100%; padding: 3px 16px;
+        border-inline-start: 1px solid transparent;
+        border-radius: 0; background: transparent; text-decoration: none; color: var(--header-text);
+        font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap;
+        touch-action: pan-y;
+        transition: color 180ms ease;
       }
-      .nav a:hover { background: rgba(23, 25, 28, 0.10); color: var(--text); }
-      :root.dark .nav a:hover { background: rgba(255, 255, 255, 0.14); }
-      .nav a.active {
-        background: color-mix(in srgb, var(--accent) 13%, transparent);
-        color: var(--accent); font-weight: 700;
+      .nav a:last-child { border-inline-end: 1px solid transparent;       }
+      @media (min-width: 901px) and (hover: hover) {
+        .nav a:hover:not(:active) { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
       }
+      .nav a:active { color: var(--header-text); transition: none; }
+      .nav a:focus-visible { outline: 2px solid color-mix(in srgb, var(--header-text) 72%, transparent); outline-offset: 3px; }
       .theme-toggle {
-        width: 36px; height: 36px; flex-shrink: 0;
+        width: 40px; height: 40px; flex: 0 0 40px;
         display: grid; place-items: center;
-        border: 1px solid var(--line); background: var(--surface); color: var(--text);
+        border: 1px solid color-mix(in srgb, var(--header-text) 14%, transparent);
+        background: var(--header-glass-bg); color: var(--header-text);
         border-radius: 50%; cursor: pointer; font-size: 18px; line-height: 1;
-        transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        backdrop-filter: blur(10px) saturate(180%);
+        box-shadow: inset 0 1px 0 color-mix(in srgb, var(--header-text) 9%, transparent), 0 10px 32px rgba(0, 0, 0, 0.16);
+        transition: color 180ms ease;
       }
-      .theme-toggle:hover { background: rgba(23, 25, 28, 0.10); border-color: var(--accent); color: var(--accent); }
-      :root.dark .theme-toggle:hover { background: rgba(255, 255, 255, 0.14); }
-      .topbar-inner > .theme-toggle { margin-left: auto; }
-
-      /* ============ 移动端汉堡导航（照搬博客前台） ============ */
-      .mobile-menu-toggle, .mobile-nav-backdrop, .nav-drawer { display: none; }
+      .theme-toggle:hover { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
+      .theme-toggle:focus-visible { outline: 2px solid color-mix(in srgb, var(--header-text) 72%, transparent); outline-offset: 3px; }
+      .glass-button {
+        border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
+        background: color-mix(in srgb, var(--surface) 72%, transparent);
+        color: var(--text);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+        backdrop-filter: blur(12px) saturate(180%);
+        box-shadow:
+          inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent),
+          0 4px 14px rgba(0, 0, 0, 0.12);
+        transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .glass-button:hover {
+        border-color: color-mix(in srgb, var(--header-text) 48%, var(--surface));
+        background: color-mix(in srgb, color-mix(in srgb, var(--surface) 72%, var(--header-text) 28%) 82%, transparent);
+        color: var(--text);
+        box-shadow:
+          inset 0 1px 0 color-mix(in srgb, #fff 72%, transparent),
+          inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent),
+          0 8px 22px rgba(0, 0, 0, 0.2);
+      }
+      .glass-button:active {
+        background: color-mix(in srgb, var(--surface) 78%, transparent);
+        box-shadow:
+          inset 0 2px 6px rgba(0, 0, 0, 0.18),
+          inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent);
+      }
 
       @media (max-width: 760px) {
-        .topbar .nav { display: none; }
-        .topbar .theme-toggle { margin-left: auto; width: 38px; height: 38px; font-size: 19px; }
-
-        .mobile-menu-toggle {
-          display: grid; flex: 0 0 38px; gap: 5px; place-content: center;
-          width: 38px; height: 38px; border: 0; border-radius: 50%;
-          background: transparent; color: var(--text); cursor: pointer;
-          position: relative; flex-shrink: 0;
-          transition: background-color 0.35s ease;
-          -webkit-tap-highlight-color: transparent;
-          touch-action: manipulation; user-select: none; -webkit-user-select: none;
+        .topbar-inner { justify-content: flex-start; gap: 8px; }
+        .topbar-controls { max-width: calc(100% - 112px); }
+        .nav-capsule {
+          flex: 0 1 auto; min-width: 0; width: fit-content; max-width: calc(100% - 48px);
         }
-        .mobile-menu-toggle span {
-          display: block; width: 18px; height: 2px; border-radius: 2px;
-          background: currentColor; transition: opacity 0.3s ease;
+        .nav { width: auto; min-width: 0; }
+        .nav a {
+          flex: 0 0 auto; padding-inline: clamp(12px, 3vw, 16px);
+          font-size: clamp(11px, 3.8vw, 15px);
         }
-        .mobile-menu-toggle:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
-        .mobile-menu-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-        .mobile-menu-toggle::after {
-          content: "×"; position: absolute; inset: 0;
-          display: grid; place-items: center;
-          opacity: 0; font-size: 1.7rem; line-height: 1;
-          transition: opacity 0.3s ease, filter 0.3s ease;
-          filter: blur(4px);
-        }
-        body.mobile-nav-open .mobile-menu-toggle span { opacity: 0; }
-        body.mobile-nav-open .mobile-menu-toggle::after { opacity: 1; filter: blur(0); }
-        body.mobile-nav-open .topbar { z-index: 130; }
-
-        .nav-drawer {
-          display: flex; flex-direction: column; align-items: stretch;
-          position: fixed; top: 92px; right: 16px; z-index: 120;
-          width: min(60vw, 220px); height: auto;
-          margin: 0; padding: 8px;
-          border: 1px solid var(--line); border-radius: 20px;
-          background: color-mix(in srgb, var(--surface) 82%, transparent);
-          -webkit-backdrop-filter: blur(10px) saturate(180%);
-          backdrop-filter: blur(10px) saturate(180%);
-          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
-          opacity: 0; visibility: hidden; pointer-events: none;
-          transform: translateY(-8px);
-          transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.25s ease;
-        }
-        :root.dark .nav-drawer {
-          -webkit-backdrop-filter: blur(10px) saturate(100%);
-          backdrop-filter: blur(10px) saturate(100%);
-        }
-        body.mobile-nav-open .nav-drawer {
-          opacity: 1; visibility: visible; pointer-events: auto; transform: none;
-        }
-        .nav-drawer a {
-          display: flex; align-items: center; justify-content: center; min-height: 44px;
-          padding: 10px 16px; border-radius: 12px;
-          font-size: 15px; font-weight: 600; color: var(--text); text-decoration: none;
-          transition: background-color 0.2s ease, color 0.2s ease;
-        }
-        .nav-drawer a:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
-        .nav-drawer a.active {
-          background: color-mix(in srgb, var(--accent) 13%, transparent);
-          color: var(--accent);
-        }
-
-        .mobile-nav-backdrop {
-          position: fixed; z-index: 110; inset: 0; display: block;
-          visibility: hidden; opacity: 0;
-          background: rgba(0, 0, 0, 0.46);
-          transition: opacity 0.35s ease, visibility 0.35s ease;
-        }
-        body.mobile-nav-open .mobile-nav-backdrop { visibility: visible; opacity: 1; }
-        body.mobile-nav-open { overflow: hidden; }
+        .topbar .theme-toggle { flex-basis: 40px; width: 40px; height: 40px; font-size: 18px; }
       }
 
+      @media (max-width: 480px) {
+        .topbar-inner {
+          height: auto;
+          min-height: 40px;
+          flex-direction: column;
+          gap: 8px;
+          padding-block: 4px;
+        }
+        .topbar-controls {
+          position: relative;
+          left: auto;
+          max-width: 100%;
+          transform: none;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+        .topbar-actions {
+          position: relative;
+          top: auto;
+          left: auto;
+        }
+      }
+
+      ::view-transition-group(root),
+      ::view-transition-old(root),
+      ::view-transition-new(root) { animation: none !important; }
+
       /* ============ 内容区 ============ */
-      .content { width: min(1320px, calc(100% - 40px)); margin: 0 auto; padding: 16px 0 64px; }
+      .content { width: min(1200px, calc(100% - 64px)); margin: 0 auto; padding: 16px 0 64px; }
+      .content.embedded-content {
+        width: min(1200px, calc(100% - 64px));
+        margin-inline: auto;
+        padding: 8px 0 24px;
+      }
       .page-title { font-size: 24px; font-weight: 800; margin: 0 0 18px; letter-spacing: -0.02em; }
+      .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+      .page-heading .page-title { margin: 0; }
+      .page-heading-actions { display: flex; align-items: center; gap: 8px; }
+      .note-heading-title { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+      .note-filename {
+        max-width: min(60vw, 520px); overflow: hidden; color: var(--muted);
+        font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .new-page-dialog {
+        width: min(460px, calc(100% - 32px));
+        max-height: min(90dvh, 620px);
+        margin: auto;
+        padding: 0;
+        overflow: auto;
+        color: var(--text);
+        background: color-mix(in srgb, var(--surface) 88%, transparent);
+        border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+        border-radius: 24px;
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.32), inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent);
+        -webkit-backdrop-filter: blur(28px) saturate(160%);
+        backdrop-filter: blur(28px) saturate(160%);
+      }
+      .new-page-dialog::backdrop { background: rgba(0, 0, 0, 0.36); backdrop-filter: blur(8px); }
+      .new-page-dialog-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 22px 24px 18px;
+        border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+      }
+      .new-page-dialog-head h2 { margin: 0; font-size: 19px; letter-spacing: -0.02em; }
+      .new-page-dialog-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+      .new-page-close {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+        place-items: center;
+        padding: 0;
+        color: var(--muted);
+        background: color-mix(in srgb, var(--text) 6%, transparent);
+        border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+        border-radius: 50%;
+        font-size: 23px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .new-page-close:hover { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
+      .new-page-dialog-content { padding: 20px 24px 24px; }
+      .new-page-fields { display: grid; gap: 16px; }
+      .new-page-fields label { display: grid; gap: 7px; color: var(--text); font-size: 13px; font-weight: 650; }
+      .new-page-fields label span { margin-left: 4px; color: var(--muted); font-weight: 400; }
+      .site-add-options .btn { width: 100%; justify-content: flex-start; }
+      .new-page-hint { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
+      .new-page-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
       .desc { color: var(--muted); margin: 0 0 18px; font-size: 14px; line-height: 1.7; }
 
       /* ============ 卡片 ============ */
@@ -235,6 +398,13 @@ const nav = [
         transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease;
       }
       .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); }
+      #site-settings-home .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      @media (max-width: 760px) {
+        #site-settings-home .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+      @media (max-width: 480px) {
+        #site-settings-home .grid { grid-template-columns: 1fr; }
+      }
       .module-card {
         background: var(--surface); border: 1px solid var(--line);
         border-radius: var(--radius-lg); padding: 22px 20px;
@@ -258,21 +428,57 @@ const nav = [
       }
       .btn {
         display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        min-height: 44px; padding: 11px 24px; border: none; border-radius: 999px;
-        background: var(--accent); color: var(--accent-ink);
-        font-size: 15px; font-weight: 700; cursor: pointer; text-decoration: none;
-        box-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 30%, transparent);
-        transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease, background-color 0.2s ease;
+        min-height: 38px; padding: 8px 16px;
+        border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--surface) 72%, transparent);
+        color: var(--text); font-size: 13px; font-weight: 700; cursor: pointer; text-decoration: none;
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+        backdrop-filter: blur(12px) saturate(180%);
+        box-shadow:
+          inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent),
+          0 4px 14px rgba(0, 0, 0, 0.12);
+        transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
       }
-      .btn:hover { transform: translateY(-1px); filter: brightness(1.07); }
-      .btn:active { transform: translateY(0); }
-      .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-      .btn-danger { background: var(--danger); color: #fff; box-shadow: 0 2px 12px color-mix(in srgb, var(--danger) 30%, transparent); }
+      .btn:hover {
+        border-color: color-mix(in srgb, var(--header-text) 48%, var(--surface));
+        background: color-mix(in srgb, color-mix(in srgb, var(--surface) 72%, var(--header-text) 28%) 82%, transparent);
+        color: var(--text);
+        box-shadow:
+          inset 0 1px 0 color-mix(in srgb, #fff 72%, transparent),
+          inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent),
+          0 8px 22px rgba(0, 0, 0, 0.2);
+      }
+      .btn:active:not(:disabled) {
+        background: color-mix(in srgb, var(--surface) 78%, transparent);
+        box-shadow:
+          inset 0 2px 6px rgba(0, 0, 0, 0.18),
+          inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent);
+      }
+      .btn:active { transform: none; }
+      .btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 3px; }
+      .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+      .btn-danger {
+        background: var(--danger);
+        color: #fff;
+        border-color: color-mix(in srgb, var(--danger) 80%, transparent);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        box-shadow: 0 2px 12px color-mix(in srgb, var(--danger) 30%, transparent);
+      }
+      .btn-danger:hover {
+        background: color-mix(in srgb, var(--danger) 88%, var(--surface));
+        border-color: var(--danger);
+        color: #fff;
+      }
       .btn-ghost {
-        background: transparent; color: var(--text);
-        border: 1px solid var(--line); box-shadow: none; font-weight: 600;
+        color: var(--text); font-weight: 600;
       }
-      .btn-ghost:hover { border-color: var(--accent); color: var(--accent); filter: none; }
+      .btn-ghost:hover {
+        color: var(--text);
+      }
+      .btn.danger { color: var(--danger); }
+      .btn.danger:hover { color: var(--danger); }
       .btn-sm { min-height: 38px; padding: 8px 16px; font-size: 13px; }
 
       /* ============ 输入框 ============ */
@@ -296,13 +502,48 @@ const nav = [
       .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
       .form-grid > label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); }
       .form-grid > label .input { margin-top: 6px; font-weight: 400; }
+      .form-grid > label.note-date-field {
+        display: flex; align-items: center; gap: 12px; min-height: 50px;
+        color: var(--text); font-size: 15px; font-weight: 600;
+      }
+      .date-input-row { display: flex; flex: 1; min-width: 0; gap: 8px; }
+      .form-grid > label .date-input-row .note-date-input {
+        min-width: 0; min-height: 40px; margin-top: 0; padding: 8px 10px; font-size: 14px;
+      }
+      .date-input-row .note-date-input { flex: 1; }
+      .date-input-row .btn { flex: 0 0 auto; min-height: 36px; padding: 6px 12px; font-size: 13px; }
       .form-grid > label.check {
         display: flex; align-items: center; gap: 10px; min-height: 50px;
         font-size: 15px; font-weight: 600; color: var(--text); cursor: pointer; user-select: none;
       }
       .check-field { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
-      .check-field input[type="checkbox"] { width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0; accent-color: var(--accent); }
       .check-field .flabel { color: var(--text); font-size: 14px; }
+      .toggle-switch {
+        position: relative; display: inline-flex; flex: 0 0 48px;
+        width: 48px; height: 28px; vertical-align: middle;
+      }
+      .toggle-switch input {
+        position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%;
+        margin: 0; opacity: 0; cursor: pointer;
+      }
+      .toggle-switch-track {
+        position: absolute; inset: 0; border: 1px solid var(--line); border-radius: 999px;
+        background: color-mix(in srgb, var(--text) 18%, transparent);
+        transition: background-color 180ms ease, border-color 180ms ease;
+      }
+      .toggle-switch-thumb {
+        position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+        border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+        transition: transform 180ms ease; pointer-events: none;
+      }
+      .toggle-switch input:checked ~ .toggle-switch-track {
+        border-color: color-mix(in srgb, var(--accent) 72%, transparent); background: var(--accent);
+      }
+      .toggle-switch input:checked ~ .toggle-switch-thumb { transform: translateX(20px); }
+      .toggle-switch input:focus-visible ~ .toggle-switch-track { outline: 2px solid var(--accent); outline-offset: 3px; }
+      .toggle-switch input:disabled { cursor: not-allowed; }
+      .toggle-switch input:disabled ~ .toggle-switch-track,
+      .toggle-switch input:disabled ~ .toggle-switch-thumb { opacity: 0.55; }
       .static-note {
         font-size: 14px; color: var(--text); background: var(--surface);
         border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px;
@@ -311,8 +552,9 @@ const nav = [
       /* ============ 图床页（JS 动态渲染，需全局选择器；页面级 is:global 会被构建丢弃） ============ */
         /* 图床页特有（上传结果由 JS 动态渲染，需全局选择器） */
         .dropzone {
+          width: min(100%, 820px); margin-inline: auto;
           border: 2px dashed var(--line); border-radius: var(--radius-lg);
-          padding: 44px 20px; text-align: center; cursor: pointer;
+          padding: 64px 20px; text-align: center; cursor: pointer;
           background: var(--surface);
           transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
         }
@@ -324,27 +566,32 @@ const nav = [
         .dz-main { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
         .dz-link { color: var(--accent); font-weight: 700; }
         .dz-sub { margin: 0; color: var(--muted); font-size: 13px; }
-        .progress-wrap { margin-top: 16px; }
-        .progress-bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+        .upload-guidance { width: min(100%, 820px); margin: 0 auto 8px; text-align: center; }
+        .progress-wrap { width: min(100%, 820px); margin: 12px auto 0; }
+        .progress-bar { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
         .progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.2s ease; }
-        .progress-text { color: var(--muted); font-size: 13px; margin: 6px 0 0; overflow-wrap: anywhere; }
-        .results { margin-top: 20px; display: grid; gap: 12px; }
+        .progress-text { color: var(--muted); font-size: 12px; margin: 3px 0 0; overflow-wrap: anywhere; }
+        .results { width: min(100%, 820px); margin: 12px auto 0; display: grid; gap: 8px; }
         .result-card {
-          display: flex; gap: 14px; align-items: center; background: var(--surface);
-          border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
+          display: flex; gap: 10px; align-items: center; background: var(--surface);
+          border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px;
           transition: border-color 0.2s ease, background-color 0.3s ease;
         }
-        .result-card img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); flex-shrink: 0; }
-        .result-card .info { flex: 1; min-width: 0; }
-        .result-card .name { font-size: 13px; color: var(--muted); margin: 0 0 4px; overflow-wrap: anywhere; }
-        .result-card .url { font-size: 13px; margin: 0 0 10px; overflow-wrap: anywhere; word-break: break-all; }
+        .result-card img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex-shrink: 0; }
+        .result-card .info {
+          display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+          gap: 2px 12px; flex: 1; min-width: 0;
+        }
+        .result-card .name { grid-column: 1; font-size: 13px; color: var(--muted); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .result-card .url { grid-column: 1; font-size: 13px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .result-card .url a { color: var(--accent); }
-        .result-card .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+        .result-card .btns { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
         @media (max-width: 640px) {
-          .dropzone { padding: 32px 16px; }
-          .result-card { flex-wrap: wrap; }
-          .result-card .info { flex: 1 1 100%; }
-          .result-card .btns .btn { flex: 1; }
+          .dropzone { padding: 48px 16px; }
+          .result-card { gap: 8px; padding: 8px; }
+          .result-card img { width: 48px; height: 48px; }
+          .result-card .info { grid-template-columns: minmax(0, 1fr); }
+          .result-card .btns { grid-column: 1; grid-row: 3; justify-content: flex-start; }
         }
       .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
       .inline-form { display: flex; gap: 10px; align-items: stretch; }
@@ -376,12 +623,74 @@ const nav = [
       .vv-item-head:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
       .vv-toggle-text { font-size: 12px; color: var(--muted); font-weight: 400; flex-shrink: 0; }
       .vv-item-body { padding: 4px 14px 12px; border-top: 1px solid var(--line); }
-      .vv-item-del { margin-top: 10px; padding: 0; }
+      .vv-item-del { margin-top: 10px; }
       .vv-subobj { margin: 8px 0; padding: 4px 0 4px 10px; border-left: 2px solid var(--line); }
       .vv-subobj-title { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
       .vv-prim-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
       .vv-prim-row .input { flex: 1; min-width: 0; }
       .vv-note { margin-top: 12px; }
+
+      /* ============ 变量编辑页 ============ */
+      .variable-editor .tabs {
+        gap: 4px; padding: 4px; margin-bottom: 16px;
+        width: fit-content; max-width: 100%;
+        border: 1px solid var(--line); border-radius: 14px;
+        background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+      }
+      .variable-editor .tab {
+        min-height: 38px; padding: 8px 16px;
+        border-color: transparent; background: transparent;
+        border-radius: 10px; white-space: nowrap;
+      }
+      .variable-editor .tab.active {
+        background: var(--surface); border-color: var(--line); color: var(--text);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .variable-editor .hint { margin: 0 0 16px; font-size: 13px; }
+      .variable-editor .vv-section {
+        margin-bottom: 14px; padding: 18px 20px;
+        border-radius: 16px;
+      }
+      .variable-editor .vv-sec-title {
+        margin-bottom: 10px; color: var(--text); font-size: 14px;
+      }
+      .variable-editor .vv-field > label {
+        color: var(--muted); font-size: 12px; letter-spacing: 0.01em;
+      }
+      .variable-editor .input { min-height: 44px; border-radius: 10px; }
+      .variable-editor textarea.input { min-height: 90px; }
+      .variable-editor .editor-raw-card {
+        margin-bottom: 16px; padding: 12px;
+      }
+      .variable-editor #raw-editor {
+        display: block; min-height: 420px; resize: vertical;
+        font-size: 13px; line-height: 1.65; tab-size: 2;
+      }
+      .variable-editor .vv-array { margin-top: 8px; }
+      .variable-editor .vv-array-head {
+        padding: 8px 0 10px; color: var(--muted);
+      }
+      .variable-editor .vv-item {
+        border-radius: 12px; background: color-mix(in srgb, var(--surface) 70%, var(--bg));
+      }
+      .variable-editor .vv-item-head { min-height: 46px; }
+      .variable-editor .vv-item-body { padding: 12px 14px 14px; }
+      .variable-editor .editor-actions {
+        display: flex; align-items: center; gap: 12px; min-height: 44px;
+      }
+      .variable-editor .editor-actions .status { min-width: 0; }
+      .variable-editor .editor-footer {
+        margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--line);
+      }
+      .variable-editor .editor-back { margin-left: -10px; color: var(--muted); }
+      .variable-editor .editor-back:hover { color: var(--text); }
+      @media (max-width: 640px) {
+        .variable-editor .vv-section { padding: 16px; }
+        .variable-editor .editor-raw-card { padding: 8px; }
+        .variable-editor #raw-editor { min-height: 320px; }
+        .variable-editor .tabs { width: 100%; }
+        .variable-editor .tab { flex: 1; padding-inline: 8px; }
+      }
 
       /* ============ 表格（移动端变卡片） ============ */
       .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -390,6 +699,41 @@ const nav = [
       .tbl tbody tr { transition: background-color 0.15s ease; }
       .tbl tbody tr:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
       .tbl td.cell-actions { white-space: nowrap; text-align: right; }
+      .tbl td.cell-actions .link {
+        min-height: 30px;
+        padding: 4px 9px;
+        font-size: 13px;
+        border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--surface) 72%, transparent);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+        backdrop-filter: blur(12px) saturate(180%);
+        box-shadow:
+          inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent),
+          0 4px 14px rgba(0, 0, 0, 0.12);
+        transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .tbl td.cell-actions .link:hover {
+        border-color: color-mix(in srgb, var(--header-text) 48%, var(--surface));
+        background: color-mix(in srgb, color-mix(in srgb, var(--surface) 72%, var(--header-text) 28%) 82%, transparent);
+        color: var(--text);
+        box-shadow:
+          inset 0 1px 0 color-mix(in srgb, #fff 72%, transparent),
+          inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent),
+          0 8px 22px rgba(0, 0, 0, 0.2);
+      }
+      .tbl td.cell-actions .link.danger { color: var(--danger); }
+      .tbl td.cell-actions .link.danger:hover { color: var(--text); }
+      .tbl td.cell-actions .link:active {
+        background: color-mix(in srgb, var(--surface) 78%, transparent);
+        box-shadow:
+          inset 0 2px 6px rgba(0, 0, 0, 0.18),
+          inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent);
+      }
+      .tbl td.cell-actions .link:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+        outline-offset: 3px;
+      }
 
       /* ============ 徽标 / 链接 / 代码 ============ */
       .badge {
@@ -407,6 +751,8 @@ const nav = [
       .link:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
       .link.danger { color: var(--danger); }
       .link.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+      .page-heading .back-button { color: #17191c; }
+      :root.dark .page-heading .back-button { color: #fff; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; overflow-wrap: anywhere; word-break: break-word; }
       code { background: color-mix(in srgb, var(--line) 45%, transparent); padding: 2px 7px; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; overflow-wrap: anywhere; }
       .chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -466,8 +812,9 @@ const nav = [
       /* ============ 移动端 ============ */
       @media (max-width: 640px) {
         .topbar-inner { padding: 0 12px; }
-        .brand { font-size: 14px; }
-        .content { padding: 18px 14px 56px; }
+        .topbar-inner::before { content: none; }
+        .content { width: 100%; margin-inline: 0; padding: 18px 24px 56px; }
+        .content.embedded-content { width: 100%; padding: 8px 24px 24px; }
         .page-title { font-size: 20px; margin-bottom: 14px; }
         .card { padding: 16px; border-radius: 16px; }
         .form-grid { grid-template-columns: 1fr; }
@@ -498,11 +845,15 @@ const nav = [
         }
         .tbl td.no-label::before { display: none; }
         .tbl td.cell-actions { justify-content: flex-start; border-bottom: none; padding-top: 4px; }
-        .tbl td.cell-actions .link {
-          border: 1px solid var(--line); border-radius: 12px; padding: 10px 18px;
-        }
-        .tbl td.cell-actions .link.danger { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+        .tbl td.cell-actions .link { min-height: 34px; padding: 6px 12px; }
         .chips { justify-content: flex-end; }
+      }
+
+      @media (max-width: 520px) {
+        .page-heading-actions { gap: 6px; }
+        .page-heading-actions .btn { padding-inline: 12px; font-size: 12px; }
+        .new-page-dialog-head { padding: 20px 20px 16px; }
+        .new-page-dialog-content { padding: 18px 20px 20px; }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -511,66 +862,610 @@ const nav = [
     </style>
   </head>
   <body>
-    <header class="topbar">
-      <div class="topbar-inner">
-        <a class="brand" href="/">博客管理</a>
-        <nav class="nav">
-          {nav.map((item) => (
-            <a href={item.href} class={item.key === active ? 'active' : ''}>{item.label}</a>
-          ))}
-        </nav>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">◐</button>
-        <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-label="打开导航菜单" aria-expanded="false">
-          <span></span><span></span><span></span>
-        </button>
-      </div>
-    </header>
-    <nav class="nav-drawer" id="nav-drawer" aria-label="移动端导航">
-      {nav.map((item) => (
-        <a href={item.href} class={item.key === active ? 'active' : ''}>{item.label}</a>
-      ))}
-    </nav>
-    <div class="mobile-nav-backdrop" id="mobile-nav-backdrop"></div>
-    <main class="content">
+    {!embedded && (
+      <header class="topbar" transition:persist="admin-topbar">
+        <div class="topbar-inner">
+          <div class="topbar-controls">
+            <div class="topbar-navigation">
+              <div class="nav-capsule">
+                <span class="navigation-indicator" aria-hidden="true"></span>
+                <nav class="nav">
+                  {nav.map((item) => (
+                    <a href={item.href} draggable="false" aria-current={item.key === active ? 'page' : undefined}>{item.label}</a>
+                  ))}
+                </nav>
+              </div>
+              <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">◐</button>
+            </div>
+            <div class="topbar-actions" hidden={!['/posts', '/posts/edit', '/notes', '/images', '/images/manage', '/pages', '/pages/settings', '/data/edit', '/pages/edit'].includes(Astro.url.pathname) && !noteEditor}>
+              <a class="btn" id="new-post-link" href="/posts/new" hidden={Astro.url.pathname !== '/posts'}>
+                新建
+              </a>
+              <a class="btn" id="new-note-link" href="/notes/new" hidden={Astro.url.pathname !== '/notes'}>
+                新建
+              </a>
+              <a class="btn btn-sm glass-button" id="open-image-manager" href="/images/manage" hidden={Astro.url.pathname !== '/images'}>
+                管理
+              </a>
+              <button class="btn btn-sm glass-button" id="open-image-settings" type="button" hidden={Astro.url.pathname !== '/images'}>
+                设置
+              </button>
+              <button class="btn btn-sm glass-button" id="refresh-image-manager" type="button" hidden={Astro.url.pathname !== '/images/manage'}>
+                刷新
+              </button>
+              <button class="btn" id="post-save-btn" type="button" hidden={Astro.url.pathname !== '/posts/edit'}>保存</button>
+              <button class="link danger note-delete-button" id="post-delete-btn" type="button" hidden={Astro.url.pathname !== '/posts/edit'}>删除</button>
+              <button class="btn" id="new-page-toggle" type="button" hidden={Astro.url.pathname !== '/pages/settings'}>新建页面</button>
+              <button class="btn" id="site-add-btn" type="button" hidden>新增</button>
+              <button class="btn" id="site-save-btn" type="button" hidden={!['/data/edit', '/pages/edit'].includes(Astro.url.pathname)}>保存</button>
+              <button class="btn" id="note-save-btn" type="button" hidden={!noteEditor}>保存</button>
+              <button class="link danger note-delete-button" id="note-delete-btn" type="button" hidden={!noteEditor}>删除</button>
+              <span id="note-save-status" class="status" hidden={!noteEditor} aria-live="polite"></span>
+            </div>
+          </div>
+        </div>
+      </header>
+    )    }
+
+    <dialog id="site-add-dialog" class="new-page-dialog" aria-labelledby="site-add-title" transition:persist="site-add-dialog">
+      <header class="new-page-dialog-head">
+        <div>
+          <h2 id="site-add-title">选择新增列表</h2>
+          <p id="site-add-description">选择要添加项目的列表。</p>
+        </div>
+        <button class="new-page-close" type="button" id="site-add-close" aria-label="关闭">×</button>
+      </header>
+      <div id="site-add-options" class="new-page-dialog-content new-page-fields site-add-options"></div>
+    </dialog>
+
+    <dialog id="new-post-dialog" class="new-page-dialog" aria-labelledby="new-post-title" transition:persist="new-post-dialog">
+      <header class="new-page-dialog-head">
+        <div>
+          <h2 id="new-post-title">新建文章</h2>
+          <p>输入标题后创建文章草稿。</p>
+        </div>
+        <button class="new-page-close" type="button" data-close-new-post aria-label="关闭">×</button>
+      </header>
+      <form id="new-post-form" class="new-page-dialog-content">
+        <div class="new-page-fields">
+          <label for="new-post-title-input">文章标题</label>
+          <input id="new-post-title-input" class="input" name="title" placeholder="输入文章标题" required />
+        </div>
+        <p id="new-post-status" class="new-page-hint" aria-live="polite"></p>
+        <div class="new-page-actions">
+          <button class="btn btn-ghost" type="button" data-close-new-post>取消</button>
+          <button class="btn" id="new-post-submit" type="submit">创建</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="new-note-dialog" class="new-page-dialog" aria-labelledby="new-note-title" transition:persist="new-note-dialog">
+      <header class="new-page-dialog-head">
+        <div>
+          <h2 id="new-note-title">新建随记</h2>
+          <p>文件名将按日期和标题自动生成。</p>
+        </div>
+        <button class="new-page-close" type="button" data-close-new-note aria-label="关闭">×</button>
+      </header>
+      <form id="new-note-form" class="new-page-dialog-content">
+        <div class="new-page-fields">
+          <label for="new-note-slug">标题或 slug</label>
+          <input id="new-note-slug" class="input" name="slug" placeholder="例如：今日随想" required />
+        </div>
+        <p id="new-note-status" class="new-page-hint" aria-live="polite"></p>
+        <div class="new-page-actions">
+          <button class="btn btn-ghost" type="button" data-close-new-note>取消</button>
+          <button class="btn" id="new-note-submit" type="submit">新建</button>
+        </div>
+      </form>
+    </dialog>
+    <main class:list={['content', { 'embedded-content': embedded }]}>
       <slot />
     </main>
     <script>
+      type NavigationIndicatorPosition = {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+
+      const root = document.documentElement;
+
       // 主题切换（机制与博客前台一致）
+      let adminThemeTimeout: number | undefined;
       const themeBtn = document.getElementById('theme-toggle');
-      function syncThemeText() { /* 图标固定为 ◐，与博客前台一致，无需切换文字 */ }
       themeBtn?.addEventListener('click', () => {
         const root = document.documentElement;
-        clearTimeout(window.__adminThemeT);
-        root.classList.add('theme-changing');
-        getComputedStyle(root).getPropertyValue('--bg');
+        clearTimeout(adminThemeTimeout);
+        if (window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+          root.classList.add('theme-changing');
+          getComputedStyle(root).getPropertyValue('--bg');
+        }
         root.classList.toggle('dark');
         try {
           localStorage.setItem('admin-theme', root.classList.contains('dark') ? 'dark' : 'light');
         } catch (e) {}
-        syncThemeText();
-        window.__adminThemeT = setTimeout(() => root.classList.remove('theme-changing'), 560);
+        adminThemeTimeout = window.setTimeout(() => root.classList.remove('theme-changing'), 560);
       });
 
-      // 移动端汉堡导航（照搬博客前台）
-      const menuBtn = document.getElementById('mobile-menu-toggle');
-      const backdrop = document.getElementById('mobile-nav-backdrop');
-      function setMobileNav(open) {
-        document.body.classList.toggle('mobile-nav-open', open);
-        if (menuBtn) {
-          menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-          menuBtn.setAttribute('aria-label', open ? '关闭导航菜单' : '打开导航菜单');
-        }
+      const newPostLink = document.getElementById('new-post-link');
+      const newPostDialog = document.querySelector<HTMLDialogElement>('#new-post-dialog');
+      const newPostForm = document.querySelector<HTMLFormElement>('#new-post-form');
+      const newPostInput = document.querySelector<HTMLInputElement>('#new-post-title-input');
+      const newPostStatus = document.getElementById('new-post-status');
+      const newPostSubmit = document.querySelector<HTMLButtonElement>('#new-post-submit');
+
+      if (newPostDialog && newPostForm && newPostInput && newPostStatus && newPostSubmit
+        && newPostDialog.dataset.initialized !== 'true') {
+        newPostDialog.dataset.initialized = 'true';
+        newPostLink?.addEventListener('click', (event) => {
+          event.preventDefault();
+          newPostStatus.textContent = '';
+          newPostInput.value = '';
+          newPostDialog.showModal();
+          newPostInput.focus();
+        });
+        newPostDialog.querySelectorAll<HTMLButtonElement>('[data-close-new-post]').forEach((button) => {
+          button.addEventListener('click', () => newPostDialog.close());
+        });
+        newPostDialog.addEventListener('click', (event) => {
+          if (event.target === newPostDialog) newPostDialog.close();
+        });
+        newPostForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const title = newPostInput.value.trim();
+          if (!title) {
+            newPostStatus.textContent = '请输入文章标题';
+            newPostInput.focus();
+            return;
+          }
+          newPostSubmit.disabled = true;
+          newPostStatus.textContent = '创建中…';
+          try {
+            const response = await fetch('/api/posts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+              newPostStatus.textContent = `创建失败：${result.error ?? response.statusText}`;
+              return;
+            }
+            newPostDialog.close();
+            document.getElementById('list')?.dispatchEvent(new CustomEvent('admin:posts-created'));
+          } catch (error) {
+            newPostStatus.textContent = `创建失败：${error instanceof Error ? error.message : String(error)}`;
+          } finally {
+            newPostSubmit.disabled = false;
+          }
+        });
       }
-      menuBtn?.addEventListener('click', () => {
-        setMobileNav(!document.body.classList.contains('mobile-nav-open'));
+
+      const newNoteLink = document.getElementById('new-note-link');
+      const newNoteDialog = document.querySelector<HTMLDialogElement>('#new-note-dialog');
+      const newNoteForm = document.querySelector<HTMLFormElement>('#new-note-form');
+      const newNoteInput = document.querySelector<HTMLInputElement>('#new-note-slug');
+      const newNoteStatus = document.getElementById('new-note-status');
+      const newNoteSubmit = document.querySelector<HTMLButtonElement>('#new-note-submit');
+
+      if (newNoteDialog && newNoteForm && newNoteInput && newNoteStatus && newNoteSubmit
+        && newNoteDialog.dataset.initialized !== 'true') {
+        newNoteDialog.dataset.initialized = 'true';
+        newNoteLink?.addEventListener('click', (event) => {
+          event.preventDefault();
+          newNoteStatus.textContent = '';
+          newNoteInput.value = '';
+          newNoteDialog.showModal();
+          newNoteInput.focus();
+        });
+        newNoteDialog.querySelectorAll<HTMLButtonElement>('[data-close-new-note]').forEach((button) => {
+          button.addEventListener('click', () => newNoteDialog.close());
+        });
+        newNoteDialog.addEventListener('click', (event) => {
+          if (event.target === newNoteDialog) newNoteDialog.close();
+        });
+        newNoteForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const slug = newNoteInput.value.trim();
+          if (!slug) {
+            newNoteStatus.textContent = '请输入标题或 slug';
+            newNoteInput.focus();
+            return;
+          }
+          newNoteSubmit.disabled = true;
+          newNoteStatus.textContent = '创建中…';
+          try {
+            const response = await fetch('/api/notes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ slug }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+              newNoteStatus.textContent = `创建失败：${result.error ?? response.statusText}`;
+              return;
+            }
+            window.location.href = `/notes/edit?file=${encodeURIComponent(result.data.file)}`;
+          } catch (error) {
+            newNoteStatus.textContent = `创建失败：${error instanceof Error ? error.message : String(error)}`;
+          } finally {
+            newNoteSubmit.disabled = false;
+          }
+        });
+      }
+
+      document.getElementById('open-image-settings')?.addEventListener('click', () => {
+        document.querySelector<HTMLDialogElement>('#settings-dialog')?.showModal();
       });
-      backdrop?.addEventListener('click', () => setMobileNav(false));
-      document.querySelectorAll('.nav-drawer a').forEach((a) => {
-        a.addEventListener('click', () => setMobileNav(false));
+      document.getElementById('refresh-image-manager')?.addEventListener('click', () => {
+        document.querySelector('.image-manager')?.dispatchEvent(new Event('image-manager-refresh'));
       });
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') setMobileNav(false);
-      });
+
+      const capsule = document.querySelector<HTMLElement>('.nav-capsule');
+      const indicator = capsule?.querySelector<HTMLElement>('.navigation-indicator');
+      const indicatorTransition = [
+        'transform 520ms cubic-bezier(0.22, 1.35, 0.36, 1)',
+        'width 420ms cubic-bezier(0.22, 1.15, 0.36, 1)',
+        'height 280ms cubic-bezier(0.2, 0.75, 0.25, 1)',
+        'opacity 220ms ease',
+      ].join(', ');
+      const getNavigationIndicatorPosition = (link?: HTMLElement | null) => {
+        const activeLink = link ?? document.querySelector<HTMLElement>('.nav a[aria-current="page"]');
+        if (!capsule || !activeLink) return null;
+        const capsuleRect = capsule.getBoundingClientRect();
+        const linkRect = activeLink.getBoundingClientRect();
+        const capsuleStyle = getComputedStyle(capsule);
+        const borderLeft = Number.parseFloat(capsuleStyle.borderLeftWidth);
+        const borderTop = Number.parseFloat(capsuleStyle.borderTopWidth);
+        const width = linkRect.width;
+        const height = capsuleRect.height;
+        return {
+          x: linkRect.left - capsuleRect.left - borderLeft - (width - linkRect.width) / 2,
+          y: -borderTop,
+          width,
+          height,
+        };
+      };
+      const setNavigationIndicatorPosition = (position: NavigationIndicatorPosition | null) => {
+        if (!indicator) return;
+        if (!position) {
+          indicator.style.width = '0px';
+          indicator.style.height = '0px';
+          return;
+        }
+        indicator.style.transform = `translate3d(${position.x}px, ${position.y}px, 0)`;
+        indicator.style.width = `${position.width}px`;
+        indicator.style.height = `${position.height}px`;
+      };
+
+      if (capsule && indicator && capsule.dataset.navigationIndicatorReady !== 'true') {
+        indicator.style.transition = 'none';
+        setNavigationIndicatorPosition(getNavigationIndicatorPosition());
+        getComputedStyle(indicator).transform;
+        capsule.dataset.navigationIndicatorReady = 'true';
+        requestAnimationFrame(() => {
+          indicator.style.transition = indicatorTransition;
+        });
+      }
+
+      if (root.dataset.adminNavigationListeners !== 'true') {
+        root.dataset.adminNavigationListeners = 'true';
+        document.querySelector<HTMLButtonElement>('#post-save-btn')?.addEventListener('click', () => {
+          document.querySelector<HTMLButtonElement>('#save-btn')?.click();
+        });
+        document.querySelector<HTMLButtonElement>('#post-delete-btn')?.addEventListener('click', () => {
+          document.querySelector<HTMLButtonElement>('#del-all-btn')?.click();
+        });
+        document.querySelector<HTMLButtonElement>('#site-save-btn')?.addEventListener('click', () => {
+          const localSaveButton = document.querySelector<HTMLButtonElement>(
+            '#site-settings-content #save-visual, #site-settings-content #save-btn',
+          );
+          const directSaveButton = ['/data/edit', '/pages/edit'].includes(window.location.pathname)
+            ? document.querySelector<HTMLButtonElement>('#save-visual, #save-btn')
+            : null;
+          (localSaveButton ?? directSaveButton)?.click();
+        });
+        document.querySelector<HTMLButtonElement>('#site-add-btn')?.addEventListener('click', () => {
+          document.dispatchEvent(new Event('admin:site-add-request'));
+        });
+        document.querySelector<HTMLButtonElement>('#site-add-close')?.addEventListener('click', () => {
+          document.querySelector<HTMLDialogElement>('#site-add-dialog')?.close();
+        });
+        document.querySelector<HTMLDialogElement>('#site-add-dialog')?.addEventListener('click', (event) => {
+          if (event.target === event.currentTarget && event.currentTarget instanceof HTMLDialogElement) {
+            event.currentTarget.close();
+          }
+        });
+        const getActiveHref = (pathname: string) => {
+          if (pathname === '/data' || pathname.startsWith('/data/')) return '/pages';
+          if (pathname === '/settings' || pathname.startsWith('/settings/')) return '/images';
+          return ['/posts', '/notes', '/pages', '/images']
+          .find((href) => pathname === href || pathname.startsWith(`${href}/`));
+        };
+        const syncActiveNavigation = (pathname: string) => {
+          const activeHref = getActiveHref(pathname);
+          const newPostLink = document.querySelector<HTMLAnchorElement>('#new-post-link');
+          const newNoteLink = document.querySelector<HTMLAnchorElement>('#new-note-link');
+          const imageManagerLink = document.querySelector<HTMLAnchorElement>('#open-image-manager');
+          const imageSettingsButton = document.querySelector<HTMLButtonElement>('#open-image-settings');
+          const imageManagerRefreshButton = document.querySelector<HTMLButtonElement>('#refresh-image-manager');
+          const postSaveButton = document.querySelector<HTMLButtonElement>('#post-save-btn');
+          const postDeleteButton = document.querySelector<HTMLButtonElement>('#post-delete-btn');
+          const newPageButton = document.querySelector<HTMLButtonElement>('#new-page-toggle');
+          const siteAddButton = document.querySelector<HTMLButtonElement>('#site-add-btn');
+          const siteSaveButton = document.querySelector<HTMLButtonElement>('#site-save-btn');
+          const noteSaveButton = document.querySelector<HTMLButtonElement>('#note-save-btn');
+          const noteDeleteButton = document.querySelector<HTMLButtonElement>('#note-delete-btn');
+          const saveStatus = document.querySelector<HTMLElement>('#note-save-status');
+          const newPostActions = newPostLink?.parentElement;
+          if (newPostLink) newPostLink.hidden = pathname !== '/posts';
+          if (newNoteLink) newNoteLink.hidden = pathname !== '/notes';
+          if (imageManagerLink) imageManagerLink.hidden = pathname !== '/images';
+          if (imageSettingsButton) imageSettingsButton.hidden = pathname !== '/images';
+          if (imageManagerRefreshButton) imageManagerRefreshButton.hidden = pathname !== '/images/manage';
+          const isPostEditor = pathname === '/posts/edit';
+          if (postSaveButton) postSaveButton.hidden = !isPostEditor;
+          if (postDeleteButton) postDeleteButton.hidden = !isPostEditor;
+          const isPageSettings = pathname === '/pages/settings' ||
+            pathname === '/pages' && document.querySelector('#site-settings-content #page-settings-root') !== null;
+          if (newPageButton) newPageButton.hidden = !isPageSettings;
+          const embeddedSiteSaveButton = document.querySelector<HTMLButtonElement>(
+            '#site-settings-content #save-visual, #site-settings-content #save-btn',
+          );
+          const directSiteSaveButton = ['/data/edit', '/pages/edit'].includes(pathname)
+            ? document.querySelector<HTMLButtonElement>('#save-visual, #save-btn')
+            : null;
+          const siteEditorSaveButton = embeddedSiteSaveButton ?? directSiteSaveButton;
+          const isSiteSettingsEditor = (
+            pathname === '/pages' && embeddedSiteSaveButton !== null ||
+            ['/data/edit', '/pages/edit'].includes(pathname) && directSiteSaveButton !== null
+          ) && siteEditorSaveButton?.disabled === false;
+          if (siteSaveButton) {
+            siteSaveButton.hidden = !isSiteSettingsEditor;
+            siteSaveButton.disabled = siteEditorSaveButton?.disabled ?? true;
+          }
+          if (siteAddButton) {
+            const isDataEditor = pathname === '/data/edit' ||
+              pathname === '/pages' && document.querySelector('#site-settings-content #variable-editor-app') !== null;
+            siteAddButton.hidden = !isDataEditor || siteAddButton.dataset.hasTargets !== 'true';
+          }
+          const isNoteEditor = pathname === '/notes/edit';
+          if (noteSaveButton) noteSaveButton.hidden = !isNoteEditor;
+          if (noteDeleteButton) noteDeleteButton.hidden = !isNoteEditor;
+          if (saveStatus) saveStatus.hidden = !isNoteEditor;
+          if (newPostActions instanceof HTMLElement) {
+            newPostActions.hidden = pathname !== '/posts' && pathname !== '/notes' && pathname !== '/images' &&
+              !isNoteEditor && !isPostEditor && !isSiteSettingsEditor && !isPageSettings;
+          }
+          document.querySelectorAll<HTMLAnchorElement>('.nav a').forEach((link) => {
+            const current = activeHref === link.getAttribute('href');
+            if (current) link.setAttribute('aria-current', 'page');
+            else link.removeAttribute('aria-current');
+            link.classList.toggle('active', current);
+          });
+          setNavigationIndicatorPosition(getNavigationIndicatorPosition());
+        };
+
+        document.addEventListener('astro:before-swap', (event) => {
+          const transitionEvent = event as Event & { newDocument: Document };
+          transitionEvent.newDocument.documentElement.classList.toggle('dark', root.classList.contains('dark'));
+        });
+        document.addEventListener('astro:after-swap', () => {
+          syncActiveNavigation(window.location.pathname);
+        });
+        document.addEventListener('admin:content-loaded', () => {
+          syncActiveNavigation(window.location.pathname);
+        });
+        const siteSettingsContent = document.querySelector<HTMLElement>('#site-settings-content');
+        if (siteSettingsContent) {
+          new MutationObserver(() => syncActiveNavigation(window.location.pathname))
+            .observe(siteSettingsContent, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled'] });
+        }
+
+        let navDrag: {
+          pointerId: number;
+          startButton: HTMLAnchorElement;
+          startX: number;
+          startY: number;
+          lastX: number;
+          lastY: number;
+          width: number;
+          height: number;
+          longPressTimer: number;
+          longPressActivated: boolean;
+          moved: boolean;
+        } | null = null;
+        const topbar = capsule?.closest<HTMLElement>('.topbar');
+        let suppressNavClick = false;
+
+        const positionIndicatorAtPointer = (clientX: number, width: number, height: number) => {
+          if (!capsule || !indicator) return;
+          const capsuleRect = capsule.getBoundingClientRect();
+          const borderLeft = Number.parseFloat(getComputedStyle(capsule).borderLeftWidth);
+          const borderTop = Number.parseFloat(getComputedStyle(capsule).borderTopWidth);
+          const x = Math.max(0, Math.min(
+            capsule.clientWidth - width,
+            clientX - capsuleRect.left - borderLeft - width / 2,
+          ));
+          const y = -borderTop - Math.max(0, height - capsuleRect.height) / 2;
+          indicator.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+          indicator.style.width = `${width}px`;
+          indicator.style.height = `${height}px`;
+        };
+        const getDropTarget = (clientX: number) => {
+          if (!capsule) return null;
+          const pillCenter = clientX;
+          return [...capsule.querySelectorAll<HTMLAnchorElement>('.nav a')]
+            .filter((link) => getComputedStyle(link).display !== 'none')
+            .find((link) => {
+              const rect = link.getBoundingClientRect();
+              return pillCenter >= rect.left && pillCenter <= rect.right;
+            }) ?? null;
+        };
+        document.addEventListener('pointerdown', (event) => {
+          if (!capsule || !indicator || !event.isPrimary || event.button !== 0) return;
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const startButton = target.closest<HTMLAnchorElement>('.nav a');
+          if (!startButton || !capsule.contains(startButton)) return;
+          const currentPosition = getComputedStyle(indicator);
+          if (currentPosition.width === '0px' || currentPosition.height === '0px') return;
+
+          const activeLink = capsule.querySelector<HTMLElement>('.nav a[aria-current="page"]');
+          const activeRect = activeLink?.getBoundingClientRect();
+          const drag = {
+            pointerId: event.pointerId,
+            startButton,
+            startX: event.clientX,
+            startY: event.clientY,
+            lastX: event.clientX,
+            lastY: event.clientY,
+            width: activeRect?.width ?? startButton.getBoundingClientRect().width,
+            height: capsule.getBoundingClientRect().height + 12,
+            longPressTimer: 0,
+            longPressActivated: false,
+            moved: false,
+          };
+          navDrag = drag;
+          drag.longPressTimer = window.setTimeout(() => {
+            if (navDrag !== drag || !capsule || !indicator) return;
+            drag.longPressActivated = true;
+            topbar?.classList.add('is-navigation-dragging');
+            capsule.classList.add('is-long-pressing');
+            if (drag.moved) capsule.classList.add('is-dragging');
+            indicator.style.transition = 'none';
+            positionIndicatorAtPointer(drag.lastX, drag.width, drag.height);
+            startButton.setPointerCapture(drag.pointerId);
+          }, 450);
+        });
+        document.addEventListener('pointermove', (event) => {
+          const drag = navDrag;
+          if (!drag || drag.pointerId !== event.pointerId) return;
+          drag.lastX = event.clientX;
+          drag.lastY = event.clientY;
+          if (!drag.longPressActivated) {
+            if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) >= 8) {
+              drag.moved = true;
+              event.preventDefault();
+            }
+            return;
+          }
+          if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 8) return;
+          drag.moved = true;
+          capsule?.classList.add('is-dragging');
+          if (indicator) indicator.style.transition = 'none';
+          positionIndicatorAtPointer(event.clientX, drag.width, drag.height);
+          event.preventDefault();
+        });
+        document.addEventListener('dragstart', (event) => {
+          if (navDrag?.longPressActivated) event.preventDefault();
+        }, true);
+        document.addEventListener('pointerup', (event) => {
+          const drag = navDrag;
+          if (!drag || drag.pointerId !== event.pointerId) return;
+          navDrag = null;
+          window.clearTimeout(drag.longPressTimer);
+          if (!drag.longPressActivated) {
+            if (drag.moved) {
+              event.preventDefault();
+              suppressNavClick = true;
+              window.setTimeout(() => { suppressNavClick = false; }, 0);
+            }
+            return;
+          }
+          event.preventDefault();
+          suppressNavClick = true;
+          window.setTimeout(() => { suppressNavClick = false; }, 0);
+
+          const target = drag.moved ? getDropTarget(event.clientX) : drag.startButton;
+          if (indicator) {
+            indicator.style.transition = 'none';
+            getComputedStyle(indicator).transform;
+            indicator.getBoundingClientRect();
+          }
+          topbar?.classList.remove('is-navigation-dragging');
+          capsule?.classList.remove('is-dragging', 'is-long-pressing');
+          const targetPosition = getNavigationIndicatorPosition(target);
+          if (!target || !targetPosition) {
+            if (indicator) indicator.style.transition = indicatorTransition;
+            setNavigationIndicatorPosition(getNavigationIndicatorPosition());
+            return;
+          }
+
+          const currentRect = indicator?.getBoundingClientRect();
+          const capsuleRect = capsule?.getBoundingClientRect();
+          const targetRect = {
+            left: (capsuleRect?.left ?? 0) + targetPosition.x,
+            width: targetPosition.width,
+            height: targetPosition.height,
+          };
+          const pendingTransitions = new Set<string>();
+          if (currentRect && Math.abs(currentRect.left - targetRect.left) > 0.5) pendingTransitions.add('transform');
+          if (currentRect && Math.abs(currentRect.width - targetRect.width) > 0.5) pendingTransitions.add('width');
+          if (currentRect && Math.abs(currentRect.height - targetRect.height) > 0.5) pendingTransitions.add('height');
+
+          const navigateToTarget = () => {
+            suppressNavClick = false;
+            target.click();
+          };
+          let navigationTimeout = 0;
+          const onIndicatorTransitionEnd = (transitionEvent: TransitionEvent) => {
+            if (!pendingTransitions.delete(transitionEvent.propertyName) || pendingTransitions.size > 0) return;
+            indicator?.removeEventListener('transitionend', onIndicatorTransitionEnd);
+            window.clearTimeout(navigationTimeout);
+            navigateToTarget();
+          };
+          if (pendingTransitions.size > 0 && indicator) {
+            indicator.addEventListener('transitionend', onIndicatorTransitionEnd);
+            navigationTimeout = window.setTimeout(() => {
+              indicator.removeEventListener('transitionend', onIndicatorTransitionEnd);
+              navigateToTarget();
+            }, 600);
+          }
+
+          requestAnimationFrame(() => {
+            if (indicator) indicator.style.transition = indicatorTransition;
+            requestAnimationFrame(() => {
+              setNavigationIndicatorPosition(targetPosition);
+              if (pendingTransitions.size === 0) navigateToTarget();
+            });
+          });
+        });
+        const cancelNavDrag = (event: PointerEvent) => {
+          if (!navDrag || navDrag.pointerId !== event.pointerId) return;
+          window.clearTimeout(navDrag.longPressTimer);
+          if (navDrag.longPressActivated) {
+            topbar?.classList.remove('is-navigation-dragging');
+            capsule?.classList.remove('is-dragging', 'is-long-pressing');
+            if (indicator) indicator.style.transition = indicatorTransition;
+            setNavigationIndicatorPosition(getNavigationIndicatorPosition());
+          }
+          navDrag = null;
+        };
+        document.addEventListener('pointercancel', cancelNavDrag);
+        document.addEventListener('lostpointercapture', cancelNavDrag);
+        document.addEventListener('click', (event) => {
+          if (suppressNavClick && event.detail !== 0) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            suppressNavClick = false;
+          }
+        }, true);
+      }
+
+      if (root.dataset.adminNavigationResizeListener !== 'true') {
+        root.dataset.adminNavigationResizeListener = 'true';
+        window.addEventListener('resize', () => {
+          if (!capsule || !indicator) return;
+          indicator.style.transition = 'none';
+          setNavigationIndicatorPosition(getNavigationIndicatorPosition());
+          requestAnimationFrame(() => {
+            indicator.style.transition = indicatorTransition;
+          });
+        });
+      }
+
     </script>
   </body>
 </html>

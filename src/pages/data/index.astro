@@ -1,28 +1,4 @@
 ---
-import AdminLayout from '../../layouts/AdminLayout.astro';
-
 export const prerender = false;
-
-const files = [
-  { name: 'config', title: '站点配置', desc: 'config.jsonc：站点标题、副标题、链接等基础配置' },
-  { name: 'posts', title: '文章变量', desc: 'posts.jsonc：文章列表页相关文案' },
-  { name: 'about', title: '关于页面', desc: 'about.jsonc：关于页面的多语言文案' },
-  { name: 'apple', title: 'Apple 相关', desc: 'apple.jsonc：Apple 平台相关配置与文案' },
-  { name: 'services', title: '服务', desc: 'services.jsonc：服务页面的多语言文案' },
-];
+return Astro.redirect('/pages', 302);
 ---
-
-<AdminLayout title="变量管理" active="data">
-  <h1 class="page-title">变量 <span style="font-size: 13px; color: var(--muted); font-weight: 400;">src/data/*.jsonc</span></h1>
-  <div class="grid">
-    {files.map((f) => (
-      <a class="module-card" href={`/data/edit?name=${f.name}`}>
-        <div class="title">{f.title} <code class="mono">{f.name}.jsonc</code></div>
-        <div class="desc">{f.desc}</div>
-      </a>
-    ))}
-  </div>
-  <p style="font-size: 13px; color: var(--muted); margin-top: 16px;">
-    保存时服务端会用 jsonc-parser 校验语法，语法错误将拒绝保存并指出位置。
-  </p>
-</AdminLayout>

@@ -3,6 +3,7 @@ import { validatePostFrontmatter, serializePost } from '../../../../lib/frontmat
 import { ok, fail, type Gh } from '../../../../lib/content.js';
 import { postRefsFromPaths, resolveGroup } from '../../../../lib/posts.js';
 import * as ghMod from '../../../../lib/github.js';
+import { getEnv } from '../../../../lib/env.js';
 
 export const prerender = false;
 
@@ -17,6 +18,13 @@ type GhEx = Omit<Gh, 'putFile'> & {
   ) => Promise<{ sha: string; path: string }>;
 };
 const gh = ghMod as unknown as GhEx;
+
+function isLocalPreview(locals: APIContext['locals'], request: Request) {
+  const hostname = new URL(request.url).hostname;
+  return import.meta.env.DEV &&
+    getEnv(locals).ADMIN_LOCAL_PREVIEW === 'true' &&
+    (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]');
+}
 
 /**
  * 双段路由 /api/posts/:a/:b。
@@ -49,6 +57,30 @@ export async function PUT({ locals, params, request }: APIContext) {
   const v = validatePostFrontmatter(fmIn);
   if (!v.valid) return fail('frontmatter 校验失败：' + v.errors.join('；'));
   if (!sha) return fail('缺少 sha（请先重新加载再保存）');
+
+  if (isLocalPreview(locals, request)) {
+    try {
+      const { hashLocalContent, listLocalRepoFiles, writeLocalPost } = await import('../../../../lib/local-data.js');
+      const files = await listLocalRepoFiles('src/content/posts');
+      const ref = postRefsFromPaths(files.map((file) => file.path))
+        .find((item) => item.lang === lang && item.slug === slug);
+      if (!ref) return fail('文件不存在', 404);
+      const content = files.find((file) => file.path === ref.path)?.content;
+      if (content === undefined) return fail('文件不存在', 404);
+      if (hashLocalContent(content) !== sha) {
+        return fail('文件已被他人修改（sha 不一致），请刷新后重试', 409);
+      }
+
+      const serialized = serializePost(fmIn as Record<string, any>, text);
+      const nextSha = await writeLocalPost(ref.path, serialized, sha);
+      return ok({ path: ref.path, sha: nextSha });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'CONFLICT') return fail('文件已被他人修改（sha 不一致），请刷新后重试', 409);
+      if (code === 'ENOENT') return fail('文件不存在', 404);
+      return fail('保存本地文章失败：' + (error as Error).message, 500);
+    }
+  }
 
   try {
     // 用已存在的真实路径（防路径穿越；同时兼容 .md/.mdx）

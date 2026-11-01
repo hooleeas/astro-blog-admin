@@ -37,13 +37,71 @@ function repoConfig(locals: unknown): RepoConfig {
 
 /** base64 编码（Workers 无 Buffer，分段避免大字符串栈溢出） */
 export function b64encode(input: string): string {
-  const bytes = new TextEncoder().encode(input);
+  return b64encodeBytes(new TextEncoder().encode(input));
+}
+
+export function b64encodeBytes(bytes: Uint8Array): string {
   let binary = '';
   const CHUNK = 0x8000;
   for (let i = 0; i < bytes.length; i += CHUNK) {
     binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
   return btoa(binary);
+}
+
+/** 发布二进制文件到 GitHub Pages 仓库。 */
+export async function putPagesAsset(
+  locals: unknown,
+  path: string,
+  content: Uint8Array,
+  message: string,
+): Promise<void> {
+  const env = getEnv(locals as any);
+  const token = (locals as any)?.githubToken as string | undefined;
+  if (!token) throw new GithubError(401, '未登录或会话已失效');
+
+  const repo = env.GITHUB_PAGES_REPO || 'hooleeas/hooleeas.github.io';
+  const branch = env.GITHUB_PAGES_BRANCH || 'main';
+  const response = await fetch(`${API_BASE}/repos/${repo}/contents/${encodePath(path)}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'astro-blog-admin',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message,
+      content: b64encodeBytes(content),
+      branch,
+    }),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new GithubError(response.status, `发布图片到 GitHub Pages 失败（${response.status}）：${text.slice(0, 300)}`);
+  }
+}
+
+/** Delete a published GitHub Pages asset. Missing files are already considered deleted. */
+export async function deletePagesAsset(
+  locals: unknown,
+  path: string,
+  message: string,
+): Promise<void> {
+  const env = getEnv(locals as any);
+  const branch = env.GITHUB_PAGES_BRANCH || 'main';
+  let file: any;
+  try {
+    file = await gh(locals, `/contents/${encodePath(path)}?ref=${encodeURIComponent(branch)}`);
+  } catch (error) {
+    if (error instanceof GithubError && error.status === 404) return;
+    throw error;
+  }
+  if (Array.isArray(file) || typeof file?.sha !== 'string') {
+    throw new GithubError(404, `找不到待删除的图片：${path}`);
+  }
+  await gh(locals, `/contents/${encodePath(path)}`, 'DELETE', { message, sha: file.sha, branch });
 }
 
 /** base64 解码 */
@@ -173,6 +231,29 @@ export async function commitFiles(
     entries.push({ path: f.path, mode: '100644', type: 'blob', sha: blob.sha as string });
   }
   return commitTree(locals, entries, message);
+}
+
+/** Rename and update a note in one commit, refusing to overwrite an existing destination. */
+export async function moveFile(
+  locals: unknown,
+  oldPath: string,
+  newPath: string,
+  content: string,
+  expectedSha: string,
+  message: string,
+): Promise<{ commit: string }> {
+  if (oldPath === newPath) throw new GithubError(400, 'Source and destination paths are identical');
+  const current = await getFile(locals, oldPath);
+  if (current.sha !== expectedSha) throw new GithubError(409, '文件已被其他操作修改，请重新加载后再保存');
+  if ((await listTree(locals)).includes(newPath)) {
+    throw new GithubError(409, '目标文件名已存在，请修改日期或处理同名随记');
+  }
+
+  const blob = await gh(locals, '/git/blobs', 'POST', { content: b64encode(content), encoding: 'base64' });
+  return commitTree(locals, [
+    { path: newPath, mode: '100644', type: 'blob', sha: blob.sha as string },
+    { path: oldPath, mode: '100644', type: 'blob', sha: null },
+  ], message);
 }
 
 /**

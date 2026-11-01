@@ -10,6 +10,7 @@ import {
   readRepoTemplate,
   type Gh,
 } from '../../../lib/content.js';
+import { getEnv } from '../../../lib/env.js';
 
 export const prerender = false;
 
@@ -19,8 +20,33 @@ const BUILTIN_TPL = (date: string) => `---\ndate: ${date}\ndraft: false\n---\n\n
 
 const gh = { getFile, putFile, listTree } as unknown as Gh;
 
+function isLocalPreview(locals: APIContext['locals'], request: Request) {
+  const hostname = new URL(request.url).hostname;
+  return import.meta.env.DEV &&
+    getEnv(locals).ADMIN_LOCAL_PREVIEW === 'true' &&
+    (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]');
+}
+
 /** GET /api/notes — 随记列表（按 date 倒序） */
-export async function GET({ locals }: APIContext) {
+export async function GET({ locals, request }: APIContext) {
+  if (isLocalPreview(locals, request)) {
+    try {
+      const { listLocalRepoFiles } = await import('../../../lib/local-data.js');
+      const files = await listLocalRepoFiles('src/content/notes');
+      const items = files
+        .filter((entry) => entry.path.startsWith(NOTES_PREFIX) && NOTE_FILE_RE.test(entry.path.slice(NOTES_PREFIX.length)))
+        .map((entry) => {
+          const file = entry.path.slice(NOTES_PREFIX.length);
+          const { fm } = parseFrontmatter(entry.content);
+          return { file, path: entry.path, date: fm.date ?? '', draft: fm.draft === 'true' };
+        })
+        .sort((a, b) => b.date.localeCompare(a.date));
+      return ok({ notes: items });
+    } catch (e) {
+      return fail('读取本地随记列表失败：' + (e as Error)?.message, 500);
+    }
+  }
+
   try {
     const paths = await gh.listTree(locals);
     const files = paths.filter(
@@ -59,9 +85,27 @@ export async function POST({ locals, request }: APIContext) {
   const file = `${date}-${slug}.md`;
   const path = NOTES_PREFIX + file;
 
+  if (isLocalPreview(locals, request)) {
+    try {
+      const { createLocalNote, listLocalRepoFiles, readLocalNoteTemplate } = await import('../../../lib/local-data.js');
+      const files = await listLocalRepoFiles('src/content/notes');
+      if (files.some((entry) => entry.path === path)) return fail(`随记已存在：${file}`, 409);
+
+      let tpl = await readLocalNoteTemplate();
+      if (!tpl) tpl = BUILTIN_TPL(date);
+      tpl = tpl.replace(/^date:.*$/m, `date: ${date}`);
+      await createLocalNote(file, tpl);
+      return ok({ file, path, date }, 201);
+    } catch (e) {
+      const error = e as NodeJS.ErrnoException;
+      if (error.code === 'EEXIST') return fail(`随记已存在：${file}`, 409);
+      return fail('本地创建随记失败：' + (error.message || String(e)), 500);
+    }
+  }
+
   try {
     await gh.getFile(locals, path);
-    return fail(`随记已存在：${file}`);
+    return fail(`随记已存在：${file}`, 409);
   } catch {
     /* 不存在，继续新建 */
   }
@@ -73,7 +117,7 @@ export async function POST({ locals, request }: APIContext) {
   try {
     await gh.putFile(locals, path, tpl, `admin: 新建随记 ${file}`);
   } catch (e) {
-    return fail('创建失败：' + (e as Error)?.message, 500);
+    return fail((e as Error)?.message || String(e), 500);
   }
   return ok({ file, path, date }, 201);
 }

@@ -6,7 +6,6 @@ export interface WebdavConfig {
   /** 明文密码 —— 只存 KV，绝不进代码仓库，绝不返回给前端 */
   password: string;
   dir: string;
-  publicBaseUrl: string;
   /** 是否上传时转 WebP（默认 true，可在设置页开关） */
   webp: boolean;
 }
@@ -15,7 +14,6 @@ export interface WebdavConfigPublic {
   url: string;
   username: string;
   dir: string;
-  publicBaseUrl: string;
   /** 是否已设置密码（只给布尔值，不回显原值） */
   hasPassword: boolean;
   /** 是否上传时转 WebP */
@@ -69,7 +67,6 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
     username: String(parsed.username || ''),
     password: String(parsed.password || ''),
     dir: String(parsed.dir || '').replace(/^\/+|\/+$/g, ''),
-    publicBaseUrl: String(parsed.publicBaseUrl || '').replace(/\/+$/, ''),
     webp: parsed.webp !== false,
   };
 }
@@ -77,7 +74,7 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
 /** 写 WebDAV 配置到 KV。password 由调用方决定（空则调用方先填入旧值）。 */
 export async function saveWebdavConfig(
   locals: unknown,
-  cfg: { url: string; username: string; password: string; dir: string; publicBaseUrl: string; webp: boolean },
+  cfg: { url: string; username: string; password: string; dir: string; webp: boolean },
 ): Promise<void> {
   const kv = getKV(locals);
   await kv.put(
@@ -87,7 +84,6 @@ export async function saveWebdavConfig(
       username: cfg.username,
       password: cfg.password,
       dir: cfg.dir,
-      publicBaseUrl: cfg.publicBaseUrl,
       webp: cfg.webp,
       updatedAt: new Date().toISOString(),
     }),
@@ -100,17 +96,7 @@ export function toPublic(cfg: WebdavConfig): WebdavConfigPublic {
     url: cfg.url,
     username: cfg.username,
     dir: cfg.dir,
-    publicBaseUrl: cfg.publicBaseUrl,
     hasPassword: cfg.password.length > 0,
     webp: cfg.webp,
   };
-}
-
-/**
- * 拼上传成功后返回给用户的公开直链。
- * publicBaseUrl 为空则回退用 WebDAV url 拼（OpenList 这类 WebDAV 本身可直接对外访问时可用）。
- */
-export function buildPublicUrl(cfg: WebdavConfig, filename: string): string {
-  const base = cfg.publicBaseUrl || cfg.url;
-  return `${base}/${IMG_DIR}/${filename}`;
 }

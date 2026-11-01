@@ -1,11 +1,11 @@
-# 本地开发用环境变量（示例，复制为 .dev.vars 后填写真实值）
+# 本地开发用环境变量（复制为 .dev.vars；不要提交真实密钥）
 # .dev.vars 已在 .gitignore 中，不会被提交
 # 生产环境这些变量在 Cloudflare Pages 后台（Settings → Environment variables）配置
 
-# GitHub OAuth App 的 Client ID（必填）
+# 本地预览模式下无需 GitHub OAuth；关闭本地预览并测试 OAuth 时才需要填写
 GITHUB_CLIENT_ID=
 
-# GitHub OAuth App 的 Client Secret（必填，也用作会话签名密钥）
+# OAuth Client Secret，也用作会话签名
 GITHUB_CLIENT_SECRET=
 
 # 允许登录的 GitHub 用户名（默认 hooleeas）
@@ -16,3 +16,13 @@ GITHUB_REPO=hooleeas/astro-blog
 
 # 目标分支
 GITHUB_BRANCH=main
+
+# GitHub Pages 图片仓库及分支
+GITHUB_PAGES_REPO=hooleeas/hooleeas.github.io
+GITHUB_PAGES_BRANCH=main
+
+# 本地开发时仅在 localhost / 127.0.0.1 / ::1 免登录，并启用本地文件读写
+ADMIN_LOCAL_PREVIEW=true
+
+# 本地模式下，图片由博客站点开发服务器提供；默认需另行启动 4323 端口
+LOCAL_SITE_URL=http://127.0.0.1:4323

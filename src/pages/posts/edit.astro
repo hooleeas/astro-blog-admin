@@ -7,7 +7,12 @@ const key = Astro.url.searchParams.get('key') ?? '';
 ---
 
 <AdminLayout title="编辑文章" active="posts">
-  <h1 class="page-title">编辑文章</h1>
+  <div class="editor-heading">
+    <div>
+      <h1 class="page-title">编辑文章</h1>
+    </div>
+    <a class="btn editor-back" href="/posts">返回文章列表</a>
+  </div>
 
   {!key && (
     <div class="card"><p style="color: #dc2626;">缺少 key 参数。</p><a href="/posts">← 返回列表</a></div>
@@ -15,135 +20,491 @@ const key = Astro.url.searchParams.get('key') ?? '';
 
   {key && (
     <div id="app" data-key={key}>
-      <div class="card" style="margin-bottom: 16px;">
-        <div style="font-size: 13px; color: var(--muted);">translationKey</div>
-        <div class="mono" id="key-label" style="font-size: 14px;"></div>
+      <div class="editor-overview">
+        <div>
+          <span class="editor-overview-label">文章标识</span>
+          <code class="mono" id="key-label"></code>
+        </div>
+        <span id="status" class="editor-load-status">正在读取内容…</span>
       </div>
 
-      <div id="tabs" class="tabs"></div>
-      <div id="status" style="font-size: 13px; color: var(--muted); margin-bottom: 12px;">加载中…</div>
+      <section class="editor-language">
+        <div class="editor-section-heading">
+          <div>
+            <h2>语言版本</h2>
+            <p>选择要编辑的语言；缺少的版本会标记出来。</p>
+          </div>
+        </div>
+        <div class="editor-language-controls">
+          <div id="tabs" class="editor-language-capsule" role="group" aria-label="文章语言版本"></div>
+          <div class="editor-actions">
+            <button id="save-btn" class="btn" type="button" hidden>保存</button>
+            <button id="del-all-btn" class="btn editor-delete-all" type="button" hidden>删除</button>
+            <span id="save-status" class="status"></span>
+          </div>
+        </div>
+      </section>
       <div id="panel"></div>
-
-      <div class="actions">
-        <button id="save-btn" class="btn" type="button">保存当前语言</button>
-        <button id="del-all-btn" class="btn btn-danger" type="button">删除整篇文章</button>
-        <a class="link" href="/posts">← 返回列表</a>
-        <span id="save-status" class="status"></span>
+      <div class="editor-footnote">
+        <span>删除整篇会同时删除全部语言版本，且无法撤销。</span>
+        <a href="/posts">返回文章列表</a>
       </div>
-      <p class="hint" style="margin-top: 10px;">删除整篇会同时删除该文章全部语言版本的文件，此操作不可撤销。</p>
     </div>
   )}
 
   <script>
-    const LANGS = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko'];
-    const app = document.getElementById('app');
-    if (app) {
-      const key = app.dataset.key;
-      const tabsEl = document.getElementById('tabs');
-      const panelEl = document.getElementById('panel');
-      const statusEl = document.getElementById('status');
-      const saveStatusEl = document.getElementById('save-status');
-      document.getElementById('key-label').textContent = key;
+    import type { EditorView } from '@codemirror/view';
 
-      /** lang -> { slug, sha, frontmatter, body } */
-      const versions = {};
-      let activeLang = null;
+    const LANGS = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko'] as const;
+    type Lang = (typeof LANGS)[number];
+    const LANG_LABELS: Record<Lang, string> = {
+      'zh-Hans': '简体中文',
+      'zh-Hant': '繁體中文',
+      en: '英语',
+      ja: '日语',
+      ko: '韩语',
+    };
+    type Frontmatter = Record<string, unknown> & {
+      title?: string;
+      subtitle?: string;
+      pubDate?: string;
+      cover?: string;
+      tags?: string[];
+      category?: string;
+      translationKey?: string;
+      draft?: boolean;
+      popular?: boolean;
+    };
+    interface ArticleVersion {
+      slug: string;
+      sha: string;
+      frontmatter: Frontmatter;
+      body: string;
+    }
+    interface ApiFailure {
+      ok: false;
+      error: string;
+    }
+    interface ApiSuccess<T> {
+      ok: true;
+      data: T;
+    }
+    type ApiResult<T> = ApiFailure | ApiSuccess<T>;
 
-      function esc(s) {
-        return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    function requireElement<T extends Element>(selector: string, element: T | null): T {
+      if (!element) throw new Error(`Missing required editor element: ${selector}`);
+      return element;
+    }
+
+    function errorMessage(error: unknown): string {
+      return error instanceof Error ? error.message : String(error);
+    }
+
+    function initializeEditor(): void {
+      const app = document.querySelector<HTMLDivElement>('#app');
+      if (!app || app.dataset.editorInitialized === 'true') return;
+      app.dataset.editorInitialized = 'true';
+
+      const key = app.dataset.key ?? '';
+      if (!key) throw new Error('Missing article translation key');
+
+      const tabsEl = requireElement('#tabs', document.querySelector<HTMLDivElement>('#tabs'));
+      const panelEl = requireElement('#panel', document.querySelector<HTMLDivElement>('#panel'));
+      const statusEl = requireElement('#status', document.querySelector<HTMLSpanElement>('#status'));
+      const saveStatusEl = requireElement('#save-status', document.querySelector<HTMLSpanElement>('#save-status'));
+      const keyLabel = requireElement('#key-label', document.querySelector<HTMLElement>('#key-label'));
+      const saveButton = requireElement('#save-btn', document.querySelector<HTMLButtonElement>('#save-btn'));
+      const deleteAllButton = requireElement('#del-all-btn', document.querySelector<HTMLButtonElement>('#del-all-btn'));
+      const saveNavButton = requireElement('#post-save-btn', document.querySelector<HTMLButtonElement>('#post-save-btn'));
+      saveButton.hidden = true;
+      deleteAllButton.hidden = true;
+      const setSaveDisabled = (disabled: boolean): void => {
+        saveButton.disabled = disabled;
+        saveNavButton.disabled = disabled;
+      };
+      setSaveDisabled(true);
+      keyLabel.textContent = key;
+
+      const versions: Partial<Record<Lang, ArticleVersion>> = {};
+      let activeLang: Lang | null = null;
+      let bodyEditor: EditorView | null = null;
+      let panelRenderId = 0;
+      let metadataResizeObserver: ResizeObserver | null = null;
+
+      function esc(value: unknown): string {
+        return String(value ?? '').replace(/[&<>"']/g, (character) => ({
           '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-        }[c]));
+        })[character] ?? character);
       }
 
-      async function api(url, opts) {
-        const r = await fetch(url, opts);
-        return r.json();
+      async function api<T>(url: string, options?: RequestInit): Promise<ApiResult<T>> {
+        const response = await fetch(url, options);
+        return await response.json() as ApiResult<T>;
       }
 
-      function renderTabs() {
-        tabsEl.innerHTML = '';
-        for (const L of LANGS) {
-          const v = versions[L];
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'tab' + (L === activeLang ? ' active' : '') + (v ? '' : ' missing');
-          b.textContent = v ? (v.frontmatter.draft ? `${L} · 草稿` : L) : `${L} · 缺`;
-          b.disabled = !v;
-          b.title = v ? `${L}：${v.slug}` : `${L}：该语言版本不存在`;
-          b.addEventListener('click', () => { activeLang = L; renderTabs(); renderPanel(); });
-          tabsEl.appendChild(b);
+      function renderTabs(): void {
+        let indicator = tabsEl.querySelector<HTMLSpanElement>('.editor-language-indicator');
+        if (!indicator) {
+          indicator = document.createElement('span');
+          indicator.className = 'editor-language-indicator';
+          indicator.setAttribute('aria-hidden', 'true');
+          tabsEl.appendChild(indicator);
+        }
+
+        for (const lang of LANGS) {
+          const version = versions[lang];
+          let button = tabsEl.querySelector<HTMLButtonElement>(`button[data-lang="${lang}"]`);
+          if (!button) {
+            button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.lang = lang;
+            button.className = 'editor-language-tab';
+            button.textContent = LANG_LABELS[lang];
+            button.addEventListener('click', () => {
+              if (bodyEditor && activeLang) {
+                const currentVersion = versions[activeLang];
+                if (currentVersion) currentVersion.body = bodyEditor.state.doc.toString();
+              }
+              activeLang = lang;
+              renderTabs();
+              renderPanel();
+            });
+            tabsEl.appendChild(button);
+          }
+
+          button.classList.toggle('active', lang === activeLang);
+          button.classList.toggle('missing', !version);
+          button.disabled = !version;
+          button.title = version ? `${LANG_LABELS[lang]}：${version.slug}` : `${LANG_LABELS[lang]}：该语言版本不存在`;
+          button.setAttribute('aria-pressed', String(lang === activeLang));
+        }
+
+        const activeButton = activeLang
+          ? tabsEl.querySelector<HTMLButtonElement>(`button[data-lang="${activeLang}"]`)
+          : null;
+        if (activeButton) {
+          const capsuleRect = tabsEl.getBoundingClientRect();
+          const buttonRect = activeButton.getBoundingClientRect();
+          const capsuleStyle = getComputedStyle(tabsEl);
+          const borderLeft = Number.parseFloat(capsuleStyle.borderLeftWidth);
+          const borderTop = Number.parseFloat(capsuleStyle.borderTopWidth);
+          indicator.style.width = `${buttonRect.width}px`;
+          indicator.style.height = `${capsuleRect.height}px`;
+          indicator.style.transform = `translate3d(${buttonRect.left - capsuleRect.left - borderLeft}px, ${-borderTop}px, 0)`;
         }
       }
 
-      function field(id, label, value, type) {
-        return `<label>${esc(label)}
-          <input id="${id}" class="input" type="${type || 'text'}" value="${esc(value ?? '')}" />
+      function selectLanguage(lang: Lang): void {
+        if (!versions[lang]) return;
+        if (bodyEditor && activeLang) {
+          const currentVersion = versions[activeLang];
+          if (currentVersion) currentVersion.body = bodyEditor.state.doc.toString();
+        }
+        activeLang = lang;
+        renderTabs();
+        renderPanel();
+      }
+
+      let languagePress: {
+        pointerId: number;
+        startButton: HTMLButtonElement;
+        startX: number;
+        startY: number;
+        lastX: number;
+        moved: boolean;
+        activated: boolean;
+        timer: number;
+      } | null = null;
+      let suppressLanguageClick = false;
+      let suppressLanguageClickTimer = 0;
+
+      tabsEl.addEventListener('pointerdown', (event) => {
+        if (!event.isPrimary || event.button !== 0) return;
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const startButton = target.closest<HTMLButtonElement>('.editor-language-tab');
+        const indicator = tabsEl.querySelector<HTMLElement>('.editor-language-indicator');
+        if (!startButton || startButton.disabled || !indicator) return;
+
+        const press = {
+          pointerId: event.pointerId,
+          startButton,
+          startX: event.clientX,
+          startY: event.clientY,
+          lastX: event.clientX,
+          moved: false,
+          activated: false,
+          timer: 0,
+        };
+        languagePress = press;
+        press.timer = window.setTimeout(() => {
+          if (languagePress !== press) return;
+          press.activated = true;
+          tabsEl.classList.add('is-long-pressing');
+          indicator.style.transition = 'none';
+          indicator.style.width = `${startButton.getBoundingClientRect().width}px`;
+          indicator.style.height = `${tabsEl.getBoundingClientRect().height + 12}px`;
+          indicator.style.transform = `translate3d(${startButton.offsetLeft}px, -6px, 0)`;
+          startButton.setPointerCapture(press.pointerId);
+        }, 450);
+      });
+
+      tabsEl.addEventListener('pointermove', (event) => {
+        const press = languagePress;
+        if (!press || press.pointerId !== event.pointerId) return;
+        press.lastX = event.clientX;
+        if (!press.activated) return;
+        const indicator = tabsEl.querySelector<HTMLElement>('.editor-language-indicator');
+        if (!indicator) return;
+        if (Math.abs(event.clientX - press.startX) >= 8) {
+          press.moved = true;
+          tabsEl.classList.add('is-dragging');
+        }
+        const rect = tabsEl.getBoundingClientRect();
+        const borderLeft = Number.parseFloat(getComputedStyle(tabsEl).borderLeftWidth);
+        const width = indicator.getBoundingClientRect().width;
+        const x = Math.max(0, Math.min(
+          tabsEl.clientWidth - width,
+          event.clientX - rect.left - borderLeft - width / 2,
+        ));
+        indicator.style.transform = `translate3d(${x}px, -6px, 0)`;
+        event.preventDefault();
+      });
+
+      tabsEl.addEventListener('pointerup', (event) => {
+        const press = languagePress;
+        if (!press || press.pointerId !== event.pointerId) return;
+        languagePress = null;
+        window.clearTimeout(press.timer);
+        if (!press.activated) return;
+        event.preventDefault();
+
+        const indicator = tabsEl.querySelector<HTMLElement>('.editor-language-indicator');
+        const target = press.moved
+          ? document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLButtonElement>('.editor-language-tab')
+          : press.startButton;
+        const targetLang = target?.dataset.lang as Lang | undefined;
+        tabsEl.classList.remove('is-long-pressing', 'is-dragging');
+        if (indicator) indicator.style.transition = '';
+
+        if (targetLang && versions[targetLang]) selectLanguage(targetLang);
+        suppressLanguageClick = true;
+        window.clearTimeout(suppressLanguageClickTimer);
+        suppressLanguageClickTimer = window.setTimeout(() => {
+          suppressLanguageClick = false;
+        }, 0);
+      });
+
+      const cancelLanguagePress = (event: PointerEvent): void => {
+        if (!languagePress || languagePress.pointerId !== event.pointerId) return;
+        window.clearTimeout(languagePress.timer);
+        languagePress = null;
+        tabsEl.classList.remove('is-long-pressing', 'is-dragging');
+        const indicator = tabsEl.querySelector<HTMLElement>('.editor-language-indicator');
+        if (indicator) {
+          indicator.style.transition = '';
+          renderTabs();
+        }
+      };
+      tabsEl.addEventListener('pointercancel', cancelLanguagePress);
+      tabsEl.addEventListener('lostpointercapture', cancelLanguagePress);
+      tabsEl.addEventListener('click', (event) => {
+        if (suppressLanguageClick) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          suppressLanguageClick = false;
+        }
+      }, true);
+
+      function field(id: string, label: string, value: unknown, type = 'text'): string {
+        return `<label class="editor-field">
+          <span>${esc(label)}</span>
+          <input id="${id}" class="input" type="${type}" value="${esc(value)}" />
         </label>`;
       }
 
-      function renderPanel() {
-        const v = versions[activeLang];
-        if (!v) { panelEl.innerHTML = ''; return; }
-        const fm = v.frontmatter || {};
+      async function renderPanel(): Promise<void> {
+        const renderId = ++panelRenderId;
+        const lang = activeLang;
+        if (!lang) return;
+        const version = versions[lang];
+        if (!version) { panelEl.innerHTML = ''; return; }
+        metadataResizeObserver?.disconnect();
+        metadataResizeObserver = null;
+        bodyEditor?.destroy();
+        bodyEditor = null;
+        setSaveDisabled(true);
+        const fm = version.frontmatter;
         panelEl.innerHTML = `
-          <div class="card" style="margin-bottom: 16px;">
-            <div style="display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 13px; color: var(--muted); margin-bottom: 12px;">
-              <span>文件：<code>${esc('src/content/posts/' + activeLang + '/' + v.slug + '.md')}</code></span>
-              <button id="del-lang-btn" class="link danger" type="button">删除此语言版本（慎用）</button>
+          <section class="card editor-card editor-meta-card">
+            <div class="editor-card-heading">
+              <div>
+                <h2>文章信息</h2>
+                <p>标题、分类和发布状态等元数据</p>
+              </div>
+              <button id="del-lang-btn" class="btn editor-delete-lang" type="button">删除此语言版本</button>
             </div>
-            <div class="form-grid">
+            <div class="editor-fields">
               ${field('f-title', '标题（title）*', fm.title)}
               ${field('f-subtitle', '副标题（subtitle）', fm.subtitle)}
               ${field('f-pubdate', '发布日期（pubDate）*', fm.pubDate, 'date')}
-              ${field('f-cover', '封面（cover，URL，可空）', fm.cover)}
+              <label class="editor-field editor-cover-field">
+                <span class="editor-cover-preview" id="cover-preview" role="status" aria-live="polite">
+                  <img id="cover-preview-image" alt="封面图片预览" hidden />
+                  <span id="cover-preview-message">输入封面 URL 以预览图片</span>
+                </span>
+                <span>封面（cover，URL，可空）</span>
+                <input id="f-cover" class="input" type="text" aria-label="封面（cover，URL，可空）" value="${esc(fm.cover ?? '')}" />
+              </label>
               ${field('f-tags', '标签（tags，逗号分隔）', Array.isArray(fm.tags) ? fm.tags.join(', ') : '')}
               ${field('f-category', '分类（category）', fm.category)}
-              <label>translationKey（只读）
+              <label class="editor-field">
+                <span>translationKey（只读）</span>
                 <input class="input" type="text" value="${esc(fm.translationKey ?? '')}" disabled />
               </label>
-              <label class="check">草稿（draft）<input id="f-draft" type="checkbox" ${fm.draft ? 'checked' : ''} /></label>
-              <label class="check">热门（popular）<input id="f-popular" type="checkbox" ${fm.popular ? 'checked' : ''} /></label>
+              <label class="editor-toggle">
+                <span class="editor-toggle-copy"><strong>草稿</strong><small>此语言版本暂不公开发布</small></span>
+                <span class="editor-switch">
+                  <input id="f-draft" type="checkbox" role="switch" ${fm.draft ? 'checked' : ''} />
+                  <span class="editor-switch-track"></span>
+                  <span class="editor-switch-thumb"></span>
+                </span>
+              </label>
+              <label class="editor-toggle">
+                <span class="editor-toggle-copy"><strong>设为热门</strong><small>在文章列表中突出展示</small></span>
+                <span class="editor-switch">
+                  <input id="f-popular" type="checkbox" role="switch" ${fm.popular ? 'checked' : ''} />
+                  <span class="editor-switch-track"></span>
+                  <span class="editor-switch-thumb"></span>
+                </span>
+              </label>
             </div>
-          </div>
-          <div class="card">
-            <label style="display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px;">正文（Markdown）</label>
-            <textarea id="f-body" class="input mono" rows="22"></textarea>
-          </div>`;
-        document.getElementById('f-body').value = v.body || '';
-        document.getElementById('del-lang-btn').addEventListener('click', deleteLang);
+            <div class="editor-file-path"><span>文件路径</span><code>${esc(`src/content/posts/${activeLang}/${version.slug}.md`)}</code></div>
+          </section>
+          <section class="card editor-card editor-body-card">
+            <div class="editor-card-heading">
+              <div>
+                <h2>正文</h2>
+                <p>使用 Markdown 编写文章内容</p>
+              </div>
+              <span class="editor-markdown-badge">MARKDOWN</span>
+            </div>
+            <div id="body-editor" class="editor-body-input" aria-label="文章正文 Markdown"></div>
+          </section>`;
+        const coverInput = requireElement(
+          '#f-cover',
+          document.querySelector<HTMLInputElement>('#f-cover'),
+        );
+        const coverPreviewImage = requireElement(
+          '#cover-preview-image',
+          document.querySelector<HTMLImageElement>('#cover-preview-image'),
+        );
+        const coverPreviewMessage = requireElement(
+          '#cover-preview-message',
+          document.querySelector<HTMLElement>('#cover-preview-message'),
+        );
+        const updateCoverPreview = (): void => {
+          const coverUrl = coverInput.value.trim();
+          coverPreviewImage.hidden = true;
+          coverPreviewImage.removeAttribute('src');
+          if (!coverUrl) {
+            coverPreviewMessage.textContent = '输入封面 URL 以预览图片';
+            return;
+          }
+
+          coverPreviewMessage.textContent = '图片加载中…';
+          coverPreviewImage.onload = () => {
+            coverPreviewImage.hidden = false;
+            coverPreviewMessage.textContent = '';
+          };
+          coverPreviewImage.onerror = () => {
+            coverPreviewImage.hidden = true;
+            coverPreviewMessage.textContent = '图片加载失败，请检查 URL';
+          };
+          coverPreviewImage.src = coverUrl;
+        };
+        coverInput.addEventListener('input', updateCoverPreview);
+        updateCoverPreview();
+        const editorHost = requireElement('#body-editor', document.querySelector<HTMLDivElement>('#body-editor'));
+        const metadataCard = requireElement(
+          '.editor-meta-card',
+          panelEl.querySelector<HTMLElement>('.editor-meta-card'),
+        );
+        const bodyCard = requireElement(
+          '.editor-body-card',
+          panelEl.querySelector<HTMLElement>('.editor-body-card'),
+        );
+        const bodyHeading = requireElement(
+          '.editor-card-heading',
+          bodyCard.querySelector<HTMLElement>('.editor-card-heading'),
+        );
+        const resizeEditor = (): void => {
+          if (window.innerWidth < 900) {
+            editorHost.style.height = '';
+            return;
+          }
+          const cardStyle = getComputedStyle(bodyCard);
+          const chromeHeight = bodyHeading.getBoundingClientRect().height
+            + Number.parseFloat(cardStyle.paddingTop)
+            + Number.parseFloat(cardStyle.paddingBottom)
+            + Number.parseFloat(cardStyle.borderTopWidth)
+            + Number.parseFloat(cardStyle.borderBottomWidth)
+            + Number.parseFloat(getComputedStyle(bodyHeading).marginBottom);
+          const editorHeight = metadataCard.getBoundingClientRect().height - chromeHeight;
+          editorHost.style.height = `${Math.max(640, editorHeight)}px`;
+        };
+        metadataResizeObserver = new ResizeObserver(resizeEditor);
+        metadataResizeObserver.observe(metadataCard);
+        try {
+          const { createMarkdownEditor } = await import('../../lib/markdown-editor');
+          if (renderId !== panelRenderId || !editorHost.isConnected) return;
+          bodyEditor = createMarkdownEditor(editorHost, version.body, (content) => {
+            version.body = content;
+          });
+          setSaveDisabled(false);
+        } catch (error) {
+          if (renderId !== panelRenderId) return;
+          saveStatusEl.textContent = `编辑器加载失败：${errorMessage(error)}`;
+        }
+        requireElement('#del-lang-btn', document.querySelector<HTMLButtonElement>('#del-lang-btn'))
+          .addEventListener('click', deleteLang);
       }
 
-      function collectFrontmatter() {
-        const v = versions[activeLang];
-        const fm = { ...(v.frontmatter || {}) };
-        const val = (id) => document.getElementById(id).value.trim();
+      function collectFrontmatter(): Frontmatter {
+        const version = activeLang ? versions[activeLang] : undefined;
+        if (!version) throw new Error('No article language is selected');
+        const fm: Frontmatter = { ...version.frontmatter };
+        const val = (id: string): string => requireElement<HTMLInputElement>(
+          `#${id}`,
+          document.querySelector<HTMLInputElement>(`#${id}`),
+        ).value.trim();
         fm.title = val('f-title');
         fm.subtitle = val('f-subtitle');
         fm.pubDate = val('f-pubdate');
         fm.cover = val('f-cover');
-        fm.tags = val('f-tags').split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+        fm.tags = val('f-tags').split(/[,，]/).map((tag: string) => tag.trim()).filter(Boolean);
         fm.category = val('f-category');
-        fm.draft = document.getElementById('f-draft').checked;
-        fm.popular = document.getElementById('f-popular').checked;
+        fm.draft = requireElement<HTMLInputElement>('#f-draft', document.querySelector<HTMLInputElement>('#f-draft')).checked;
+        fm.popular = requireElement<HTMLInputElement>('#f-popular', document.querySelector<HTMLInputElement>('#f-popular')).checked;
         return fm;
       }
 
-      async function save() {
-        const v = versions[activeLang];
-        if (!v) return;
-        const saveBtn = document.getElementById('save-btn');
-        saveBtn.disabled = true;
+      async function save(): Promise<void> {
+        const lang = activeLang;
+        const version = lang ? versions[lang] : undefined;
+        if (!lang || !version || !bodyEditor) return;
+        setSaveDisabled(true);
         saveStatusEl.textContent = '保存中…';
         try {
-          const res = await api(
-            '/api/posts/' + encodeURIComponent(activeLang) + '/' + encodeURIComponent(v.slug),
+          const res = await api<{ sha: string }>(
+            '/api/posts/' + encodeURIComponent(lang) + '/' + encodeURIComponent(version.slug),
             {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 frontmatter: collectFrontmatter(),
-                body: document.getElementById('f-body').value,
-                sha: v.sha,
+                body: bodyEditor.state.doc.toString(),
+                sha: version.sha,
               }),
             },
           );
@@ -156,61 +517,446 @@ const key = Astro.url.searchParams.get('key') ?? '';
             saveStatusEl.textContent = '保存失败';
             return;
           }
-          v.sha = res.data.sha;
-          v.frontmatter = collectFrontmatter();
-          v.body = document.getElementById('f-body').value;
+          version.sha = res.data.sha;
+          version.frontmatter = collectFrontmatter();
+          version.body = bodyEditor.state.doc.toString();
           saveStatusEl.textContent = '已保存 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
           renderTabs();
-        } catch (e) {
-          alert('保存失败：' + e.message);
+        } catch (error) {
+          alert('保存失败：' + errorMessage(error));
           saveStatusEl.textContent = '保存失败';
         } finally {
-          saveBtn.disabled = false;
+          setSaveDisabled(false);
         }
       }
 
-      async function deleteLang() {
-        const v = versions[activeLang];
-        if (!v) return;
-        if (!confirm(`确定删除「${activeLang}」语言版本吗？\n文件 ${v.slug}.md 将被删除，此操作不可撤销。`)) return;
-        const res = await api(
-          '/api/posts/' + encodeURIComponent(key) + '/' + encodeURIComponent(activeLang),
+      async function deleteLang(): Promise<void> {
+        const lang = activeLang;
+        const version = lang ? versions[lang] : undefined;
+        if (!lang || !version) return;
+        if (!confirm(`确定删除「${LANG_LABELS[lang]}」语言版本吗？\n文件 ${version.slug}.md 将被删除，此操作不可撤销。`)) return;
+        const res = await api<unknown>(
+          '/api/posts/' + encodeURIComponent(key) + '/' + encodeURIComponent(lang),
           { method: 'DELETE' },
         );
         if (!res.ok) { alert('删除失败：' + res.error); return; }
         location.reload();
       }
 
-      async function deleteAll() {
+      async function deleteAll(): Promise<void> {
         if (!confirm(`确定删除整篇文章吗？\n将同时删除全部 ${Object.keys(versions).length} 个语言版本的文件，此操作不可撤销。`)) return;
-        const res = await api('/api/posts/' + encodeURIComponent(key), { method: 'DELETE' });
+        const res = await api<unknown>('/api/posts/' + encodeURIComponent(key), { method: 'DELETE' });
         if (!res.ok) { alert('删除失败：' + res.error); return; }
         location.href = '/posts';
       }
 
-      async function load() {
-        const res = await api('/api/posts/' + encodeURIComponent(key));
+      async function load(): Promise<void> {
+        const res = await api<{ items: Array<{ lang: string; slug: string; sha: string; frontmatter: Frontmatter; body: string }> }>(
+          '/api/posts/' + encodeURIComponent(key),
+        );
         if (!res.ok) {
           statusEl.textContent = '加载失败：' + res.error;
+          statusEl.classList.add('is-error');
           return;
         }
         for (const it of res.data.items) {
-          versions[it.lang] = { slug: it.slug, sha: it.sha, frontmatter: it.frontmatter, body: it.body };
+          if (LANGS.includes(it.lang as Lang)) {
+            versions[it.lang as Lang] = { slug: it.slug, sha: it.sha, frontmatter: it.frontmatter, body: it.body };
+          }
         }
-        const first = LANGS.find((L) => versions[L]);
+        const first = LANGS.find((lang) => versions[lang]);
         if (!first) {
           statusEl.textContent = '该文章没有任何语言版本。';
           return;
         }
         activeLang = first;
-        statusEl.textContent = `共 ${res.data.items.length} 个语言版本`;
+        statusEl.textContent = `${res.data.items.length} 个语言版本可用`;
+        statusEl.classList.add('is-ready');
         renderTabs();
         renderPanel();
       }
 
-      document.getElementById('save-btn').addEventListener('click', save);
-      document.getElementById('del-all-btn').addEventListener('click', deleteAll);
+      saveButton.addEventListener('click', save);
+      deleteAllButton.addEventListener('click', deleteAll);
       load();
     }
+
+    document.addEventListener('astro:page-load', initializeEditor);
+    initializeEditor();
   </script>
+
+  <style is:global>
+    .editor-heading {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+    .editor-heading .page-title { margin: 0; }
+    .editor-back { white-space: nowrap; }
+    .editor-overview {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 20px;
+      margin-bottom: 26px;
+      background: color-mix(in srgb, var(--surface) 76%, transparent);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    .editor-overview > div { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+    .editor-overview-label { color: var(--muted); font-size: 12px; }
+    .editor-overview code { overflow-wrap: anywhere; font-size: 14px; }
+    .editor-load-status { color: var(--muted); font-size: 13px; text-align: right; }
+    .editor-load-status.is-ready { color: var(--green-text); }
+    .editor-load-status.is-error { color: var(--danger); }
+    .editor-language { margin-bottom: 22px; }
+    .editor-section-heading,
+    .editor-card-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .editor-section-heading { margin-bottom: 12px; }
+    .editor-language-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .editor-section-heading h2,
+    .editor-card-heading h2 { margin: 0; font-size: 16px; }
+    .editor-section-heading p,
+    .editor-card-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .editor-language-capsule {
+      isolation: isolate;
+      position: relative;
+      display: flex;
+      align-items: stretch;
+      width: fit-content;
+      max-width: 100%;
+      height: 40px;
+      overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--header-text) 14%, transparent);
+      border-radius: 999px;
+      background: var(--header-glass-bg);
+      -webkit-backdrop-filter: blur(10px) saturate(180%);
+      backdrop-filter: blur(10px) saturate(180%);
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--header-text) 9%, transparent),
+        0 10px 32px rgba(0, 0, 0, 0.16);
+    }
+    .editor-language-indicator {
+      position: absolute;
+      z-index: 0;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      border: 1px solid color-mix(in srgb, var(--header-text) 12%, transparent);
+      border-radius: 999px;
+      background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--header-text) 11%, transparent),
+        color-mix(in srgb, var(--header-text) 4%, transparent)
+      );
+      box-shadow:
+        inset 0 1px color-mix(in srgb, var(--header-text) 16%, transparent),
+        0 3px 10px rgba(0, 0, 0, 0.09);
+      transition:
+        transform 520ms cubic-bezier(0.22, 1.35, 0.36, 1),
+        width 420ms cubic-bezier(0.22, 1.15, 0.36, 1),
+        height 280ms cubic-bezier(0.2, 0.75, 0.25, 1);
+    }
+    .editor-language-capsule.is-long-pressing {
+      z-index: 2;
+      overflow: visible;
+    }
+    .editor-language-capsule.is-long-pressing > .editor-language-indicator { z-index: 2; }
+    .editor-language-capsule.is-long-pressing .editor-language-indicator {
+      border-color: color-mix(in srgb, var(--header-text) 24%, transparent);
+      background:
+        radial-gradient(ellipse at 28% 18%, color-mix(in srgb, #fff 32%, transparent), transparent 46%),
+        linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--header-text) 20%, transparent),
+          color-mix(in srgb, var(--header-text) 7%, transparent)
+        );
+      box-shadow:
+        inset 0 1px 2px color-mix(in srgb, #fff 34%, transparent),
+        0 10px 32px rgba(0, 0, 0, 0.2);
+    }
+    .editor-language-tab {
+      position: relative;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      height: 100%;
+      padding: 3px 16px;
+      border: 0;
+      border-inline-start: 1px solid transparent;
+      border-radius: 0;
+      background: transparent;
+      color: var(--header-text);
+      font: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: color 180ms ease;
+    }
+    .editor-language-tab:hover:not(:disabled) { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
+    .editor-language-tab:active { color: var(--header-text); }
+    .editor-language-tab:focus-visible { outline: 2px solid color-mix(in srgb, var(--header-text) 72%, transparent); outline-offset: -3px; }
+    .editor-language-tab.missing { opacity: 0.48; }
+    .editor-language-tab:disabled { cursor: not-allowed; }
+    .editor-card {
+      padding: 22px;
+      margin-bottom: 16px;
+      border-radius: 18px;
+    }
+    #panel > .editor-card { animation: none; }
+    @media (min-width: 900px) {
+      #panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1.8fr) minmax(300px, 0.9fr);
+        grid-template-areas: "body metadata";
+        align-items: stretch;
+        gap: 16px;
+      }
+      #panel .editor-meta-card {
+        grid-area: metadata;
+        margin-bottom: 0;
+      }
+      #panel .editor-body-card {
+        grid-area: body;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        margin-bottom: 0;
+      }
+      #panel .editor-body-input {
+        height: 640px;
+        min-height: 640px;
+      }
+      #panel .editor-body-input .cm-editor {
+        height: 100%;
+        min-height: 0;
+      }
+      #panel .editor-fields { grid-template-columns: minmax(0, 1fr); }
+    }
+    .editor-card-heading { margin-bottom: 20px; }
+    .editor-delete-lang { flex: 0 0 auto; color: var(--danger); }
+    .editor-delete-lang:hover { color: var(--text); }
+    .editor-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px 20px;
+    }
+    .editor-fields .editor-field {
+      display: grid;
+      align-content: start;
+      gap: 7px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .editor-fields .editor-field .input {
+      margin: 0;
+      min-height: 44px;
+      border-radius: 11px;
+      font-size: 14px;
+    }
+    .editor-fields .editor-field .input:disabled { opacity: 0.75; }
+    .editor-cover-preview {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: color-mix(in srgb, var(--bg) 62%, var(--surface));
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .editor-cover-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .editor-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 64px;
+      padding: 10px 12px;
+      background: color-mix(in srgb, var(--bg) 62%, var(--surface));
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      cursor: pointer;
+    }
+    .editor-toggle-copy { display: grid; gap: 2px; }
+    .editor-toggle strong { color: var(--text); font-size: 13px; }
+    .editor-toggle small { color: var(--muted); font-size: 11px; }
+    .editor-switch {
+      position: relative;
+      display: inline-flex;
+      flex: 0 0 48px;
+      width: 48px;
+      height: 28px;
+    }
+    .editor-switch input {
+      position: absolute;
+      z-index: 1;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .editor-switch-track {
+      position: absolute;
+      inset: 0;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--text) 18%, transparent);
+      transition: background-color 180ms ease, border-color 180ms ease;
+    }
+    .editor-switch-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+      transition: transform 180ms ease;
+      pointer-events: none;
+    }
+    .editor-switch input:checked ~ .editor-switch-track {
+      border-color: color-mix(in srgb, var(--accent) 72%, transparent);
+      background: var(--accent);
+    }
+    .editor-switch input:checked ~ .editor-switch-thumb { transform: translateX(20px); }
+    .editor-switch input:focus-visible ~ .editor-switch-track {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .editor-file-path {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-top: 20px;
+      min-height: 56px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .editor-file-path code { overflow-wrap: anywhere; color: var(--text); }
+    .editor-markdown-badge {
+      padding: 4px 8px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+    .editor-body-input {
+      display: block;
+      min-height: 640px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .editor-body-input:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+    }
+    .editor-body-input .cm-editor {
+      height: 640px;
+      background: transparent;
+      color: var(--text);
+      font-size: 13px;
+    }
+    .editor-body-input .cm-scroller {
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .editor-body-input .cm-content {
+      padding: 18px 20px;
+      caret-color: var(--accent);
+      line-height: 1.8;
+    }
+    .editor-body-input .cm-line { padding: 0; }
+    .editor-body-input .cm-cursor,
+    .editor-body-input .cm-dropCursor { border-left-color: var(--accent); }
+    .editor-body-input .cm-selectionBackground,
+    .editor-body-input ::selection {
+      background: color-mix(in srgb, var(--accent) 28%, transparent);
+    }
+    .editor-body-input .cm-activeLine {
+      background: color-mix(in srgb, var(--text) 3%, transparent);
+    }
+    .editor-body-input .cm-focused { outline: none; }
+    .editor-body-input .cm-gutters { display: none; }
+    .editor-body-input .cm-content:focus { outline: none; }
+    .editor-body-input .cm-lineWrapping { overflow-wrap: anywhere; }
+    .editor-body-input .cm-tooltip {
+      color: var(--text);
+      background: var(--surface);
+      border-color: var(--line);
+    }
+    .editor-actions {
+      display: flex;
+      align-items: center;
+      flex: 0 0 auto;
+      gap: 8px;
+    }
+    .editor-actions .status { min-height: 20px; margin-left: 4px; white-space: nowrap; }
+    .editor-delete-all { color: var(--danger); }
+    .editor-footnote {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .editor-footnote a { color: var(--muted); text-decoration: none; }
+    .editor-footnote a:hover { color: var(--text); }
+    @media (max-width: 640px) {
+      .editor-heading { align-items: flex-start; }
+      .editor-heading .editor-back { min-height: 34px; padding: 6px 11px; font-size: 12px; }
+      .editor-overview { align-items: flex-start; flex-direction: column; padding: 14px 16px; margin-bottom: 22px; }
+      .editor-load-status { text-align: left; }
+      .editor-language-controls { align-items: stretch; flex-direction: column; }
+      .editor-language-capsule { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+      .editor-language-capsule::-webkit-scrollbar { display: none; }
+      .editor-language-tab { padding-inline: clamp(10px, 3vw, 16px); font-size: clamp(12px, 3.8vw, 15px); }
+      .editor-actions { flex-wrap: wrap; }
+      .editor-actions .status { flex-basis: 100%; margin-left: 0; }
+      .editor-card { padding: 17px; }
+      .editor-fields { grid-template-columns: 1fr; gap: 14px; }
+      .editor-file-path { flex-direction: column; gap: 4px; }
+      .editor-body-input { min-height: 420px; }
+      .editor-body-input .cm-editor { height: 420px; }
+      .editor-footnote { flex-direction: column; gap: 4px; }
+    }
+  </style>
 </AdminLayout>

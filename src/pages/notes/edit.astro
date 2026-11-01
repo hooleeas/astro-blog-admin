@@ -1,14 +1,21 @@
 ---
+import { NOTE_FILE_RE } from '../../lib/content.js';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 
 export const prerender = false;
 
 const file = Astro.url.searchParams.get('file') ?? '';
-const valid = /^[A-Za-z0-9._-]+\.md$/.test(file);
+const valid = NOTE_FILE_RE.test(file);
 ---
 
-<AdminLayout title="编辑随记" active="notes">
-  <h1 class="page-title">编辑随记</h1>
+<AdminLayout title="编辑随记" active="notes" noteEditor={valid}>
+  <div class="page-heading">
+    <div class="note-heading-title">
+      <h1 class="page-title">编辑随记</h1>
+      {valid && <code id="file-name" class="note-filename">{file}</code>}
+    </div>
+    <a class="btn btn-ghost" href="/notes">返回</a>
+  </div>
 
   {!valid && (
     <div class="card"><p style="color: #dc2626;">文件名不合法。</p><a href="/notes">← 返回列表</a></div>
@@ -17,15 +24,20 @@ const valid = /^[A-Za-z0-9._-]+\.md$/.test(file);
   {valid && (
     <div id="app" data-file={file}>
       <div class="card" style="margin-bottom: 16px;">
-        <div style="font-size: 13px; color: var(--muted); margin-bottom: 12px;">
-          文件：<code id="file-name"></code>
-        </div>
         <div class="form-grid">
-          <label>日期（date）
-            <input id="f-date" class="input" type="date" required />
+          <label class="note-date-field">
+            <span>日期（date）</span>
+            <span class="date-input-row">
+              <input id="f-date" class="input mono note-date-input" type="text" inputmode="numeric" placeholder="YYYY-MM-DD" maxlength="10" autocomplete="off" required />
+              <button id="date-today-btn" class="btn btn-sm btn-ghost" type="button">今天</button>
+            </span>
           </label>
           <label class="check">草稿（draft）
-            <input id="f-draft" type="checkbox" />
+            <span class="toggle-switch">
+              <input id="f-draft" type="checkbox" role="switch" aria-label="草稿" />
+              <span class="toggle-switch-track"></span>
+              <span class="toggle-switch-thumb"></span>
+            </span>
           </label>
         </div>
       </div>
@@ -35,71 +47,144 @@ const valid = /^[A-Za-z0-9._-]+\.md$/.test(file);
         <textarea id="f-body" class="input mono" rows="24" placeholder="随记正文…"></textarea>
       </div>
 
-      <div class="actions">
-        <button id="save-btn" class="btn" type="button">保存</button>
-        <a class="link" href="/notes">← 返回列表</a>
-        <span id="save-status" class="status"></span>
-      </div>
     </div>
   )}
 
-  <script>
-    const app = document.getElementById('app');
-    if (app) {
-      const file = app.dataset.file;
+  <script data-astro-rerun>
+    (() => {
+      const app = document.getElementById('app');
+      if (!app || app.dataset.initialized === 'true') return;
+      app.dataset.initialized = 'true';
+
+      let file = app.dataset.file;
       const dateEl = document.getElementById('f-date');
+      const todayButton = document.getElementById('date-today-btn');
       const draftEl = document.getElementById('f-draft');
       const bodyEl = document.getElementById('f-body');
-      const statusEl = document.getElementById('save-status');
-      let sha = '';
+      const fileNameEl = document.getElementById('file-name');
+      const statusEl = document.getElementById('note-save-status');
+      const saveButton = document.getElementById('note-save-btn');
+      const deleteButton = document.getElementById('note-delete-btn');
+      if (!file || !dateEl || !todayButton || !draftEl || !bodyEl || !fileNameEl || !statusEl || !saveButton || !deleteButton) {
+        console.error('随记编辑器缺少必要的页面元素');
+        return;
+      }
 
-      document.getElementById('file-name').textContent = file;
+      let sha = '';
+      const slug = file.replace(/^\d{4}-\d{2}-\d{2}-/u, '').replace(/\.md$/u, '');
+      const updateFilenamePreview = () => {
+        const date = dateEl.value.trim();
+        fileNameEl.textContent = date ? `${date}-${slug}.md` : file;
+      };
+      dateEl.addEventListener('input', updateFilenamePreview);
+      todayButton.addEventListener('click', () => {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Shanghai',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).formatToParts(new Date());
+        const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+        dateEl.value = `${values.year}-${values.month}-${values.day}`;
+        updateFilenamePreview();
+        dateEl.focus();
+      });
+
+      function isValidDate(value) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+        const [year, month, day] = value.split('-').map(Number);
+        const date = new Date(Date.UTC(year, month - 1, day));
+        return date.getUTCFullYear() === year
+          && date.getUTCMonth() === month - 1
+          && date.getUTCDate() === day;
+      }
 
       async function load() {
         statusEl.textContent = '加载中…';
-        const r = await fetch('/api/notes/' + encodeURIComponent(file));
-        const res = await r.json();
-        if (!res.ok) {
-          statusEl.textContent = '加载失败：' + res.error;
-          return;
+        try {
+          const response = await fetch('/api/notes/' + encodeURIComponent(file));
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            statusEl.textContent = '加载失败：' + (result.error || response.statusText);
+            return;
+          }
+          sha = result.data.sha;
+          dateEl.value = result.data.frontmatter.date || '';
+          updateFilenamePreview();
+          draftEl.checked = !!result.data.frontmatter.draft;
+          bodyEl.value = result.data.body || '';
+          statusEl.textContent = '';
+        } catch (error) {
+          statusEl.textContent = `加载失败：${error instanceof Error ? error.message : String(error)}`;
         }
-        sha = res.data.sha;
-        dateEl.value = res.data.frontmatter.date || '';
-        draftEl.checked = !!res.data.frontmatter.draft;
-        bodyEl.value = res.data.body || '';
-        statusEl.textContent = '';
       }
 
-      document.getElementById('save-btn').addEventListener('click', async () => {
+      saveButton.addEventListener('click', async () => {
         const date = dateEl.value;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-          alert('日期格式不正确');
+        if (!isValidDate(date)) {
+          statusEl.textContent = '日期格式不正确，请输入有效的 YYYY-MM-DD 日期';
+          dateEl.focus();
           return;
         }
         statusEl.textContent = '保存中…';
-        const r = await fetch('/api/notes/' + encodeURIComponent(file), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            frontmatter: { date, draft: draftEl.checked },
-            body: bodyEl.value,
-            sha,
-          }),
-        });
-        const res = await r.json();
-        if (!res.ok) {
-          statusEl.textContent = '';
-          alert('保存失败：' + res.error);
-          return;
+        saveButton.setAttribute('disabled', '');
+        try {
+          const response = await fetch('/api/notes/' + encodeURIComponent(file), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              frontmatter: { date, draft: draftEl.checked },
+              body: bodyEl.value,
+              sha,
+            }),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            statusEl.textContent = '保存失败：' + (result.error || response.statusText);
+            return;
+          }
+          if (result.data.file && result.data.file !== file) {
+            file = result.data.file;
+            app.dataset.file = file;
+            fileNameEl.textContent = file;
+            history.replaceState(history.state, '', `/notes/edit?file=${encodeURIComponent(file)}`);
+          }
+          statusEl.textContent = '已保存 ✓';
+          const currentResponse = await fetch('/api/notes/' + encodeURIComponent(file));
+          const current = await currentResponse.json();
+          if (currentResponse.ok && current.ok) sha = current.data.sha;
+          setTimeout(() => { statusEl.textContent = ''; }, 2000);
+        } catch (error) {
+          statusEl.textContent = `保存失败：${error instanceof Error ? error.message : String(error)}`;
+        } finally {
+          saveButton.removeAttribute('disabled');
         }
-        statusEl.textContent = '已保存 ✓';
-        // 重新取 sha，避免并发覆盖
-        const cur = await (await fetch('/api/notes/' + encodeURIComponent(file))).json();
-        if (cur.ok) sha = cur.data.sha;
-        setTimeout(() => { statusEl.textContent = ''; }, 2000);
       });
 
-      load();
-    }
+      deleteButton.addEventListener('click', async () => {
+        if (!sha || !confirm(`确定删除随记 ${file}？此操作不可撤销。`)) return;
+        statusEl.textContent = '删除中…';
+        deleteButton.setAttribute('disabled', '');
+        try {
+          const response = await fetch('/api/notes/' + encodeURIComponent(file), {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sha }),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            statusEl.textContent = '删除失败：' + (result.error || response.statusText);
+            return;
+          }
+          window.location.href = '/notes';
+        } catch (error) {
+          statusEl.textContent = `删除失败：${error instanceof Error ? error.message : String(error)}`;
+        } finally {
+          deleteButton.removeAttribute('disabled');
+        }
+      });
+
+      void load();
+    })();
   </script>
 </AdminLayout>

@@ -36,7 +36,6 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       username?: unknown;
       password?: unknown;
       dir?: unknown;
-      publicBaseUrl?: unknown;
       webp?: unknown;
     } | null;
     if (!body || typeof body !== 'object') {
@@ -56,11 +55,6 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       return json({ ok: false, error: '目录不能包含 ..' }, 400);
     }
 
-    const publicBaseUrl = String(body.publicBaseUrl || '').trim();
-    if (publicBaseUrl && !/^https?:\/\//i.test(publicBaseUrl)) {
-      return json({ ok: false, error: '公开访问地址必须以 http:// 或 https:// 开头' }, 400);
-    }
-
     // 密码为空 → 保留 KV 里旧密码
     let password = String(body.password ?? '');
     if (!password) {
@@ -73,7 +67,6 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       username: String(body.username || '').trim(),
       password,
       dir,
-      publicBaseUrl: publicBaseUrl.replace(/\/+$/, ''),
       webp: body.webp !== false,
     });
     return json({ ok: true });

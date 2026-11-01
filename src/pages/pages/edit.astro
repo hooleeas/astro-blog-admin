@@ -5,17 +5,21 @@ export const prerender = false;
 
 const slug = Astro.url.searchParams.get('slug') ?? '';
 const valid = /^[A-Za-z0-9_-]+$/.test(slug);
+const embedded = Astro.url.searchParams.get('embedded') === '1';
 ---
 
 <AdminLayout title="编辑页面" active="pages">
-  <h1 class="page-title">编辑页面</h1>
+  <div class="page-heading">
+    <h1 class="page-title">编辑页面</h1>
+    <a class="btn glass-button back-button" href={embedded ? '/pages/settings?embedded=1' : '/pages/settings'}>返回页面设置</a>
+  </div>
 
   {!valid && (
-    <div class="card"><p style="color: #dc2626;">slug 不合法。</p><a href="/pages">← 返回列表</a></div>
+    <div class="card"><p style="color: #dc2626;">slug 不合法。</p></div>
   )}
 
   {valid && (
-    <div id="app" data-slug={slug}>
+    <div id="page-editor-app" data-slug={slug}>
       <div class="card" style="margin-bottom: 16px;">
         <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">
           文件：<code id="file-name"></code> · 访问路径：<code id="page-url"></code>
@@ -30,57 +34,86 @@ const valid = /^[A-Za-z0-9_-]+$/.test(slug);
       </div>
 
       <div class="actions">
-        <button id="save-btn" class="btn" type="button">保存</button>
-        <a class="link" href="/pages">← 返回列表</a>
+        <button id="save-btn" class="btn" type="button" hidden>保存</button>
         <span id="save-status" class="status"></span>
       </div>
     </div>
   )}
 
   <script>
-    const app = document.getElementById('app');
+    function initializePageEditor() {
+    const app = document.querySelector<HTMLElement>('#page-editor-app');
+    if (app?.dataset.initialized) return;
+    if (app) app.dataset.initialized = 'true';
     if (app) {
       const slug = app.dataset.slug;
-      const contentEl = document.getElementById('f-content');
-      const statusEl = document.getElementById('save-status');
+      const contentEl = document.querySelector<HTMLTextAreaElement>('#f-content');
+      const statusEl = document.querySelector<HTMLElement>('#save-status');
+      const fileNameEl = document.querySelector<HTMLElement>('#file-name');
+      const pageUrlEl = document.querySelector<HTMLElement>('#page-url');
+      const saveButton = document.querySelector<HTMLButtonElement>('#save-btn');
       let sha = '';
 
-      document.getElementById('file-name').textContent = `src/pages/${slug}.astro`;
-      document.getElementById('page-url').textContent = `/${slug}`;
+      if (!slug || !contentEl || !statusEl || !fileNameEl || !pageUrlEl || !saveButton) {
+        console.error('页面编辑器缺少页面标识或必要的表单元素');
+      } else {
+        const pageSlug = slug;
+        const editorContent = contentEl;
+        const editorStatus = statusEl;
+        const sourceFileName = fileNameEl;
+        const sourcePageUrl = pageUrlEl;
+        const savePageButton = saveButton;
+        sourceFileName.textContent = `src/pages/${pageSlug}.astro`;
+        sourcePageUrl.textContent = `/${pageSlug}`;
 
-      async function load() {
-        statusEl.textContent = '加载中…';
-        const r = await fetch('/api/pages/' + encodeURIComponent(slug));
-        const res = await r.json();
-        if (!res.ok) {
-          statusEl.textContent = '加载失败：' + res.error;
-          return;
+        async function load() {
+          editorStatus.textContent = '加载中…';
+          try {
+            const r = await fetch('/api/pages/' + encodeURIComponent(pageSlug));
+            const res = await r.json();
+            if (!res.ok) {
+              editorStatus.textContent = '加载失败：' + res.error;
+              return;
+            }
+            sha = res.data.sha;
+            editorContent.value = res.data.content || '';
+            editorStatus.textContent = '';
+          } catch (error) {
+            editorStatus.textContent = '加载失败：' + (error instanceof Error ? error.message : String(error));
+            console.error('加载页面源码失败', error);
+          }
         }
-        sha = res.data.sha;
-        contentEl.value = res.data.content || '';
-        statusEl.textContent = '';
-      }
 
-      document.getElementById('save-btn').addEventListener('click', async () => {
-        statusEl.textContent = '保存中…';
-        const r = await fetch('/api/pages/' + encodeURIComponent(slug), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: contentEl.value, sha }),
+        savePageButton.addEventListener('click', async () => {
+          editorStatus.textContent = '保存中…';
+          try {
+            const r = await fetch('/api/pages/' + encodeURIComponent(pageSlug), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: editorContent.value, sha }),
+            });
+            const res = await r.json();
+            if (!res.ok) {
+              editorStatus.textContent = '';
+              alert('保存失败：' + res.error);
+              return;
+            }
+            editorStatus.textContent = '已保存 ✓';
+            const cur = await (await fetch('/api/pages/' + encodeURIComponent(pageSlug))).json();
+            if (cur.ok) sha = cur.data.sha;
+            setTimeout(() => { editorStatus.textContent = ''; }, 2000);
+          } catch (error) {
+            editorStatus.textContent = '保存失败：' + (error instanceof Error ? error.message : String(error));
+            console.error('保存页面源码失败', error);
+          }
         });
-        const res = await r.json();
-        if (!res.ok) {
-          statusEl.textContent = '';
-          alert('保存失败：' + res.error);
-          return;
-        }
-        statusEl.textContent = '已保存 ✓';
-        const cur = await (await fetch('/api/pages/' + encodeURIComponent(slug))).json();
-        if (cur.ok) sha = cur.data.sha;
-        setTimeout(() => { statusEl.textContent = ''; }, 2000);
-      });
 
-      load();
+        load();
+      }
     }
+    }
+
+    initializePageEditor();
+    document.addEventListener('admin:content-loaded', initializePageEditor);
   </script>
 </AdminLayout>

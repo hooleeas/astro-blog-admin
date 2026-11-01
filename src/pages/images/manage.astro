@@ -1,0 +1,198 @@
+---
+export const prerender = false;
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="图片管理" active="images">
+  <main class="image-manager">
+    <div class="manager-heading">
+      <div>
+        <div class="manager-title-row">
+          <h1 class="page-title">图片管理</h1>
+          <span id="image-count" class="hint" aria-live="polite"></span>
+        </div>
+        <p class="hint">管理图床中已上传的图片。删除会同时移除 WebDAV 原图和站点副本。</p>
+      </div>
+      <label class="search-label">
+        <span class="sr-only">搜索图片</span>
+        <input id="image-search" class="input" type="search" placeholder="搜索文件名" />
+      </label>
+      <a class="btn btn-ghost" href="/images">返回上传</a>
+    </div>
+
+    <p id="image-status" class="image-status" role="status" aria-live="polite">正在加载图片…</p>
+    <div id="image-grid" class="image-grid"></div>
+    <div id="image-manager-toast" class="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <style is:global>
+    .image-manager { width: min(1120px, calc(100% - 32px)); margin: 20px auto 48px; }
+    .image-manager .manager-heading { display: flex; align-items: center; gap: 24px; margin-bottom: 20px; }
+    .image-manager .manager-heading .page-title { margin: 0; }
+    .image-manager .manager-heading .hint { margin: 6px 0 0; }
+    .image-manager .manager-title-row { display: flex; align-items: baseline; gap: 10px; }
+    .image-manager .manager-title-row #image-count { margin: 0; }
+    .image-manager .search-label { flex: 0 1 320px; min-width: 180px; margin-left: auto; }
+    .image-manager .search-label .input { width: 100%; }
+    .image-manager .image-status { color: var(--muted); margin: 0; }
+    .image-manager .image-status.error { color: var(--danger); }
+    .image-manager .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; margin-top: 20px; }
+    .image-manager .image-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .image-manager .image-preview { display: grid; place-items: center; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; padding: 10px; background: color-mix(in srgb, var(--bg) 80%, var(--text) 4%); }
+    .image-manager .image-preview img { width: 100%; height: 100%; object-fit: contain; }
+    .image-manager .image-preview .broken { color: var(--muted); font-size: 13px; }
+    .image-manager .image-details { padding: 12px; }
+    .image-manager .image-name { margin: 0; overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .image-manager .image-meta { margin: 4px 0 10px; color: var(--muted); font-size: 12px; }
+    .image-manager .image-actions { display: flex; gap: 8px; }
+    .image-manager .image-actions .btn { flex: 1; min-height: 34px; padding: 6px 10px; font-size: 12px; }
+    .image-manager .delete-image { color: var(--danger); }
+    .image-manager .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    @media (max-width: 560px) {
+      .image-manager .manager-heading { flex-wrap: wrap; gap: 12px; }
+      .image-manager .manager-heading > div { flex: 1 1 100%; }
+      .image-manager .search-label { flex: 1 1 180px; min-width: 0; margin-left: 0; }
+    }
+  </style>
+
+  <script>
+    interface ManagedImage {
+      filename: string;
+      url: string;
+      size: number;
+      lastmod: string;
+    }
+
+    function initializeImageManager() {
+      const app = document.querySelector<HTMLElement>('.image-manager');
+      if (!app || app.dataset.initialized) return;
+      app.dataset.initialized = 'true';
+      const grid = app.querySelector<HTMLElement>('#image-grid')!;
+      const status = app.querySelector<HTMLElement>('#image-status')!;
+      const count = app.querySelector<HTMLElement>('#image-count')!;
+      const search = app.querySelector<HTMLInputElement>('#image-search')!;
+      const toast = document.querySelector<HTMLElement>('#image-manager-toast')!;
+      let images: ManagedImage[] = [];
+      let appliedQuery = '';
+      let toastTimer = 0;
+
+      function showToast(message: string) {
+        toast.textContent = message;
+        toast.classList.add('show');
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2200);
+      }
+
+      function formatSize(bytes: number): string {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      }
+
+      function render() {
+        const visible = images.filter((image) => image.filename.toLocaleLowerCase().includes(appliedQuery));
+        grid.replaceChildren();
+        count.textContent = `${visible.length} / ${images.length} 张`;
+        if (visible.length === 0) {
+          status.textContent = images.length === 0 ? '还没有上传图片。' : '没有匹配的图片。';
+          status.classList.remove('error');
+          return;
+        }
+        status.textContent = '';
+        for (const image of visible) {
+          const card = document.createElement('article');
+          card.className = 'image-card';
+          const preview = document.createElement('div');
+          preview.className = 'image-preview';
+          const img = document.createElement('img');
+          img.src = image.url;
+          img.alt = image.filename;
+          img.loading = 'lazy';
+          img.addEventListener('error', () => {
+            const fallback = document.createElement('span');
+            fallback.className = 'broken';
+            fallback.textContent = '图片暂时无法预览';
+            preview.replaceChildren(fallback);
+          }, { once: true });
+          preview.appendChild(img);
+
+          const details = document.createElement('div');
+          details.className = 'image-details';
+          const name = document.createElement('p');
+          name.className = 'image-name';
+          name.textContent = image.filename;
+          name.title = image.filename;
+          const meta = document.createElement('p');
+          meta.className = 'image-meta';
+          meta.textContent = `${formatSize(image.size)} · ${new Date(image.lastmod).toLocaleString()}`;
+          const actions = document.createElement('div');
+          actions.className = 'image-actions';
+          const copyButton = document.createElement('button');
+          copyButton.className = 'btn btn-ghost';
+          copyButton.type = 'button';
+          copyButton.textContent = '复制链接';
+          copyButton.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(image.url);
+              showToast('链接已复制');
+            } catch (error) {
+              status.textContent = `复制失败：${error instanceof Error ? error.message : String(error)}`;
+              status.classList.add('error');
+            }
+          });
+          const deleteButton = document.createElement('button');
+          deleteButton.className = 'btn btn-ghost delete-image';
+          deleteButton.type = 'button';
+          deleteButton.textContent = '删除';
+          deleteButton.addEventListener('click', async () => {
+            if (!confirm(`确定删除图片“${image.filename}”吗？此操作无法撤销。`)) return;
+            deleteButton.disabled = true;
+            status.textContent = `正在删除：${image.filename}`;
+            status.classList.remove('error');
+            try {
+              const response = await fetch(`/api/images/${encodeURIComponent(image.filename)}`, { method: 'DELETE' });
+              const result = await response.json();
+              if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+              images = images.filter((item) => item.filename !== image.filename);
+              render();
+              showToast('图片已删除');
+            } catch (error) {
+              status.textContent = `删除失败：${error instanceof Error ? error.message : String(error)}`;
+              status.classList.add('error');
+              deleteButton.disabled = false;
+            }
+          });
+          actions.append(copyButton, deleteButton);
+          details.append(name, meta, actions);
+          card.append(preview, details);
+          grid.appendChild(card);
+        }
+      }
+
+      async function loadImages() {
+        status.textContent = '正在加载图片…';
+        status.classList.remove('error');
+        try {
+          const response = await fetch('/api/images');
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+          images = result.data;
+          render();
+        } catch (error) {
+          status.textContent = `加载失败：${error instanceof Error ? error.message : String(error)}`;
+          status.classList.add('error');
+        }
+      }
+
+      search.addEventListener('input', () => {
+        appliedQuery = search.value.trim().toLocaleLowerCase();
+        render();
+      });
+      app.addEventListener('image-manager-refresh', loadImages);
+      void loadImages();
+    }
+
+    document.addEventListener('astro:page-load', initializeImageManager);
+    initializeImageManager();
+  </script>
+</AdminLayout>

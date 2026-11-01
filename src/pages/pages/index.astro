@@ -2,122 +2,112 @@
 import AdminLayout from '../../layouts/AdminLayout.astro';
 
 export const prerender = false;
+
+const dataFiles = [
+  { name: 'config', title: '主页设置', desc: '首页内容及站点基础配置' },
+  { name: 'posts', title: '文章列表设置', desc: '文章列表页展示配置与文案' },
+  { name: 'about', title: '关于页面设置', desc: '关于页面的配置与多语言文案' },
+  { name: 'apple', title: 'Apple 页面设置', desc: 'Apple 页面相关配置与文案' },
+  { name: 'services', title: '公益服务设置', desc: '公益服务相关配置与文案' },
+];
 ---
 
-<AdminLayout title="页面管理" active="pages">
-  <h1 class="page-title">页面</h1>
-
-  <div class="card" style="margin-bottom: 16px;">
-    <h2 style="font-size: 15px; margin: 0 0 12px;">新建页面</h2>
-    <div class="form-grid">
-      <label>slug（字母、数字、_-）
-        <input id="new-slug" class="input mono" placeholder="about" />
-      </label>
-      <label>标题
-        <input id="new-title" class="input" placeholder="关于我" />
-      </label>
-      <label>副标题
-        <input id="new-subtitle" class="input" placeholder="一句话介绍" />
-      </label>
+<AdminLayout title="站点设置" active="pages">
+  <div id="site-settings-content">
+  <section id="site-settings-home">
+    <div class="grid">
+      {dataFiles.map((file) => (
+        <a class="module-card" href={`/data/edit?name=${file.name}`} data-inline-editor>
+          <div class="title">{file.title}</div>
+          <div class="desc">{file.desc}</div>
+        </a>
+      ))}
+      <a class="module-card" href="/pages/settings" data-inline-editor>
+        <div class="title">页面设置</div>
+        <div class="desc">新建页面、编辑页面内容与管理已有页面</div>
+      </a>
     </div>
-    <div style="margin-top: 12px;">
-      <button id="new-btn" class="btn" type="button">新建</button>
-    </div>
-    <p style="font-size: 12px; color: var(--muted); margin: 8px 0 0;">
-      文件 <code>src/pages/&lt;slug&gt;.astro</code>，模板取仓库 <code>templates/pages/page.astro.txt</code>。
-    </p>
-  </div>
-
-  <div class="card">
-    <div id="list-status" style="color: var(--muted); font-size: 14px;">加载中…</div>
-    <div id="list"></div>
+  </section>
   </div>
 
   <script>
-    const listEl = document.getElementById('list');
-    const statusEl = document.getElementById('list-status');
+    function setupSiteSettingsNavigation() {
+      const content = document.querySelector<HTMLElement>('#site-settings-content');
+      if (!content || content.dataset.navigationReady) return;
+      content.dataset.navigationReady = 'true';
+      const homeMarkup = content.innerHTML;
+      const homeTitle = document.title;
+      let requestId = 0;
 
-    function esc(s) {
-      return String(s ?? '').replace(/[&<>"']/g, (c) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-      }[c]));
-    }
-
-    async function api(url, opts) {
-      const r = await fetch(url, opts);
-      return r.json();
-    }
-
-    async function load() {
-      statusEl.textContent = '加载中…';
-      listEl.innerHTML = '';
-      const res = await api('/api/pages');
-      if (!res.ok) {
-        statusEl.textContent = '加载失败：' + res.error;
-        return;
-      }
-      const pages = res.data.pages;
-      if (!pages.length) {
-        statusEl.textContent = '暂无页面。';
-        return;
-      }
-      statusEl.textContent = `共 ${pages.length} 个页面`;
-      const table = document.createElement('table');
-      table.className = 'tbl';
-      table.innerHTML = `<thead><tr>
-        <th>slug</th><th>路径</th><th style="text-align:right;">操作</th>
-      </tr></thead>`;
-      const tbody = document.createElement('tbody');
-      for (const p of pages) {
-        const tr = document.createElement('tr');
-        const badge = p.protected ? ' <span class="tag">默认</span>' : '';
-        const delBtn = p.protected ? '' : `<button class="link danger" data-del="${esc(p.slug)}" type="button">删除</button>`;
-        tr.innerHTML = `
-          <td data-label="slug" class="mono">${esc(p.slug)}${badge}</td>
-          <td data-label="路径" class="mono" style="color: var(--muted);">/${esc(p.slug)}</td>
-          <td class="cell-actions no-label">
-            <a class="link" href="/pages/edit?slug=${encodeURIComponent(p.slug)}">编辑</a>
-            ${delBtn}
-          </td>`;
-        tbody.appendChild(tr);
-      }
-      table.appendChild(tbody);
-      listEl.appendChild(table);
-
-      listEl.querySelectorAll('[data-del]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const slug = btn.getAttribute('data-del');
-          if (!confirm(`确定删除页面 /${slug}？\n\n删除后该页面访问会 404，且操作不可撤销。`)) return;
-          const cur = await api('/api/pages/' + encodeURIComponent(slug));
-          if (!cur.ok) { alert('删除失败：' + cur.error); return; }
-          const del = await api('/api/pages/' + encodeURIComponent(slug), {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sha: cur.data.sha }),
+      async function showRoute(url: URL) {
+        const thisRequest = ++requestId;
+        try {
+          const routeUrl = new URL(url.href);
+          routeUrl.searchParams.set('embedded', '1');
+          const response = await fetch(routeUrl.href, {
+            headers: { 'X-Requested-With': 'site-settings-content' },
           });
-          if (!del.ok) alert('删除失败：' + del.error);
-          else {
-            if (del.data && del.data.warning) alert(del.data.warning);
-            load();
-          }
-        });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const html = await response.text();
+          const parsed = new DOMParser().parseFromString(html, 'text/html');
+          const pageContent = parsed.querySelector('main.content');
+          if (!pageContent) throw new Error('编辑页面内容未找到');
+          if (thisRequest !== requestId) return;
+
+          content.innerHTML = pageContent.innerHTML;
+          document.title = parsed.title;
+          const routeScriptPath = `/src/pages${routeUrl.pathname}.astro?astro&type=script`;
+          const builtScriptName = `/${routeUrl.pathname.split('/').pop()}.astro_astro_type_script_`;
+          const routeScript = Array.from(parsed.querySelectorAll<HTMLScriptElement>('script[type="module"][src]'))
+            .find((script) => script.src.includes(routeScriptPath) || script.src.includes(builtScriptName));
+          if (!routeScript) throw new Error('编辑页面脚本未找到');
+          if (routeScript) await import(routeScript.src);
+          if (thisRequest !== requestId) return;
+          document.dispatchEvent(new Event('admin:content-loaded'));
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch (error) {
+          if (thisRequest !== requestId) return;
+          content.innerHTML = homeMarkup;
+          document.title = homeTitle;
+          alert('打开设置失败：' + (error instanceof Error ? error.message : String(error)));
+          console.error('站点设置内容加载失败', error);
+        }
+      }
+
+      document.addEventListener('click', (event) => {
+        if (!(event.target instanceof Element)) return;
+        const link = event.target.closest<HTMLAnchorElement>('a[href]');
+        if (!link || !content.contains(link)) return;
+        const destination = new URL(link.href, window.location.href);
+        if (destination.origin !== window.location.origin) return;
+        if (destination.pathname === '/pages' && destination.searchParams.get('embedded') === '1') {
+          event.preventDefault();
+          requestId++;
+          content.innerHTML = homeMarkup;
+          document.title = homeTitle;
+          document.dispatchEvent(new Event('admin:content-loaded'));
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+        if (
+          destination.pathname === '/pages/settings' ||
+          destination.pathname === '/pages/edit' ||
+          destination.pathname === '/data/edit'
+        ) {
+          event.preventDefault();
+          void showRoute(destination);
+        }
+      }, { capture: true });
+
+      document.addEventListener('admin:content-navigate', (event) => {
+        const detail = (event as CustomEvent<{ href?: string }>).detail;
+        if (!detail?.href) return;
+        const destination = new URL(detail.href, window.location.href);
+        if (destination.origin === window.location.origin) void showRoute(destination);
       });
     }
 
-    document.getElementById('new-btn').addEventListener('click', async () => {
-      const slug = document.getElementById('new-slug').value.trim();
-      const title = document.getElementById('new-title').value.trim();
-      const subtitle = document.getElementById('new-subtitle').value.trim();
-      if (!slug || !title) { alert('slug 与标题不能为空'); return; }
-      const res = await api('/api/pages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, title, subtitle }),
-      });
-      if (!res.ok) { alert('新建失败：' + res.error); return; }
-      location.href = '/pages/edit?slug=' + encodeURIComponent(res.data.slug);
-    });
-
-    load();
+    setupSiteSettingsNavigation();
+    document.addEventListener('astro:page-load', setupSiteSettingsNavigation);
   </script>
 </AdminLayout>

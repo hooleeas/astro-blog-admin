@@ -1,26 +1,4 @@
 ---
-import AdminLayout from '../layouts/AdminLayout.astro';
-
 export const prerender = false;
-
-const modules = [
-  { key: 'posts', title: '文章', desc: '管理五语言文章（新建、编辑、发布）', href: '/posts' },
-  { key: 'notes', title: '随记', desc: '管理随记（新建、编辑、发布）', href: '/notes' },
-  { key: 'pages', title: '页面', desc: '管理独立页面', href: '/pages' },
-  { key: 'data', title: '变量', desc: '编辑站点配置变量（JSONC）', href: '/data' },
-  { key: 'images', title: '图床', desc: '上传图片到 WebDAV 图床', href: '/images' },
-  { key: 'settings', title: '设置', desc: 'WebDAV 配置、仓库与环境状态', href: '/settings' },
-];
+return Astro.redirect('/posts', 302);
 ---
-
-<AdminLayout title="仪表盘">
-  <h1 class="page-title">仪表盘</h1>
-  <div class="grid">
-    {modules.map((m) => (
-      <a class="module-card" href={m.href}>
-        <div class="title">{m.title}</div>
-        <div class="desc">{m.desc}</div>
-      </a>
-    ))}
-  </div>
-</AdminLayout>

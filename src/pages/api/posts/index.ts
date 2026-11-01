@@ -11,13 +11,37 @@ import {
   type PostMeta,
 } from '../../../lib/posts.js';
 import * as ghMod from '../../../lib/github.js';
+import { getEnv } from '../../../lib/env.js';
 
 export const prerender = false;
 
 const gh = ghMod as unknown as Gh;
 
+function isLocalPreview(locals: APIContext['locals'], request: Request) {
+  const hostname = new URL(request.url).hostname;
+  return import.meta.env.DEV &&
+    getEnv(locals).ADMIN_LOCAL_PREVIEW === 'true' &&
+    (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]');
+}
+
 /** GET /api/posts — 文章列表，按 translationKey 分组，pubDate 倒序 */
-export async function GET({ locals }: APIContext) {
+export async function GET({ locals, request }: APIContext) {
+  if (isLocalPreview(locals, request)) {
+    try {
+      const { listLocalRepoFiles } = await import('../../../lib/local-data.js');
+      const files = await listLocalRepoFiles('src/content/posts');
+      const contentByPath = new Map(files.map((file) => [file.path, file.content]));
+      const metas: PostMeta[] = postRefsFromPaths(files.map((file) => file.path)).map((ref) => ({
+        ...ref,
+        sha: '',
+        frontmatter: parsePost(contentByPath.get(ref.path) ?? '').frontmatter,
+      }));
+      return ok({ groups: groupPosts(metas) });
+    } catch (e) {
+      return fail('读取本地文章列表失败：' + (e as Error)?.message, 500);
+    }
+  }
+
   try {
     const refs = postRefsFromPaths(await gh.listTree(locals));
     const metas: PostMeta[] = await mapPool(refs, 8, async (r) => {

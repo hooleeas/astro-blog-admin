@@ -32,6 +32,7 @@ export interface LangSlot {
 export interface PostGroup {
   key: string;
   title: string;
+  cover: string;
   pubDate: string;
   langs: Record<string, LangSlot | null>;
   count: number;
@@ -123,6 +124,9 @@ export function groupPosts(metas: PostMeta[]): PostGroup[] {
     const zh = items.find((i) => i.lang === 'zh-Hans') ?? items[0];
     const rawTitle = zh?.frontmatter?.title;
     const title = typeof rawTitle === 'string' && rawTitle ? rawTitle : key;
+    const cover = items
+      .map((item) => item.frontmatter?.cover)
+      .find((value): value is string => typeof value === 'string' && value.trim().length > 0) ?? '';
     const langs: Record<string, LangSlot | null> = {};
     for (const L of POST_LANGS) {
       const it = items.find((i) => i.lang === L);
@@ -131,7 +135,7 @@ export function groupPosts(metas: PostMeta[]): PostGroup[] {
         : null;
     }
     const dates = items.map((i) => normDate(i.frontmatter?.pubDate)).filter(Boolean).sort();
-    groups.push({ key, title, pubDate: dates[dates.length - 1] ?? '', langs, count: items.length });
+    groups.push({ key, title, cover, pubDate: dates[dates.length - 1] ?? '', langs, count: items.length });
   }
   groups.sort((a, b) => b.pubDate.localeCompare(a.pubDate));
   return groups;

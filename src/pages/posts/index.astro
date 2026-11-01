@@ -5,22 +5,13 @@ export const prerender = false;
 ---
 
 <AdminLayout title="文章管理" active="posts">
-  <h1 class="page-title">文章</h1>
-
-  <div class="card" style="margin-bottom: 16px;">
-    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-      <a class="btn" href="/posts/new" style="text-decoration: none;">＋ 新建文章</a>
-      <span style="font-size: 12px; color: var(--muted);">新建会同时生成 5 个语言的 draft 文件，共用一个 translationKey。</span>
-    </div>
-  </div>
-
   <div class="card">
     <div id="list-status" style="color: var(--muted); font-size: 14px;">加载中…</div>
     <div id="list" style="overflow-x: auto;"></div>
   </div>
 
-  <script>
-    const LANGS = ['zh-Hans', 'zh-Hant', 'en', 'ja', 'ko'];
+  <script data-astro-rerun>
+    (() => {
     const listEl = document.getElementById('list');
     const statusEl = document.getElementById('list-status');
 
@@ -33,14 +24,6 @@ export const prerender = false;
     async function api(url, opts) {
       const r = await fetch(url, opts);
       return r.json();
-    }
-
-    function langChip(lang, slot) {
-      if (!slot) return `<span class="lang-chip missing" title="${lang}：缺失">${lang} 缺</span>`;
-      const badge = slot.draft
-        ? '<span class="badge draft">草稿</span>'
-        : '<span class="badge pub">已发布</span>';
-      return `<span class="lang-chip" title="${lang}：${esc(slot.slug)}">${lang} ${badge}</span>`;
     }
 
     async function load() {
@@ -60,14 +43,21 @@ export const prerender = false;
       const table = document.createElement('table');
       table.className = 'tbl';
       table.innerHTML = `<thead><tr>
-        <th>标题</th><th>语言版本</th><th>发布时间</th><th style="text-align:right;">操作</th>
+        <th>标题</th><th>发布时间</th><th style="text-align:right;">操作</th>
       </tr></thead>`;
       const tbody = document.createElement('tbody');
       for (const g of groups) {
         const tr = document.createElement('tr');
+        const coverPreview = g.cover
+          ? `<img class="post-list-cover-image" src="${esc(g.cover)}" alt="" loading="lazy" /><span class="post-list-cover-placeholder" hidden>封面</span>`
+          : '<span class="post-list-cover-placeholder">封面</span>';
         tr.innerHTML = `
-          <td data-label="标题" style="max-width: 320px;">${esc(g.title)}<div class="mono" style="color: var(--muted); font-size: 12px;">${esc(g.key)}</div></td>
-          <td data-label="语言版本"><div class="chips">${LANGS.map((L) => langChip(L, g.langs[L])).join('')}</div></td>
+          <td class="post-list-cell" data-label="标题" style="max-width: 320px;">
+            <div class="post-list-title">
+              <span class="post-list-cover">${coverPreview}</span>
+              <span class="post-list-title-copy">${esc(g.title)}<span class="mono post-list-key">${esc(g.key)}</span></span>
+            </div>
+          </td>
           <td data-label="发布时间" class="mono">${esc(g.pubDate || '—')}</td>
           <td class="cell-actions no-label">
             <a class="link" href="/posts/edit?key=${encodeURIComponent(g.key)}">编辑</a>
@@ -77,6 +67,13 @@ export const prerender = false;
       }
       table.appendChild(tbody);
       listEl.appendChild(table);
+      Array.from(listEl.querySelectorAll<HTMLImageElement>('.post-list-cover-image')).forEach((image) => {
+        image.addEventListener('error', () => {
+          image.hidden = true;
+          const placeholder = image.nextElementSibling;
+          if (placeholder instanceof HTMLElement) placeholder.hidden = false;
+        }, { once: true });
+      });
 
       listEl.querySelectorAll('[data-del]').forEach((btn) => {
         btn.addEventListener('click', async () => {
@@ -91,6 +88,50 @@ export const prerender = false;
       });
     }
 
+    listEl.addEventListener('admin:posts-created', load);
     load();
+    })();
   </script>
+
+  <style is:global>
+    .post-list-title {
+      min-width: 0;
+    }
+    .post-list-cover {
+      position: absolute;
+      inset: -0.5px auto -0.5px 0;
+      display: grid;
+      width: 96px;
+      place-items: center;
+      overflow: hidden;
+      border-right: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface) 75%, var(--muted));
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .post-list-cover-image {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .post-list-cover-placeholder[hidden] { display: none; }
+    .post-list-title-copy {
+      display: block;
+      min-width: 0;
+      padding: 8px 0 8px 108px;
+      overflow-wrap: anywhere;
+    }
+    .post-list-cell { position: relative; padding: 0 !important; }
+    @media (max-width: 640px) {
+      .post-list-cover { width: 80px; }
+      .post-list-title-copy { padding-right: 10px; padding-left: 92px; }
+    }
+    .post-list-key {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+  </style>
 </AdminLayout>

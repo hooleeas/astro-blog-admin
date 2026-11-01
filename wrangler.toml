@@ -1,11 +1,11 @@
 # astro-blog-admin — Cloudflare Pages 部署配置
-# 注意：KV id 与所有环境变量都由部署者在 Cloudflare Pages 后台配置，
-# 本文件只留占位，仓库里不得放任何密钥。
+# KV id 是命名空间标识，不是密钥；WebDAV 设置保存在该 KV 中。
+# OAuth 等敏感环境变量应在 Cloudflare Pages 后台配置，不要提交到仓库。
 
 name = "astro-blog-admin"
 compatibility_date = "2025-06-01"
 
-# 可选：会话相关（本项目用签发 cookie 做会话，KV 非必需）
+# WebDAV 图床设置存储；本地开发使用 Cloudflare 本地 KV 模拟器
 [[kv_namespaces]]
 binding = "ADMIN_KV"
-id = "07281de96af64295bcaec6a749234a86"  # astro-blog-admin（2026-11-01 已创建）
+id = "07281de96af64295bcaec6a749234a86"

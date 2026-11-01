@@ -4,69 +4,167 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 export const prerender = false;
 
 const name = Astro.url.searchParams.get('name') ?? '';
+const embedded = Astro.url.searchParams.get('embedded') === '1';
 const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
+const settingTitles: Record<string, string> = {
+  config: '主页设置',
+  posts: '文章列表设置',
+  about: '关于页面设置',
+  apple: 'Apple 页面设置',
+  services: '公益服务设置',
+};
+const settingTitle = settingTitles[name] ?? '页面设置';
 ---
 
-<AdminLayout title="编辑变量" active="data">
-  <h1 class="page-title">编辑变量 <code class="mono">{valid ? `${name}.jsonc` : ''}</code></h1>
+<AdminLayout title={settingTitle} active="pages">
+  <div class="page-heading">
+    <h1 class="page-title">{settingTitle}</h1>
+    <a class="btn glass-button back-button" href={embedded ? '/pages?embedded=1' : '/pages'}>返回站点设置</a>
+  </div>
 
   {!valid && (
-    <div class="card"><p style="color: #dc2626;">变量名不合法。</p><a href="/data">← 返回变量列表</a></div>
+    <div class="card"><p style="color: #dc2626;">设置名称无效。</p></div>
   )}
 
   {valid && (
-    <div id="app" data-name={name}>
+    <div id="variable-editor-app" class="variable-editor" data-name={name}>
       <div id="parse-banner" class="banner hidden"></div>
 
-      <div class="tabs">
-        <button class="tab active" data-tab="visual" type="button">可视化编辑</button>
-        <button class="tab" data-tab="raw" type="button">原始文本</button>
+      <p class="hint">修改设置后点击保存生效。多语言文案请在对应页面中编辑。</p>
+      <div id="visual"></div>
+      <div class="editor-actions">
+        <button id="save-visual" class="btn" type="button" disabled hidden>保存</button>
+        <span id="visual-status" class="status"></span>
       </div>
 
-      <div id="tab-visual">
-        <p class="hint">开关、文本与列表可视化编辑；多语言文案不在此编辑。<strong>可视化保存会丢失注释</strong>，需保留注释请用「原始文本」。</p>
-        <div id="visual"></div>
-        <div style="margin-top: 16px; display: flex; gap: 8px; align-items: center;">
-          <button id="save-visual" class="btn" type="button">保存</button>
-          <span id="visual-status" class="status"></span>
-        </div>
-      </div>
-
-      <div id="tab-raw" class="hidden">
-        <p class="hint">直接编辑 <code>src/data/{name}.jsonc</code> 全文（支持注释与尾随逗号）。保存前服务端会校验语法。</p>
-        <div class="card" style="margin-bottom: 16px;">
-          <textarea id="raw-editor" class="input mono" rows="30" spellcheck="false"></textarea>
-        </div>
-        <div id="raw-errors" class="banner hidden"></div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button id="save-raw" class="btn" type="button">保存</button>
-          <span id="raw-status" class="status"></span>
-        </div>
-      </div>
-
-      <div style="margin-top: 16px;">
-        <a href="/data" style="font-size: 14px; color: var(--muted);">← 返回变量列表</a>
-      </div>
     </div>
   )}
 
   <script>
-    import { parse } from 'jsonc-parser';
-
-    const app = document.getElementById('app');
+    // @ts-nocheck
+    function initializeVariableEditor() {
+    const app = document.getElementById('variable-editor-app');
+    if (app?.dataset.initialized) return;
+    if (app) app.dataset.initialized = 'true';
     if (app) {
       const name = app.dataset.name;
       const LANG_SET = new Set(['zh-Hans', 'zh-Hant', 'ja', 'ko', 'en']);
-      // 布尔开关的中文标签（关键变量）
-      const BOOL_LABELS = { visible: '显示', showOnMobile: '移动端显示' };
+      const LABELS = {
+        site: '站点信息',
+        languages: '语言列表',
+        navigation: '导航栏设置',
+        homeLabel: '首页导航名称',
+        pages: '页面标题与说明',
+        archive: '文章归档页',
+        notes: '随记页面',
+        home: '首页模块',
+        creativity: '技术图标轮播',
+        feature: '视频推荐卡片',
+        profile: '个人资料卡片',
+        ui: '界面文案',
+        translations: '多语言界面文案',
+        articlePage: '文章页面设置',
+        donationQrCodes: '打赏二维码',
+        avatar: '头像设置',
+        introduction: '个人介绍',
+        contact: '联系方式',
+        contacts: '联系方式列表',
+        skillsTitle: '技能区域标题',
+        logos: '技能图标列表',
+        pageTitle: '页面标题',
+        pageSubtitle: '页面副标题',
+        servicesTitle: '服务区域标题',
+        plansTitle: '套餐区域标题',
+        planTableHeadings: '套餐表格列名',
+        plans: '订阅套餐列表',
+        items: '项目列表',
+        name: '名称',
+        title: '标题',
+        description: '说明',
+        author: '作者',
+        establishedAt: '建站日期',
+        code: '语言代码',
+        label: '显示名称',
+        enabled: '启用此语言',
+        href: '跳转链接',
+        key: '菜单标识',
+        visible: '显示此模块',
+        showOnMobile: '在移动端显示',
+        url: '链接地址',
+        ariaLabel: '无障碍说明',
+        carouselMode: '轮播方式',
+        color: '背景颜色',
+        labelColor: '文字颜色',
+        icon: '图标地址',
+        backgroundImage: '背景图片地址',
+        playLogoImage: '播放器标志图片',
+        avatarImage: '头像图片地址',
+        subtitle: '副标题',
+        all: '全部',
+        thisMonth: '本月',
+        popular: '热门',
+        list: '列表视图',
+        grid: '网格视图',
+        learnMore: '了解更多',
+        showTableOfContents: '显示文章目录',
+        showShareCard: '显示分享卡片',
+        showDonationCard: '显示打赏卡片',
+        binance: '币安收款二维码',
+        wechat: '微信收款二维码',
+        alipay: '支付宝收款二维码',
+        src: '图片地址',
+        alt: '图片替代文本',
+        greeting: '问候语',
+        detail: '详细介绍',
+        value: '内容',
+        included: '包含服务',
+        price: '价格',
+      } satisfies Record<string, string>;
+      const LANGUAGE_LABELS: Record<string, string> = {
+        'zh-Hans': '简体中文',
+        'zh-Hant': '繁体中文',
+        ja: '日语',
+        ko: '韩语',
+        en: '英语',
+      };
+      const ARRAY_LABELS: Record<string, string> = {
+        'config.languages': '语言列表',
+        'config.navigation.items': '导航菜单项',
+        'config.home.creativity.items': '技术图标列表',
+        'about.contact.contacts': '联系方式列表',
+        'about.logos': '技能图标列表',
+        'apple.plans': '订阅套餐列表',
+        'apple.carouselLogos': 'Apple 轮播图',
+        'services.items': '服务项目列表',
+      };
+      const labelFor = (path: string[]) => {
+        const fullPath = [name, ...path].join('.');
+        if (fullPath === 'config.site.name') return '站点名称';
+        if (fullPath === 'config.navigation.items') return '导航菜单';
+        if (fullPath === 'services.items') return '服务项目';
+        if (fullPath === 'about.contact.contacts.label') return '联系方式名称';
+        if (fullPath === 'config.languages.label') return '语言显示名称';
+        const key = path[path.length - 1] ?? '';
+        return LANGUAGE_LABELS[key] ?? LABELS[key] ?? key;
+      };
+      const pathLabel = (path: string[]) => path.map((part) => labelFor([part])).join(' · ');
 
       let sha = '';
       let working = null;   // parsed 的深拷贝，输入框直接改它；未展示字段原样保留
       let skippedLang = 0;  // 跳过的多语言对象计数
+      let visualReady = false;
 
       const visualEl = document.getElementById('visual');
-      const rawEl = document.getElementById('raw-editor');
       const bannerEl = document.getElementById('parse-banner');
+      const saveButton = document.getElementById('save-visual');
+      const saveStatusEl = document.getElementById('visual-status');
+      const siteAddButton = document.getElementById('site-add-btn');
+      const addDialog = document.getElementById('site-add-dialog');
+      const addOptions = document.getElementById('site-add-options');
+      const addDialogTitle = document.getElementById('site-add-title');
+      const addDialogDescription = document.getElementById('site-add-description');
+      let addTargets = [];
+      let pendingFocusPath = null;
 
       function esc(s) {
         return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -115,8 +213,24 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
         }
         return null;
       }
-      function itemSummary(item, i) {
+      function itemSummary(item, i, pathArr) {
         if (isObj(item)) {
+          if (pathArr.join('.') === 'languages' && typeof item.code === 'string') {
+            return LANGUAGE_LABELS[item.code] ?? item.code;
+          }
+          if (pathArr.join('.') === 'navigation.items' && typeof item.key === 'string') {
+            const navigationLabels: Record<string, string> = {
+              archive: '文章归档',
+              notes: '随记',
+              services: '公益服务',
+              about: '关于',
+            };
+            if (navigationLabels[item.key]) return navigationLabels[item.key];
+          }
+          if (pathArr.join('.') === 'items' && name === 'services' && isObj(item.title)) {
+            const title = item.title['zh-Hans'];
+            if (typeof title === 'string' && title) return title;
+          }
           for (const v of Object.values(item)) {
             if (typeof v === 'string' && v) return v.length > 24 ? v.slice(0, 24) + '…' : v;
           }
@@ -128,44 +242,51 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
 
       // ---- 加载 ----
       async function load() {
-        const r = await fetch('/api/data/' + encodeURIComponent(name));
-        const res = await r.json();
-        if (!res.ok) {
-          bannerEl.textContent = '加载失败：' + res.error;
+        try {
+          const r = await fetch('/api/data/' + encodeURIComponent(name));
+          const res = await r.json();
+          if (!res.ok) {
+            bannerEl.textContent = '加载失败：' + res.error;
+            bannerEl.classList.remove('hidden');
+            return;
+          }
+          sha = res.data.sha;
+          if (res.data.parseError) {
+            const e = res.data.parseError[0] || res.data.parseError;
+            bannerEl.textContent = `设置文件存在语法错误：${e.message}（第 ${e.line} 行第 ${e.character} 列）`;
+            bannerEl.classList.remove('hidden');
+            return;
+          }
+          working = clone(res.data.parsed || {});
+          saveButton.disabled = !renderVisual();
+          document.dispatchEvent(new Event('admin:content-loaded'));
+        } catch (error) {
+          bannerEl.textContent = '加载失败：' + (error instanceof Error ? error.message : String(error));
           bannerEl.classList.remove('hidden');
-          return;
         }
-        sha = res.data.sha;
-        rawEl.value = res.data.raw || '';
-        if (res.data.parseError) {
-          const e = res.data.parseError[0] || res.data.parseError;
-          bannerEl.innerHTML = '当前文件存在 JSONC 语法错误，可视化编辑已禁用，请先在「原始文本」中修复：' +
-            esc(e.message) + `（第 ${e.line} 行第 ${e.character} 列）`;
-          bannerEl.classList.remove('hidden');
-          switchTab('raw');
-          document.querySelector('[data-tab="visual"]').disabled = true;
-          return;
-        }
-        working = clone(res.data.parsed || {});
-        renderVisual();
       }
 
-      // ---- 可视化渲染（递归） ----
+      // ---- 表单渲染（递归） ----
       function renderVisual() {
         visualEl.innerHTML = '';
+        addTargets = [];
         skippedLang = 0;
+        visualReady = false;
         if (!isObj(working)) {
-          visualEl.innerHTML = '<p class="hint">该文件顶层不是对象，可视化编辑不可用，请用「原始文本」。</p>';
-          return;
+          visualEl.innerHTML = '<p class="hint">设置数据格式不正确，暂时无法编辑。</p>';
+          siteAddButton.hidden = true;
+          siteAddButton.dataset.hasTargets = 'false';
+          return false;
         }
         for (const [k, v] of Object.entries(working)) {
+          if (name === 'apple' && k === 'plans') continue;
           if (isLangMap(v)) { skippedLang++; continue; }
           if (isObj(v)) {
-            if (hasRenderable(v)) renderObjectCard(v, [k], k);
+            if (hasRenderable(v)) renderObjectCard(v, [k]);
             else skippedLang++;
           } else {
             const card = el('div', 'card vv-section');
-            card.appendChild(el('h3', 'mono vv-sec-title', esc(k)));
+              card.appendChild(el('h3', 'vv-sec-title', esc(labelFor([k]))));
             const body = el('div');
             body.appendChild(renderField(k, v, [k]));
             card.appendChild(body);
@@ -173,14 +294,25 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
           }
         }
         if (skippedLang > 0) {
-          visualEl.appendChild(el('p', 'hint vv-note', '多语言文案不在此编辑（如需修改请用「原始文本」）。'));
+          visualEl.appendChild(el('p', 'hint vv-note', '多语言文案请在对应页面中编辑。'));
         }
+        visualReady = true;
+        siteAddButton.hidden = addTargets.length === 0;
+        siteAddButton.dataset.hasTargets = String(addTargets.length > 0);
+        document.dispatchEvent(new Event('admin:content-loaded'));
+        const newItem = visualEl.querySelector('[data-new-array-item="true"]');
+        if (newItem) {
+          (newItem.querySelector('input, select, textarea') ?? newItem.querySelector('button'))?.focus();
+          newItem.removeAttribute('data-new-array-item');
+          pendingFocusPath = null;
+        }
+        return true;
       }
 
       // 对象渲染为一张卡片，标题为点分路径；子对象递归为同级卡片
-      function renderObjectCard(obj, pathArr, pathStr) {
+      function renderObjectCard(obj, pathArr) {
         const card = el('div', 'card vv-section');
-        card.appendChild(el('h3', 'mono vv-sec-title', esc(pathStr)));
+        card.appendChild(el('h3', 'vv-sec-title', esc(pathLabel(pathArr))));
         const body = el('div');
         let fieldCount = 0;
         const subKeys = [];
@@ -198,14 +330,43 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
           card.appendChild(body);
           visualEl.appendChild(card);
         }
-        for (const k of subKeys) renderObjectCard(obj[k], [...pathArr, k], pathStr + '.' + k);
+        for (const k of subKeys) renderObjectCard(obj[k], [...pathArr, k]);
       }
 
       function renderField(k, v, pathArr) {
         if (typeof v === 'boolean') return renderBool(k, v, pathArr);
         if (typeof v === 'number') return renderNumber(k, v, pathArr);
         if (Array.isArray(v)) return renderArrayBlock(k, v, pathArr);
+        if (pathArr.join('.') === 'home.creativity.carouselMode') return renderCarouselMode(v, pathArr);
         return renderText(k, v, pathArr); // string 或 null
+      }
+
+      function renderCarouselMode(value, pathArr) {
+        const wrap = el('div', 'vv-field');
+        wrap.appendChild(el('label', null, labelFor(pathArr)));
+        const select = el('select', 'input');
+        select.setAttribute('aria-label', '轮播方式');
+        const options = [
+          ['diagonal', '斜向滚动'],
+          ['marquee', '横向滚动'],
+        ];
+        for (const [mode, label] of options) {
+          const option = document.createElement('option');
+          option.value = mode;
+          option.textContent = label;
+          select.appendChild(option);
+        }
+        const currentValue = value === null ? '' : String(value);
+        if (!options.some(([mode]) => mode === currentValue)) {
+          const option = document.createElement('option');
+          option.value = currentValue;
+          option.textContent = `未知方式（${currentValue || '空'}）`;
+          select.appendChild(option);
+        }
+        select.value = currentValue;
+        select.addEventListener('change', () => setAt(pathArr, select.value));
+        wrap.appendChild(select);
+        return wrap;
       }
 
       function makeSwitch(checked, label, onChange) {
@@ -222,18 +383,16 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
       }
 
       function renderBool(k, v, pathArr) {
-        const label = BOOL_LABELS[k] || k;
+        const label = labelFor(pathArr);
         const row = el('div', 'vv-row');
-        row.appendChild(el('div', null,
-          `<div class="vv-row-label">${esc(label)}</div>` +
-          (BOOL_LABELS[k] ? `<div class="vv-row-sub mono">${esc(k)}</div>` : '')));
+        row.appendChild(el('div', null, `<div class="vv-row-label">${esc(label)}</div>`));
         row.appendChild(makeSwitch(v, label, (checked) => setAt(pathArr, checked)));
         return row;
       }
 
       function renderNumber(k, v, pathArr) {
         const wrap = el('div', 'vv-field');
-        wrap.appendChild(el('label', null, esc(k)));
+        wrap.appendChild(el('label', null, esc(labelFor(pathArr))));
         const input = el('input', 'input');
         input.type = 'number';
         input.value = v;
@@ -248,7 +407,7 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
 
       function renderText(k, v, pathArr) {
         const wrap = el('div', 'vv-field');
-        wrap.appendChild(el('label', null, esc(k)));
+        wrap.appendChild(el('label', null, esc(labelFor(pathArr))));
         const s = v === null ? '' : String(v);
         const wasNull = v === null;
         const input = (s.length > 120 || s.includes('\n'))
@@ -267,16 +426,11 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
       function renderArrayBlock(k, arr, pathArr) {
         const wrap = el('div', 'vv-array');
         const head = el('div', 'vv-array-head');
-        head.appendChild(el('span', null, `${esc(k)}（${arr.length} 项）`));
-        const addBtn = el('button', 'btn-ghost btn-sm');
-        addBtn.type = 'button';
-        addBtn.textContent = '新增';
-        addBtn.addEventListener('click', () => {
-          const a = getAt(pathArr);
-          a.push(clone(blankLike(a.length ? a[0] : '')));
-          renderVisual();
-        });
-        head.appendChild(addBtn);
+        const arrayLabel = ARRAY_LABELS[[name, ...pathArr].join('.')] ?? labelFor(pathArr);
+        head.appendChild(el('span', null, `${esc(arrayLabel)}（${arr.length} 项）`));
+        if (name !== 'apple' || pathArr.join('.') === 'carouselLogos') {
+          addTargets.push({ path: [...pathArr], label: arrayLabel });
+        }
         wrap.appendChild(head);
         const list = el('div');
         arr.forEach((item, i) => list.appendChild(renderArrayItem(item, pathArr, i)));
@@ -286,32 +440,37 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
 
       function renderArrayItem(item, pathArr, i) {
         const itemPath = [...pathArr, i];
+        const isNewArrayItem = JSON.stringify(pendingFocusPath) === JSON.stringify(itemPath);
+        const containsNewArrayItem = pendingFocusPath &&
+          itemPath.length <= pendingFocusPath.length &&
+          itemPath.every((part, index) => part === pendingFocusPath[index]);
         const delBtn = (label) => {
-          const b = el('button', 'link danger');
+          const b = el('button', 'btn glass-button btn-sm danger');
           b.type = 'button';
           b.textContent = label;
           b.addEventListener('click', () => {
             if (!confirm('确定删除这一项吗？')) return;
             getAt(pathArr).splice(i, 1);
-            renderVisual();
+            saveButton.disabled = !renderVisual();
           });
           return b;
         };
         if (isObj(item)) {
           const box = el('div', 'vv-item');
+          if (isNewArrayItem) box.dataset.newArrayItem = 'true';
           const headBtn = el('button', 'vv-item-head');
           headBtn.type = 'button';
-          headBtn.appendChild(el('span', null, esc(itemSummary(item, i))));
-          const tg = el('span', 'vv-toggle-text', '展开');
+          headBtn.appendChild(el('span', null, esc(itemSummary(item, i, pathArr))));
+          const tg = el('span', 'vv-toggle-text', containsNewArrayItem ? '收起' : '展开');
           headBtn.appendChild(tg);
-          const body = el('div', 'vv-item-body hidden');
+          const body = el('div', `vv-item-body${containsNewArrayItem ? '' : ' hidden'}`);
           let anyField = false;
           for (const [k, v] of Object.entries(item)) {
             if (isLangMap(v)) { skippedLang++; continue; }
             if (isObj(v)) {
               if (hasRenderable(v)) {
                 const sub = el('div', 'vv-subobj');
-                sub.appendChild(el('div', 'vv-subobj-title mono', esc(k)));
+                sub.appendChild(el('div', 'vv-subobj-title', esc(labelFor([...itemPath, k]))));
                 for (const [sk, sv] of Object.entries(v)) {
                   if (isLangMap(sv) || isObj(sv)) { if (isLangMap(sv)) skippedLang++; continue; }
                   sub.appendChild(renderField(sk, sv, [...itemPath, k, sk]));
@@ -338,6 +497,7 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
         }
         // 原始值项
         const row = el('div', 'vv-prim-row');
+        if (isNewArrayItem) row.dataset.newArrayItem = 'true';
         const t = typeof item;
         if (t === 'boolean') {
           row.appendChild(makeSwitch(item, '开关', (checked) => setAt(itemPath, checked)));
@@ -363,7 +523,144 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
         return row;
       }
 
-      async function putContent(content, statusEl) {
+      function addArrayItem(pathArr) {
+        const array = getAt(pathArr);
+        array.push(clone(blankLike(array.length ? array[0] : '')));
+        pendingFocusPath = [...pathArr, array.length - 1];
+        saveButton.disabled = !renderVisual();
+      }
+
+      function openServiceItemDialog(pathArr) {
+        addOptions.replaceChildren();
+        addDialogTitle.textContent = '新增服务项目';
+        addDialogDescription.textContent = '填写服务标题和链接。';
+        const form = el('form', 'new-page-fields');
+        const titleLabel = el('label');
+        titleLabel.appendChild(document.createTextNode('标题'));
+        const titleInput = el('input', 'input');
+        titleInput.type = 'text';
+        titleInput.required = true;
+        titleInput.placeholder = '输入服务标题';
+        titleLabel.appendChild(titleInput);
+        const urlLabel = el('label');
+        urlLabel.appendChild(document.createTextNode('链接'));
+        const urlInput = el('input', 'input');
+        urlInput.type = 'url';
+        urlInput.required = true;
+        urlInput.placeholder = 'https://example.com';
+        urlLabel.appendChild(urlInput);
+        form.append(titleLabel, urlLabel);
+        const actions = el('div', 'new-page-actions');
+        const submit = el('button', 'btn');
+        submit.type = 'submit';
+        submit.textContent = '添加服务';
+        actions.append(submit);
+        form.appendChild(actions);
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const items = getAt(pathArr);
+          const template = items.length ? items[0] : { title: {}, subtitle: {}, url: '' };
+          const item = blankLike(template);
+          const titleLocales = isObj(template.title) ? Object.keys(template.title) : [...LANG_SET];
+          item.title = Object.fromEntries(titleLocales.map((locale) => [locale, titleInput.value.trim()]));
+          item.url = urlInput.value.trim();
+          items.push(item);
+          pendingFocusPath = [...pathArr, items.length - 1];
+          addDialog.close();
+          saveButton.disabled = !renderVisual();
+        });
+        addOptions.appendChild(form);
+        addDialog.showModal();
+        titleInput.focus();
+        addDialog.addEventListener('close', () => {
+          addDialogTitle.textContent = '选择新增列表';
+          addDialogDescription.textContent = '选择要添加项目的列表。';
+        }, { once: true });
+      }
+
+      function openAppleCarouselDialog(pathArr) {
+        addOptions.replaceChildren();
+        addDialogTitle.textContent = '新增 Apple 轮播图';
+        addDialogDescription.textContent = '填写标题、图标地址和链接。';
+        const form = el('form', 'new-page-fields');
+        const addInput = (labelText, type, placeholder) => {
+          const label = el('label');
+          label.appendChild(document.createTextNode(labelText));
+          const input = el('input', 'input');
+          input.type = type;
+          input.required = true;
+          input.placeholder = placeholder;
+          label.appendChild(input);
+          form.appendChild(label);
+          return input;
+        };
+        const titleInput = addInput('标题', 'text', '输入轮播图标题');
+        const iconInput = addInput('图标地址', 'url', 'https://example.com/icon.png');
+        const linkInput = addInput('链接', 'url', 'https://example.com');
+        const actions = el('div', 'new-page-actions');
+        const submit = el('button', 'btn');
+        submit.type = 'submit';
+        submit.textContent = '添加轮播图';
+        actions.append(submit);
+        form.appendChild(actions);
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const items = getAt(pathArr);
+          const template = items.find((item) => isObj(item));
+          items.push({
+            name: titleInput.value.trim(),
+            color: template?.color ?? '#fff',
+            labelColor: template?.labelColor ?? '#17191c',
+            icon: iconInput.value.trim(),
+            href: linkInput.value.trim(),
+          });
+          pendingFocusPath = [...pathArr, items.length - 1];
+          addDialog.close();
+          saveButton.disabled = !renderVisual();
+        });
+        addOptions.appendChild(form);
+        addDialog.showModal();
+        titleInput.focus();
+        addDialog.addEventListener('close', () => {
+          addDialogTitle.textContent = '选择新增列表';
+          addDialogDescription.textContent = '选择要添加项目的列表。';
+        }, { once: true });
+      }
+
+      function addTarget(pathArr) {
+        if (name === 'services' && pathArr.join('.') === 'items') {
+          openServiceItemDialog(pathArr);
+          return;
+        }
+        if (name === 'apple' && pathArr.join('.') === 'carouselLogos') {
+          openAppleCarouselDialog(pathArr);
+          return;
+        }
+        addArrayItem(pathArr);
+      }
+
+      document.addEventListener('admin:site-add-request', () => {
+        if (!app.isConnected || document.getElementById('variable-editor-app') !== app) return;
+        if (addTargets.length === 1) {
+          addTarget(addTargets[0].path);
+          return;
+        }
+        if (addTargets.length < 2) return;
+        addOptions.replaceChildren();
+        for (const target of addTargets) {
+          const option = el('button', 'btn glass-button btn-ghost');
+          option.type = 'button';
+          option.textContent = `新增${target.label}（${pathLabel(target.path)}）`;
+          option.addEventListener('click', () => {
+            addDialog.close();
+            addTarget(target.path);
+          });
+          addOptions.appendChild(option);
+        }
+        addDialog.showModal();
+      });
+
+      async function putContent(content) {
         const r = await fetch('/api/data/' + encodeURIComponent(name), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -372,76 +669,43 @@ const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
         return r.json();
       }
 
-      async function refreshAfterSave(res, statusEl) {
-        if (!res.ok) return false;
-        statusEl.textContent = '已保存 ✓';
+      async function refreshAfterSave() {
         const cur = await (await fetch('/api/data/' + encodeURIComponent(name))).json();
-        if (cur.ok && !cur.data.parseError) {
-          sha = cur.data.sha;
-          rawEl.value = cur.data.raw;
-          working = clone(cur.data.parsed || {});
-          renderVisual();
+        if (!cur.ok) {
+          throw new Error('重新加载设置失败：' + cur.error);
         }
-        setTimeout(() => { statusEl.textContent = ''; }, 2000);
-        return true;
+        if (cur.data.parseError) {
+          const e = cur.data.parseError[0] || cur.data.parseError;
+          throw new Error(`设置保存后出现语法错误：${e.message}（第 ${e.line} 行第 ${e.character} 列）`);
+        }
+        sha = cur.data.sha;
+        working = clone(cur.data.parsed || {});
+        saveButton.disabled = !renderVisual();
       }
 
-      document.getElementById('save-visual').addEventListener('click', async () => {
-        const statusEl = document.getElementById('visual-status');
-        const text = JSON.stringify(working, null, 2);
-        // 本地 jsonc 校验（理论上必过，防万一）
-        const errs = [];
-        parse(text, errs, { allowTrailingComma: true });
-        if (errs.length) {
-          alert('本地 JSONC 校验失败，保存已中止');
-          return;
+      saveButton.addEventListener('click', async () => {
+        saveButton.disabled = true;
+        saveStatusEl.textContent = '保存中…';
+        try {
+          const res = await putContent(JSON.stringify(working, null, 2));
+          if (!res.ok) throw new Error(res.error || '未知错误');
+          await refreshAfterSave();
+          saveStatusEl.textContent = '已保存 ✓';
+          window.setTimeout(() => { saveStatusEl.textContent = ''; }, 2000);
+        } catch (error) {
+          saveStatusEl.textContent = '保存失败';
+          alert('保存失败：' + (error instanceof Error ? error.message : String(error)));
+        } finally {
+          saveButton.disabled = !visualReady;
         }
-        statusEl.textContent = '保存中…';
-        const res = await putContent(text, statusEl);
-        if (!res.ok) {
-          statusEl.textContent = '';
-          alert('保存失败：' + res.error);
-          return;
-        }
-        refreshAfterSave(res, statusEl);
       });
-
-      // ---- 原始文本（不动） ----
-      const errBox = document.getElementById('raw-errors');
-      document.getElementById('save-raw').addEventListener('click', async () => {
-        const statusEl = document.getElementById('raw-status');
-        errBox.classList.add('hidden');
-        errBox.innerHTML = '';
-        statusEl.textContent = '保存中…';
-        const res = await putContent(rawEl.value, statusEl);
-        if (!res.ok) {
-          statusEl.textContent = '';
-          if (res.parseErrors && res.parseErrors.length) {
-            errBox.innerHTML = '<strong>JSONC 语法错误，保存已中止：</strong><ul>' +
-              res.parseErrors.map((e) =>
-                `<li>第 ${e.line} 行第 ${e.character} 列：${esc(e.message)}</li>`).join('') +
-              '</ul>';
-            errBox.classList.remove('hidden');
-          } else {
-            alert('保存失败：' + res.error);
-          }
-          return;
-        }
-        refreshAfterSave(res, statusEl);
-      });
-
-      // ---- tabs ----
-      function switchTab(which) {
-        document.querySelectorAll('.tab').forEach((t) =>
-          t.classList.toggle('active', t.dataset.tab === which));
-        document.getElementById('tab-visual').classList.toggle('hidden', which !== 'visual');
-        document.getElementById('tab-raw').classList.toggle('hidden', which !== 'raw');
-      }
-      document.querySelectorAll('.tab').forEach((t) =>
-        t.addEventListener('click', () => switchTab(t.dataset.tab)));
 
       load();
     }
+    }
+
+    initializeVariableEditor();
+    document.addEventListener('admin:content-loaded', initializeVariableEditor);
   </script>
 
 </AdminLayout>
