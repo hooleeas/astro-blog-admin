@@ -1,15 +1,18 @@
 ---
+// 404 分流（用户定）：已登录时乱输地址直接跳回后台首页；未登录时保持公开 404 页
+// （不跳登录——只有 /admin 等后台入口才跳登录）；/api/ 下的错地址保持 JSON 404，
+// 避免接口调用被重定向成网页。登录态由中间件写在 locals.githubToken。
 export const prerender = false;
 
-// 404 不停留展示页：直接跳回后台首页（用户定）。未登录时 /posts 会由中间件转去登录页；
-// /api/ 下的错地址保持 JSON 404，避免接口调用被重定向成网页。
 if (Astro.url.pathname.startsWith('/api/')) {
   return new Response(JSON.stringify({ ok: false, error: '接口不存在' }), {
     status: 404,
     headers: { 'Content-Type': 'application/json' },
   });
 }
-return Astro.redirect('/posts', 302);
+if ((Astro.locals as { githubToken?: string }).githubToken) {
+  return Astro.redirect('/posts', 302);
+}
 ---
 
 <!doctype html>
