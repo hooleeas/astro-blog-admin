@@ -58,6 +58,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           <input class="input" name="linkPrefix" type="text" placeholder="images" />
           <span class="hint">图片对外链接为 /前缀/文件名（如 /images/IMG_2032.webp）；留空使用默认 images，改后旧的 /images/ 链接仍可打开</span>
         </label>
+        <label class="field">
+          <span class="flabel">公开页标题</span>
+          <input class="input" name="pageTitle" type="text" placeholder="图床" maxlength="60" />
+          <span class="hint">显示在公开图床页（/upload）上传区域上方的居中标题；留空使用默认「图床」</span>
+        </label>
         <label class="field check-field">
           <span class="toggle-switch">
             <input type="checkbox" name="webp" role="switch" aria-label="上传时转换为 WebP" checked />
@@ -127,6 +132,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const webpInput = requiredElement<HTMLInputElement>(form, '[name="webp"]');
       const dirInput = requiredElement<HTMLInputElement>(form, '[name="dir"]');
       const linkPrefixInput = requiredElement<HTMLInputElement>(form, '[name="linkPrefix"]');
+      const pageTitleInput = requiredElement<HTMLInputElement>(form, '[name="pageTitle"]');
       const closeButton = requiredElement<HTMLButtonElement>(dialog, '[data-close-settings]');
 
       function setSettingsMsg(text: string, ok: boolean) {
@@ -154,6 +160,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           webpInput.checked = d.webp !== false;
           dirInput.value = d.dir || '';
           linkPrefixInput.value = d.linkPrefix || '';
+          pageTitleInput.value = d.pageTitle || '';
           passwordInput.placeholder = d.hasPassword ? '已设置（留空保留原密码）' : '未设置';
         }
       }).catch(() => setSettingsMsg('读取设置失败：网络错误', false));
@@ -168,6 +175,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           webp: webpInput.checked,
           dir: dirInput.value.trim(),
           linkPrefix: linkPrefixInput.value.trim(),
+          pageTitle: pageTitleInput.value.trim(),
         };
         try {
           const response = await fetch('/api/settings', {

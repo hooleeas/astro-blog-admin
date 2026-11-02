@@ -1,5 +1,13 @@
 ---
 export const prerender = false;
+import { getWebdavConfig } from '../lib/webdav-config';
+
+// 公开页标题取图床设置（服务端渲染，访客打开即是设定值）；未设置时用默认「图床」
+let pageTitle = '图床';
+try {
+  const cfg = await getWebdavConfig(Astro.locals);
+  if (cfg.pageTitle) pageTitle = cfg.pageTitle;
+} catch {}
 ---
 
 <!doctype html>
@@ -7,7 +15,7 @@ export const prerender = false;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <title>图床</title>
+    <title>{pageTitle}</title>
     <link rel="icon" href="/icon/favicon.ico?v=8" sizes="16x16 32x32 48x48" />
     <link rel="icon" type="image/png" href="/icon/icon_16x16.png?v=8" sizes="16x16" />
     <link rel="icon" type="image/png" href="/icon/icon_32x32.png?v=8" sizes="32x32" />
@@ -49,14 +57,14 @@ export const prerender = false;
       }
       @keyframes pageIn { from { opacity: 0; } to { opacity: 1; } }
       .wrap { width: min(100% - 32px, 860px); margin: 0 auto; padding: 28px 0 56px; }
-      .head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-      .head h1 { margin: 0; font-size: 26px; }
+      .head { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
+      .page-title { margin: 4px 0 0; font-size: 32px; text-align: center; }
       .theme-toggle {
         width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto;
         border: 1px solid var(--line); background: var(--surface); color: var(--text);
         font-size: 18px; cursor: pointer; display: grid; place-items: center;
       }
-      .guidance { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 10px 0 18px; }
+      .guidance { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 10px 0 18px; text-align: center; }
       .dropzone {
         border: 2px dashed var(--line); border-radius: var(--radius-lg);
         padding: 56px 20px; text-align: center; cursor: pointer;
@@ -110,9 +118,9 @@ export const prerender = false;
   <body>
     <main class="wrap">
       <div class="head">
-        <h1>图床</h1>
         <button id="theme-toggle" class="theme-toggle" type="button" aria-label="切换深色模式">◐</button>
       </div>
+      <h1 class="page-title">{pageTitle}</h1>
       <p class="guidance">支持 JPG、PNG、GIF、WebP、SVG、AVIF，单张最大 10 MB；JPG 和 PNG 默认转换为 WebP。上传的图片任何人凭链接都能访问，请勿上传隐私内容。</p>
 
       <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择或粘贴图片上传">

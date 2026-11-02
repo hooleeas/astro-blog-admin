@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getWebdavConfig, saveWebdavConfig, toPublic, normalizeLinkPrefix, DEFAULT_LINK_PREFIX } from '../../lib/webdav-config';
+import { getWebdavConfig, saveWebdavConfig, toPublic, normalizeLinkPrefix, DEFAULT_LINK_PREFIX, normalizePageTitle } from '../../lib/webdav-config';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -37,6 +37,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       password?: unknown;
       dir?: unknown;
       linkPrefix?: unknown;
+      pageTitle?: unknown;
       webp?: unknown;
     } | null;
     if (!body || typeof body !== 'object') {
@@ -72,6 +73,19 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       linkPrefix = normalized;
     }
 
+    // 公开页标题：未传则保留已保存值
+    let pageTitle: string;
+    if (body.pageTitle === undefined) {
+      const old = await getWebdavConfig(locals).catch(() => null);
+      pageTitle = old?.pageTitle ?? '';
+    } else {
+      const normalized = normalizePageTitle(body.pageTitle);
+      if (normalized === null) {
+        return json({ ok: false, error: '公开页标题不合法：最多 60 个字符，不能包含换行' }, 400);
+      }
+      pageTitle = normalized;
+    }
+
     // 密码为空 → 保留 KV 里旧密码
     let password = String(body.password ?? '');
     if (!password) {
@@ -86,6 +100,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       dir,
       webp: body.webp !== false,
       linkPrefix,
+      pageTitle,
     });
     return json({ ok: true });
   } catch (e) {

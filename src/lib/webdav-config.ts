@@ -10,6 +10,8 @@ export interface WebdavConfig {
   webp: boolean;
   /** 图片对外链接的路径前缀（默认 images），链接形如 /<前缀>/<文件名> */
   linkPrefix: string;
+  /** 公开图床页标题（可空，空时页面用默认「图床」） */
+  pageTitle: string;
 }
 
 export interface WebdavConfigPublic {
@@ -22,6 +24,8 @@ export interface WebdavConfigPublic {
   webp: boolean;
   /** 图片对外链接的路径前缀 */
   linkPrefix: string;
+  /** 公开图床页标题 */
+  pageTitle: string;
 }
 
 /** 图床默认存放目录（设置页未填 dir 时使用） */
@@ -43,6 +47,17 @@ export function normalizeLinkPrefix(raw: unknown): string | null {
   const s = String(raw ?? '').trim().replace(/^\/+|\/+$/g, '');
   if (!s) return DEFAULT_LINK_PREFIX;
   if (s.includes('/') || s.includes('\\') || s === '.' || s === '..' || /[\s\u0000-\u001f\u007f]/.test(s)) return null;
+  return s;
+}
+
+/**
+ * 规范化公开图床页标题：去掉首尾空白，最多 60 个字符，不含控制字符（含换行）；
+ * 不合法返回 null（设置接口据此报错，读取配置时回退空字符串、页面用默认标题）。
+ */
+export function normalizePageTitle(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  if (s.length > 60) return null;
+  if (/[\u0000-\u001f\u007f]/.test(s)) return null;
   return s;
 }
 
@@ -92,13 +107,14 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
     dir: String(parsed.dir || '').replace(/^\/+|\/+$/g, ''),
     webp: parsed.webp !== false,
     linkPrefix: normalizeLinkPrefix(parsed.linkPrefix) ?? DEFAULT_LINK_PREFIX,
+    pageTitle: normalizePageTitle(parsed.pageTitle) ?? '',
   };
 }
 
 /** 写 WebDAV 配置到 KV。password 由调用方决定（空则调用方先填入旧值）。 */
 export async function saveWebdavConfig(
   locals: unknown,
-  cfg: { url: string; username: string; password: string; dir: string; webp: boolean; linkPrefix: string },
+  cfg: { url: string; username: string; password: string; dir: string; webp: boolean; linkPrefix: string; pageTitle: string },
 ): Promise<void> {
   const kv = getKV(locals);
   await kv.put(
@@ -110,6 +126,7 @@ export async function saveWebdavConfig(
       dir: cfg.dir,
       webp: cfg.webp,
       linkPrefix: cfg.linkPrefix,
+      pageTitle: cfg.pageTitle,
       updatedAt: new Date().toISOString(),
     }),
   );
@@ -124,5 +141,6 @@ export function toPublic(cfg: WebdavConfig): WebdavConfigPublic {
     hasPassword: cfg.password.length > 0,
     webp: cfg.webp,
     linkPrefix: cfg.linkPrefix,
+    pageTitle: cfg.pageTitle,
   };
 }
