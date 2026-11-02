@@ -137,6 +137,33 @@ async function blobStore(name: string): Promise<any | null> {
   }
 }
 
+/* ---------------- 临时诊断（Blob 问题定位后删除） ---------------- */
+
+/** 不吞错地复现 Blob 加载链：模块形状、getStore 位置、建 store 与读写往返的原始报错 */
+export async function debugBlobPlatform(): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = {};
+  const mod: any = await import('@edgeone/pages-blob');
+  out.moduleKeys = mod ? Object.keys(mod) : null;
+  out.getStoreOnModule = typeof mod?.getStore;
+  out.getStoreOnDefault = typeof mod?.default?.getStore;
+  const getStore = mod?.getStore ?? mod?.default?.getStore;
+  if (typeof getStore !== 'function') {
+    out.stage = 'no-getStore';
+    return out;
+  }
+  try {
+    const store = getStore({ name: 'admin-config', consistency: 'strong' });
+    out.storeCreated = !!store;
+    await store.set('__debug__', 'ok');
+    out.set = 'ok';
+    out.get = await store.get('__debug__', { type: 'text', consistency: 'strong' });
+    await store.delete('__debug__');
+  } catch (e) {
+    out.storeError = (e as Error)?.message ?? String(e);
+  }
+  return out;
+}
+
 /* ---------------- KV 存储（应用配置） ---------------- */
 
 let blobKvPromise: Promise<KvLike | null> | null = null;

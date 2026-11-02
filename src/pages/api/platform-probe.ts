@@ -25,17 +25,12 @@ export async function GET({ locals }: { locals: unknown }) {
     out.envKeys = 'ERR ' + String(e);
   }
   out.adminKvBinding = getBinding(locals, 'ADMIN_KV') ? 'object' : null;
-  // 经平台层实测（这才是应用真正走的路径；探针文件自身的直接 import 会被页面打包内联，不作数）
+  // 平台层 Blob 链路原始诊断（不吞错）
   try {
-    const kv = await getKVStore(locals);
-    out.kvStore = kv ? 'object' : null;
-    if (kv) {
-      await kv.put('__probe__', 'ok');
-      out.kvGet = await kv.get('__probe__');
-      await kv.delete?.('__probe__');
-    }
+    const { debugBlobPlatform } = await import('../../lib/platform');
+    out.blobDebug = await debugBlobPlatform();
   } catch (e) {
-    out.kvStore = 'ERR ' + (e as Error)?.message;
+    out.blobDebug = 'ERR ' + (e as Error)?.message;
   }
   try {
     const { getImageBlobStore } = await import('../../lib/platform');
