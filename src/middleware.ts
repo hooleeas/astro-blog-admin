@@ -117,7 +117,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // 后台页面路径（需登录）；未知路径放行，渲染公开 404
   const isAdminPage =
-    ['/posts', '/notes', '/pages', '/data', '/images', '/settings'].some(
+    ['/admin', '/posts', '/notes', '/pages', '/data', '/images', '/settings'].some(
       (p) => path === p || path.startsWith(p + '/')
     );
 
