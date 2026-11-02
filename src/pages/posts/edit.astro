@@ -372,6 +372,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
               <button id="del-lang-btn" class="btn editor-delete-lang" type="button">删除此语言版本</button>
             </div>
             <div class="editor-fields">
+              ${field('f-slug', '文件名（slug）', version.slug)}
               ${field('f-title', '标题（title）*', fm.title)}
               ${field('f-subtitle', '副标题（subtitle）', fm.subtitle)}
               ${field('f-pubdate', '发布日期（pubDate）*', fm.pubDate, 'date')}
@@ -406,7 +407,6 @@ const key = Astro.url.searchParams.get('key') ?? '';
                 </span>
               </label>
             </div>
-            <div class="editor-file-path"><span>文件路径</span><code>${esc(`src/content/posts/${activeLang}/`)}</code><input id="f-slug" class="input mono editor-slug-input" type="text" value="${esc(version.slug)}" aria-label="文件名（slug，可改名）" autocomplete="off" /><code>.md</code></div>
           </section>
           <section class="card editor-card editor-body-card">
             <div class="editor-card-heading">
@@ -925,23 +925,6 @@ const key = Astro.url.searchParams.get('key') ?? '';
       outline: 2px solid var(--accent);
       outline-offset: 3px;
     }
-    .editor-file-path {
-      display: flex;
-      align-items: baseline;
-      gap: 12px;
-      margin-top: 20px;
-      min-height: 56px;
-      padding-top: 16px;
-      border-top: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .editor-file-path code { overflow-wrap: anywhere; color: var(--text); }
-    .editor-file-path .editor-slug-input {
-      flex: 0 1 320px;
-      min-width: 140px;
-      align-self: center;
-    }
     .editor-markdown-badge {
       padding: 4px 8px;
       color: var(--muted);
@@ -1034,7 +1017,6 @@ const key = Astro.url.searchParams.get('key') ?? '';
       .editor-fields { grid-template-columns: minmax(0, 1fr); gap: 14px; }
       .editor-fields .editor-field input[type="date"].input { min-width: 0; max-width: 100%; }
       .editor-body-input .cm-editor { font-size: 16px; }
-      .editor-file-path { flex-direction: column; gap: 4px; }
       .editor-body-input { height: min(600px, 78vh); min-height: 340px; }
       .editor-body-input .cm-editor { height: 100%; }
       .editor-resize-handle {
