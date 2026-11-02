@@ -287,10 +287,11 @@ const nav = [
 
       @media (max-width: 760px) {
         input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
+        input[type="date"].input { -webkit-appearance: none; appearance: none; }
         .topbar-inner { justify-content: flex-start; gap: 8px; height: auto; }
         .topbar-controls {
           position: relative; left: auto; top: auto; transform: none;
-          display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+          display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px;
           flex: 1 1 auto; max-width: 100%; min-width: 0;
         }
         .topbar-navigation { flex: 0 1 auto; min-width: 0; }
