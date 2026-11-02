@@ -1,4 +1,4 @@
 ---
-// 旧路径重定向桩：/admin/* 已搬至 /*（301）
-return Astro.redirect("/posts", 301);
+// 后台入口桩：/admin 已由 middleware 守登录，这里 302 跳 /posts（不用 301，避免被浏览器长期缓存旧落点）
+return Astro.redirect("/posts", 302);
 ---
