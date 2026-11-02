@@ -205,7 +205,11 @@ try {
       function addResult(url, filename) {
         const card = document.createElement('div');
         card.className = 'result-card';
-        const md = '![](' + url + ')';
+        const abs = new URL(url, window.location.origin).href;
+        const stem = filename.replace(/\.[^.]+$/, '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        const md = '![](' + abs + ')';
+        const html = '<img src="' + abs + '" alt="' + stem + '">';
+        const bbcode = '[img]' + abs + '[/img]';
 
         const img = document.createElement('img');
         img.src = url;
@@ -216,13 +220,10 @@ try {
         info.className = 'info';
         const name = document.createElement('p');
         name.className = 'name';
-        name.textContent = filename;
-        const urlP = document.createElement('p');
-        urlP.className = 'url';
         const a = document.createElement('a');
         a.href = url; a.target = '_blank'; a.rel = 'noopener';
-        a.textContent = url;
-        urlP.appendChild(a);
+        a.textContent = filename;
+        name.appendChild(a);
         const btns = document.createElement('div');
         btns.className = 'btns';
         const b1 = document.createElement('button');
@@ -231,9 +232,15 @@ try {
         const b2 = document.createElement('button');
         b2.className = 'btn'; b2.type = 'button'; b2.textContent = '复制 Markdown';
         b2.addEventListener('click', () => copyText(md, 'Markdown 片段'));
-        btns.append(b1, b2);
+        const b3 = document.createElement('button');
+        b3.className = 'btn'; b3.type = 'button'; b3.textContent = '复制 HTML';
+        b3.addEventListener('click', () => copyText(html, 'HTML 片段'));
+        const b4 = document.createElement('button');
+        b4.className = 'btn'; b4.type = 'button'; b4.textContent = '复制 BBCode';
+        b4.addEventListener('click', () => copyText(bbcode, 'BBCode 片段'));
+        btns.append(b1, b2, b3, b4);
 
-        info.append(name, urlP, btns);
+        info.append(name, btns);
         card.append(img, info);
         results.prepend(card);
       }
