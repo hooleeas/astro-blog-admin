@@ -120,6 +120,7 @@ const nav = [
       #panel > *, #visual > *, #list > *, #results > * { animation: panelIn 0.28s ease; }
 
       button, a, input, select, textarea, label, [role="button"] { touch-action: manipulation; }
+      dialog:focus { outline: none; }
 
       /* ============ 顶栏 ============ */
       .topbar {
@@ -1000,6 +1001,17 @@ const nav = [
 
       // 主题切换（机制与博客前台一致）
       let adminThemeTimeout: number | undefined;
+      // 弹窗打开时浏览器会自动聚焦第一个按钮并带出系统蓝圈：统一把焦点先落在弹窗本身（页面随后自行聚焦输入框的不受影响）
+      const dialogProto = HTMLDialogElement.prototype as HTMLDialogElement & { __focusPatched?: boolean };
+      if (!dialogProto.__focusPatched) {
+        dialogProto.__focusPatched = true;
+        const originalShowModal = HTMLDialogElement.prototype.showModal;
+        HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+          originalShowModal.call(this);
+          if (!this.hasAttribute('tabindex')) this.setAttribute('tabindex', '-1');
+          this.focus({ preventScroll: true });
+        };
+      }
       const themeBtn = document.getElementById('theme-toggle');
       themeBtn?.addEventListener('click', () => {
         const root = document.documentElement;

@@ -73,6 +73,17 @@ try {
       const toast = document.querySelector('#toast');
       let toastTimer = 0;
 
+      // 弹窗打开时浏览器会自动聚焦第一个按钮并带出系统蓝圈：统一把焦点先落在弹窗本身（页面随后自行聚焦输入框的不受影响）
+      const dialogProto = HTMLDialogElement.prototype;
+      if (!dialogProto.__focusPatched) {
+        dialogProto.__focusPatched = true;
+        const originalShowModal = HTMLDialogElement.prototype.showModal;
+        HTMLDialogElement.prototype.showModal = function () {
+          originalShowModal.call(this);
+          if (!this.hasAttribute('tabindex')) this.setAttribute('tabindex', '-1');
+          this.focus({ preventScroll: true });
+        };
+      }
       document.querySelector('#theme-toggle').addEventListener('click', () => {
         const dark = document.documentElement.classList.toggle('dark');
         try { localStorage.setItem('admin-theme', dark ? 'dark' : 'light'); } catch (e) {}

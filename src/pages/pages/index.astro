@@ -69,7 +69,12 @@ const dataFiles = [
             );
             const inlineScripts = Array.from(parsed.querySelectorAll<HTMLScriptElement>('script:not([src])'))
               .filter((script) => (script.textContent || '').trim().length > 0 && !hostCodes.has(script.textContent || ''));
-            if (!inlineScripts.length) throw new Error('编辑页面脚本未找到');
+            if (!inlineScripts.length) {
+              const found = Array.from(parsed.querySelectorAll('script'))
+                .map((script) => script.getAttribute('src') || '(内联脚本)')
+                .join(', ');
+              throw new Error('编辑页面脚本未找到（抓到的脚本：' + found + '）');
+            }
             for (const inlineScript of inlineScripts) {
               const blobUrl = URL.createObjectURL(new Blob([inlineScript.textContent || ''], { type: 'text/javascript' }));
               try {
@@ -86,7 +91,12 @@ const dataFiles = [
           if (thisRequest !== requestId) return;
           content.innerHTML = homeMarkup;
           document.title = homeTitle;
-          alert('打开设置失败：' + (error instanceof Error ? error.message : String(error)));
+          const errorLine = document.createElement('p');
+          errorLine.className = 'hint';
+          errorLine.style.color = 'var(--danger)';
+          errorLine.style.marginBottom = '12px';
+          errorLine.textContent = '打开设置失败：' + (error instanceof Error ? error.message : String(error));
+          content.prepend(errorLine);
           console.error('站点设置内容加载失败', error);
         }
       }
