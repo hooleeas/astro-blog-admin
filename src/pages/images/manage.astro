@@ -21,6 +21,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
     </div>
 
     <p id="image-status" class="image-status" role="status" aria-live="polite">正在加载图片…</p>
+    <div class="manager-toolbar">
+      <label class="select-all-label"><input id="select-all" type="checkbox" /> 全选</label>
+      <span id="selected-count" aria-live="polite"></span>
+      <button id="batch-delete" class="btn btn-ghost delete-image" type="button" disabled>批量删除</button>
+    </div>
     <div id="image-grid" class="image-grid"></div>
     <div id="image-manager-toast" class="toast" role="status" aria-live="polite"></div>
   </main>
@@ -47,6 +52,14 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
     .image-manager .image-actions { display: flex; gap: 8px; }
     .image-manager .image-actions .btn { flex: 1; min-height: 34px; padding: 6px 10px; font-size: 12px; }
     .image-manager .delete-image { color: var(--danger); }
+    .image-manager .manager-toolbar { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
+    .image-manager .select-all-label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    .image-manager .manager-toolbar #selected-count { color: var(--muted); font-size: 13px; }
+    .image-manager .manager-toolbar #batch-delete { margin-left: auto; flex: 0 0 auto; min-height: 34px; padding: 6px 14px; font-size: 12px; }
+    .image-manager .image-card { position: relative; }
+    .image-manager .image-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .image-manager .image-select { position: absolute; top: 10px; left: 10px; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--surface) 78%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); cursor: pointer; }
+    .image-manager .image-select input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
     .image-manager .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
     @media (max-width: 560px) {
       .image-manager .manager-heading { flex-wrap: wrap; gap: 12px; }
@@ -72,6 +85,10 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const count = app.querySelector<HTMLElement>('#image-count')!;
       const search = app.querySelector<HTMLInputElement>('#image-search')!;
       const toast = document.querySelector<HTMLElement>('#image-manager-toast')!;
+      const selectAll = app.querySelector<HTMLInputElement>('#select-all')!;
+      const selectedCount = app.querySelector<HTMLElement>('#selected-count')!;
+      const batchDeleteBtn = app.querySelector<HTMLButtonElement>('#batch-delete')!;
+      const selected = new Set<string>();
       let images: ManagedImage[] = [];
       let appliedQuery = '';
       let toastTimer = 0;
@@ -81,6 +98,14 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         toast.classList.add('show');
         window.clearTimeout(toastTimer);
         toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2200);
+      }
+
+      function updateToolbar(visible: ManagedImage[]) {
+        const visibleSelected = visible.filter((image) => selected.has(image.filename)).length;
+        selectedCount.textContent = selected.size ? `已选 ${selected.size} 张` : '';
+        batchDeleteBtn.disabled = selected.size === 0;
+        selectAll.checked = visible.length > 0 && visibleSelected === visible.length;
+        selectAll.indeterminate = visibleSelected > 0 && visibleSelected < visible.length;
       }
 
       function formatSize(bytes: number): string {
@@ -93,6 +118,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         const visible = images.filter((image) => image.filename.toLocaleLowerCase().includes(appliedQuery));
         grid.replaceChildren();
         count.textContent = `${visible.length} / ${images.length} 张`;
+        updateToolbar(visible);
         if (visible.length === 0) {
           status.textContent = images.length === 0 ? '还没有上传图片。' : '没有匹配的图片。';
           status.classList.remove('error');
@@ -102,6 +128,20 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         for (const image of visible) {
           const card = document.createElement('article');
           card.className = 'image-card';
+          const selectWrap = document.createElement('label');
+          selectWrap.className = 'image-select';
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = selected.has(image.filename);
+          checkbox.setAttribute('aria-label', `选择 ${image.filename}`);
+          if (checkbox.checked) card.classList.add('selected');
+          checkbox.addEventListener('change', () => {
+            if (checkbox.checked) selected.add(image.filename);
+            else selected.delete(image.filename);
+            card.classList.toggle('selected', checkbox.checked);
+            updateToolbar(images.filter((item) => item.filename.toLocaleLowerCase().includes(appliedQuery)));
+          });
+          selectWrap.appendChild(checkbox);
           const preview = document.createElement('div');
           preview.className = 'image-preview';
           const img = document.createElement('img');
@@ -154,6 +194,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
               const result = await response.json();
               if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
               images = images.filter((item) => item.filename !== image.filename);
+              selected.delete(image.filename);
               render();
               showToast('图片已删除');
             } catch (error) {
@@ -164,7 +205,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           });
           actions.append(copyButton, deleteButton);
           details.append(name, meta, actions);
-          card.append(preview, details);
+          card.append(selectWrap, preview, details);
           grid.appendChild(card);
         }
       }
@@ -183,6 +224,43 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           status.classList.add('error');
         }
       }
+
+      selectAll.addEventListener('change', () => {
+        const visible = images.filter((image) => image.filename.toLocaleLowerCase().includes(appliedQuery));
+        if (selectAll.checked) visible.forEach((image) => selected.add(image.filename));
+        else visible.forEach((image) => selected.delete(image.filename));
+        render();
+      });
+
+      batchDeleteBtn.addEventListener('click', async () => {
+        const targets = images.filter((image) => selected.has(image.filename));
+        if (!targets.length) return;
+        if (!confirm(`确定删除选中的 ${targets.length} 张图片吗？此操作无法撤销。`)) return;
+        batchDeleteBtn.disabled = true;
+        let ok = 0;
+        let failed = 0;
+        for (const image of targets) {
+          status.textContent = `正在批量删除：${ok + failed + 1} / ${targets.length}（${image.filename}）`;
+          status.classList.remove('error');
+          try {
+            const response = await fetch(`/api/images/${encodeURIComponent(image.filename)}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+            ok += 1;
+            selected.delete(image.filename);
+            images = images.filter((item) => item.filename !== image.filename);
+          } catch {
+            failed += 1;
+          }
+        }
+        render();
+        if (failed) {
+          status.textContent = `批量删除完成：成功 ${ok} 张，失败 ${failed} 张`;
+          status.classList.add('error');
+        } else if (ok) {
+          showToast(`已删除 ${ok} 张图片`);
+        }
+      });
 
       search.addEventListener('input', () => {
         appliedQuery = search.value.trim().toLocaleLowerCase();
