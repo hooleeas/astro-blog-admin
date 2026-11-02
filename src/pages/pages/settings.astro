@@ -46,6 +46,8 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
   </div>
 
   <script>
+    import { escapeHtml } from '../../lib/escape-html';
+
     function initializePageSettings() {
     const root = document.querySelector<HTMLElement>('#page-settings-root');
     if (!root || root.dataset.initialized) return;
@@ -84,12 +86,6 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
       if (subtitleInput) subtitleInput.value = '';
     });
 
-    function esc(s) {
-      return String(s ?? '').replace(/[&<>"']/g, (c) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-      }[c]));
-    }
-
     async function api(url, opts) {
       const r = await fetch(url, opts);
       return r.json();
@@ -119,10 +115,10 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
         for (const p of pages) {
           const tr = document.createElement('tr');
           const badge = p.protected ? ' <span class="tag">默认</span>' : '';
-          const delBtn = p.protected ? '' : `<button class="link danger" data-del="${esc(p.slug)}" type="button">删除</button>`;
+          const delBtn = p.protected ? '' : `<button class="link danger" data-del="${escapeHtml(p.slug)}" type="button">删除</button>`;
           tr.innerHTML = `
-            <td data-label="slug" class="mono">${esc(p.slug)}${badge}</td>
-            <td data-label="路径" class="mono" style="color: var(--muted);">/${esc(p.slug)}</td>
+            <td data-label="slug" class="mono">${escapeHtml(p.slug)}${badge}</td>
+            <td data-label="路径" class="mono" style="color: var(--muted);">/${escapeHtml(p.slug)}</td>
             <td class="cell-actions no-label">
               <a class="link" href="/pages/edit?slug=${encodeURIComponent(p.slug)}${embeddedMode ? '&embedded=1' : ''}">编辑</a>
               ${delBtn}
