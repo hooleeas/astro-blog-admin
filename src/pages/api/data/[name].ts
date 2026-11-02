@@ -89,10 +89,11 @@ export async function PUT({ locals, params, request }: APIContext) {
     }
   }
 
+  let saved: { sha: string; path: string };
   try {
-    await gh.putFile(locals, dataPath(name), content, `admin: 更新变量 ${name}.jsonc`, sha);
+    saved = await gh.putFile(locals, dataPath(name), content, `admin: 更新变量 ${name}.jsonc`, sha);
   } catch (e) {
     return fail('保存失败：' + (e as Error)?.message, 500);
   }
-  return ok({ name, path: dataPath(name) });
+  return ok({ name, path: dataPath(name), sha: saved.sha });
 }

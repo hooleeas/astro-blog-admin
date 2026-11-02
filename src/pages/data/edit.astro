@@ -1054,27 +1054,15 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         return r.json();
       }
 
-      async function refreshAfterSave() {
-        const cur = await (await fetch('/api/data/' + encodeURIComponent(name))).json();
-        if (!cur.ok) {
-          throw new Error('重新加载设置失败：' + cur.error);
-        }
-        if (cur.data.parseError) {
-          const e = cur.data.parseError[0] || cur.data.parseError;
-          throw new Error(`设置保存后出现语法错误：${e.message}（第 ${e.line} 行第 ${e.character} 列）`);
-        }
-        sha = cur.data.sha;
-        working = clone(cur.data.parsed || {});
-        saveButton.disabled = !renderVisual();
-      }
-
       saveButton.addEventListener('click', async () => {
         saveButton.disabled = true;
         saveStatusEl.textContent = '保存中…';
         try {
           const res = await putContent(JSON.stringify(working, null, 2));
           if (!res.ok) throw new Error(res.error || '未知错误');
-          await refreshAfterSave();
+          // 保存成功只更新 sha，绝不重新加载或重渲染页面：
+          // 展开状态、滚动位置和其他正在编辑的内容都不受影响（用户定）
+          if (res.data?.sha) sha = res.data.sha;
           saveStatusEl.textContent = '已保存 ✓';
           window.setTimeout(() => { saveStatusEl.textContent = ''; }, 2000);
         } catch (error) {
