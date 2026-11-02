@@ -17,10 +17,6 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
     <input id="file-input" type="file" accept="image/*" multiple hidden />
   </div>
 
-  <div id="progress-wrap" class="progress-wrap" hidden>
-    <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
-    <p id="progress-text" class="progress-text"></p>
-  </div>
 
   <div id="results" class="results"></div>
 
@@ -145,9 +141,6 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
     const fileInput = requiredElement<HTMLInputElement>(document, '#file-input');
     const warn = requiredElement<HTMLElement>(document, '#cfg-warn');
     const results = requiredElement<HTMLElement>(document, '#results');
-    const progressWrap = requiredElement<HTMLElement>(document, '#progress-wrap');
-    const progressFill = requiredElement<HTMLElement>(document, '#progress-fill');
-    const progressText = requiredElement<HTMLElement>(document, '#progress-text');
     const toast = requiredElement<HTMLElement>(document, '#toast');
     let toastTimer = 0;
 
@@ -405,7 +398,6 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 
     async function uploadAll(files: File[]) {
       for (const f of files) {
-        progressText.textContent = '处理中：' + f.name;
         const ready = await maybeToWebp(f);
         await uploadOne(ready);
       }
@@ -413,33 +405,20 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 
     function uploadOne(file: File): Promise<void> {
       return new Promise<void>((resolve) => {
-        progressWrap.hidden = false;
-        progressFill.style.width = '0%';
-        progressText.textContent = '上传中：' + file.name;
-
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/upload');
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const pct = Math.round((e.loaded / e.total) * 100);
-            progressFill.style.width = pct + '%';
-            progressText.textContent = '上传中：' + file.name + '（' + pct + '%）';
-          }
-        });
         xhr.addEventListener('load', () => {
           let res = null;
           try { res = JSON.parse(xhr.responseText); } catch {}
           if (xhr.status === 200 && res && res.ok) {
-            progressFill.style.width = '100%';
-            progressText.textContent = '上传完成：' + file.name;
             addResult(res.data.url, res.data.filename);
           } else {
-            progressText.textContent = '上传失败：' + (res && res.error ? res.error : 'HTTP ' + xhr.status);
+            showToast('上传失败：' + file.name + (res && res.error ? '（' + res.error + '）' : ''));
           }
           resolve();
         });
         xhr.addEventListener('error', () => {
-          progressText.textContent = '上传失败：网络错误';
+          showToast('上传失败：' + file.name + '（网络错误）');
           resolve();
         });
         const form = new FormData();

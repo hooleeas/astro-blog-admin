@@ -48,10 +48,6 @@ body {
 .dz-sub { margin: 0; color: var(--muted); font-size: 13px; }
 .dz-link { color: var(--accent); text-decoration: underline; }
 /* 以下进度条与结果卡片与后台图床页（AdminLayout）逐项一致 */
-.progress-wrap { width: min(100%, 820px); margin: 12px auto 0; }
-.progress-bar { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
-.progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.2s ease; }
-.progress-text { color: var(--muted); font-size: 12px; margin: 3px 0 0; overflow-wrap: anywhere; }
 .results { width: min(100%, 820px); margin: 12px auto 0; display: grid; gap: 8px; }
 .result-card {
   display: flex; gap: 10px; align-items: center; background: var(--surface);

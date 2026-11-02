@@ -49,11 +49,6 @@ try {
         <input id="file-input" type="file" accept="image/*" multiple hidden />
       </div>
 
-      <div id="progress-wrap" class="progress-wrap" hidden>
-        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
-        <p id="progress-text" class="progress-text"></p>
-      </div>
-
       <div id="results" class="results"></div>
     </main>
 
@@ -74,9 +69,6 @@ try {
     <script>
       const dropzone = document.querySelector('#dropzone');
       const fileInput = document.querySelector('#file-input');
-      const progressWrap = document.querySelector('#progress-wrap');
-      const progressFill = document.querySelector('#progress-fill');
-      const progressText = document.querySelector('#progress-text');
       const results = document.querySelector('#results');
       const toast = document.querySelector('#toast');
       let toastTimer = 0;
@@ -171,8 +163,6 @@ try {
 
       async function uploadAll(files) {
         for (const f of files) {
-          progressWrap.hidden = false;
-          progressText.textContent = '处理中：' + f.name;
           const ready = await maybeToWebp(f);
           await uploadOne(ready);
         }
@@ -180,33 +170,20 @@ try {
 
       function uploadOne(file) {
         return new Promise((resolve) => {
-          progressWrap.hidden = false;
-          progressFill.style.width = '0%';
-          progressText.textContent = '上传中：' + file.name;
-
           const xhr = new XMLHttpRequest();
           xhr.open('POST', '/api/public-upload');
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const pct = Math.round((e.loaded / e.total) * 100);
-              progressFill.style.width = pct + '%';
-              progressText.textContent = '上传中：' + file.name + '（' + pct + '%）';
-            }
-          });
           xhr.addEventListener('load', () => {
             let res = null;
             try { res = JSON.parse(xhr.responseText); } catch {}
             if (xhr.status === 200 && res && res.ok) {
-              progressFill.style.width = '100%';
-              progressText.textContent = '上传完成：' + file.name;
               addResult(res.data.url, res.data.filename);
             } else {
-              progressText.textContent = '上传失败：' + (res && res.error ? res.error : 'HTTP ' + xhr.status);
+              showToast('上传失败：' + file.name + (res && res.error ? '（' + res.error + '）' : ''));
             }
             resolve();
           });
           xhr.addEventListener('error', () => {
-            progressText.textContent = '上传失败：网络错误';
+            showToast('上传失败：' + file.name + '（网络错误）');
             resolve();
           });
           const form = new FormData();
