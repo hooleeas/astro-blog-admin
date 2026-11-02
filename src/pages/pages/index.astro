@@ -60,8 +60,25 @@ const dataFiles = [
           const builtScriptName = `/${routeUrl.pathname.split('/').pop()}.astro_astro_type_script_`;
           const routeScript = Array.from(parsed.querySelectorAll<HTMLScriptElement>('script[type="module"][src]'))
             .find((script) => script.src.includes(routeScriptPath) || script.src.includes(builtScriptName));
-          if (!routeScript) throw new Error('编辑页面脚本未找到');
-          if (routeScript) await import(routeScript.src);
+          if (routeScript) {
+            await import(routeScript.src);
+          } else {
+            // 无 import 的页面脚本会被 Astro 内联进 HTML（没有脚本文件）：执行抓到页面里、当前文档还没有的内联脚本
+            const hostCodes = new Set(
+              Array.from(document.querySelectorAll('script:not([src])')).map((script) => script.textContent || ''),
+            );
+            const inlineScripts = Array.from(parsed.querySelectorAll<HTMLScriptElement>('script:not([src])'))
+              .filter((script) => (script.textContent || '').trim().length > 0 && !hostCodes.has(script.textContent || ''));
+            if (!inlineScripts.length) throw new Error('编辑页面脚本未找到');
+            for (const inlineScript of inlineScripts) {
+              const blobUrl = URL.createObjectURL(new Blob([inlineScript.textContent || ''], { type: 'text/javascript' }));
+              try {
+                await import(blobUrl);
+              } finally {
+                URL.revokeObjectURL(blobUrl);
+              }
+            }
+          }
           if (thisRequest !== requestId) return;
           document.dispatchEvent(new Event('admin:content-loaded'));
           window.scrollTo({ top: 0, behavior: 'smooth' });
