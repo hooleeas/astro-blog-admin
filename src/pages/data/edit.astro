@@ -627,9 +627,61 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         }, { once: true });
       }
 
+      function openNavigationItemDialog(pathArr) {
+        addOptions.replaceChildren();
+        addDialogTitle.textContent = '新增导航项';
+        addDialogDescription.textContent = '填写链接、标识和显示文字（显示文字会填入全部语言）。';
+        const form = el('form', 'new-page-fields');
+        const addField = (labelText, placeholder) => {
+          const label = el('label');
+          label.appendChild(document.createTextNode(labelText));
+          const input = el('input', 'input');
+          input.type = 'text';
+          input.required = true;
+          input.placeholder = placeholder;
+          label.appendChild(input);
+          form.appendChild(label);
+          return input;
+        };
+        const hrefInput = addField('链接', '/about 或 https://example.com');
+        const keyInput = addField('标识', 'about');
+        const labelInput = addField('显示文字', '关于');
+        const actions = el('div', 'new-page-actions');
+        const submit = el('button', 'btn');
+        submit.type = 'submit';
+        submit.textContent = '添加导航';
+        actions.append(submit);
+        form.appendChild(actions);
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const items = getAt(pathArr);
+          const template = items.find((item) => isObj(item)) ?? { href: '', key: '', label: {} };
+          const item = blankLike(template);
+          item.href = hrefInput.value.trim();
+          item.key = keyInput.value.trim();
+          const labelLocales = isObj(template.label) && Object.keys(template.label).length ? Object.keys(template.label) : [...LANG_SET];
+          item.label = Object.fromEntries(labelLocales.map((locale) => [locale, labelInput.value.trim()]));
+          items.push(item);
+          pendingFocusPath = [...pathArr, items.length - 1];
+          addDialog.close();
+          saveButton.disabled = !renderVisual();
+        });
+        addOptions.appendChild(form);
+        addDialog.showModal();
+        hrefInput.focus();
+        addDialog.addEventListener('close', () => {
+          addDialogTitle.textContent = '选择新增列表';
+          addDialogDescription.textContent = '选择要添加项目的列表。';
+        }, { once: true });
+      }
+
       function addTarget(pathArr) {
         if (name === 'services' && pathArr.join('.') === 'items') {
           openServiceItemDialog(pathArr);
+          return;
+        }
+        if (name === 'config' && pathArr.join('.') === 'navigation.items') {
+          openNavigationItemDialog(pathArr);
           return;
         }
         if (name === 'apple' && pathArr.join('.') === 'carouselLogos') {
