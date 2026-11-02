@@ -65,6 +65,22 @@ export async function processImageUpload(locals: unknown, requestUrl: string, fi
     prefix += `/${seg}`;
     try { await (client as any).createDirectory(prefix); } catch {}
   }
+  // 重名自动改名：原名已被占用时在扩展名前加 _1、_2… 找空位，原文件不覆盖、不动
+  const taken = async (name: string) => {
+    try { return await client.exists(`/${dir}/${name}`); } catch { return false; }
+  };
+  if (await taken(filename)) {
+    const dot = filename.lastIndexOf('.');
+    const stem = dot > 0 ? filename.slice(0, dot) : filename;
+    const suffix = dot > 0 ? filename.slice(dot) : '';
+    let n = 1;
+    let candidate = `${stem}_${n}${suffix}`;
+    while (n < 999 && (await taken(candidate))) {
+      n += 1;
+      candidate = `${stem}_${n}${suffix}`;
+    }
+    filename = candidate;
+  }
   const remotePath = `/${dir}/${filename}`;
   await client.putFileContents(remotePath, data, { overwrite: false });
 
