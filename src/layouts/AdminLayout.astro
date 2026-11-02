@@ -284,7 +284,12 @@ const nav = [
 
       @media (max-width: 760px) {
         .topbar-inner { justify-content: flex-start; gap: 8px; }
-        .topbar-controls { max-width: calc(100% - 112px); }
+        .topbar-controls {
+          position: relative; left: auto; top: auto; transform: none;
+          display: flex; align-items: center; gap: 8px;
+          max-width: 100%; min-width: 0;
+        }
+        .topbar-actions { position: relative; top: auto; left: auto; flex-shrink: 0; }
         .nav-capsule {
           flex: 0 1 auto; min-width: 0; width: fit-content; max-width: calc(100% - 48px);
         }
@@ -297,28 +302,7 @@ const nav = [
       }
 
       @media (max-width: 480px) {
-        .topbar-inner {
-          height: auto;
-          min-height: 40px;
-          flex-direction: column;
-          gap: 8px;
-          padding-block: 4px;
-        }
-        .topbar-controls {
-          position: relative;
-          left: auto;
-          max-width: 100%;
-          transform: none;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 8px;
-        }
-        .topbar-actions {
-          position: relative;
-          top: auto;
-          left: auto;
-        }
+        .topbar-inner { height: 40px; min-height: 40px; }
       }
 
       ::view-transition-group(root),
@@ -1469,3 +1453,4 @@ const nav = [
     </script>
   </body>
 </html>
+
