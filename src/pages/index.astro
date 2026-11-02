@@ -37,6 +37,7 @@ try {
   <body>
     <main class="wrap">
       <div class="head">
+        <button id="open-history" class="history-toggle" type="button">历史</button>
         <button id="theme-toggle" class="theme-toggle" type="button" aria-label="切换深色模式">◐</button>
       </div>
       <h1 class="page-title">{pageTitle}</h1>
@@ -55,6 +56,18 @@ try {
 
       <div id="results" class="results"></div>
     </main>
+
+    <dialog id="history-dialog" class="history-dialog">
+      <div class="history-head">
+        <h2 class="history-title">最近上传</h2>
+        <div class="history-head-btns">
+          <button id="clear-history" class="btn" type="button">清空</button>
+          <button id="close-history" class="btn" type="button">关闭</button>
+        </div>
+      </div>
+      <div id="history-list" class="history-list"></div>
+      <p id="history-empty" class="history-empty" hidden>暂无上传记录</p>
+    </dialog>
 
     <div id="toast" class="toast"></div>
 
@@ -202,7 +215,7 @@ try {
         });
       }
 
-      function addResult(url, filename) {
+      function buildCard(url, filename) {
         const card = document.createElement('div');
         card.className = 'result-card';
         const abs = new URL(url, window.location.origin).href;
@@ -242,8 +255,55 @@ try {
 
         info.append(name, btns);
         card.append(img, info);
-        results.prepend(card);
+        return card;
       }
+
+      function addResult(url, filename) {
+        results.prepend(buildCard(url, filename));
+        recordHistory(url, filename);
+      }
+
+      // 上传历史：存浏览器本地（localStorage），刷新不丢；只记本浏览器传过的
+      const HISTORY_KEY = 'imghub-history-v1';
+      const historyDialog = document.querySelector('#history-dialog');
+      const historyList = document.querySelector('#history-list');
+      const historyEmpty = document.querySelector('#history-empty');
+
+      function loadHistory() {
+        try {
+          const raw = localStorage.getItem(HISTORY_KEY);
+          const list = raw ? JSON.parse(raw) : [];
+          return Array.isArray(list) ? list : [];
+        } catch (e) { return []; }
+      }
+      function saveHistory(list) {
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); } catch (e) {}
+      }
+      function recordHistory(url, filename) {
+        const list = loadHistory().filter((it) => it.url !== url);
+        list.unshift({ url, filename, ts: Date.now() });
+        saveHistory(list.slice(0, 100));
+      }
+      function renderHistory() {
+        const list = loadHistory();
+        historyList.replaceChildren();
+        for (const it of list) historyList.appendChild(buildCard(it.url, it.filename));
+        historyEmpty.hidden = list.length > 0;
+        historyList.hidden = list.length === 0;
+      }
+      document.querySelector('#open-history').addEventListener('click', () => {
+        renderHistory();
+        historyDialog.showModal();
+      });
+      document.querySelector('#close-history').addEventListener('click', () => historyDialog.close());
+      document.querySelector('#clear-history').addEventListener('click', () => {
+        saveHistory([]);
+        renderHistory();
+        showToast('历史记录已清空');
+      });
+      historyDialog.addEventListener('click', (event) => {
+        if (event.target === historyDialog) historyDialog.close();
+      });
     </script>
   </body>
 </html>
