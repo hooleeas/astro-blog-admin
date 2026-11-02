@@ -104,7 +104,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
     path === '/upload' ||
     path === '/api/public-upload' ||
     path === '/api/public-config' ||
-    path === '/api/platform-probe' ||
     path.startsWith('/_astro/') ||
     // 图床图片文件公开可读（复制到文章里的链接要能直接打开）；/images 页面本身不在此列，仍需登录
     (path.startsWith('/images/') && path.length > '/images/'.length) ||
