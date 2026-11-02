@@ -142,6 +142,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         'config.languages': '新增语言',
         'services.items': '新增服务',
         'apple.carouselLogos': '新增轮播图',
+        'config.home.creativity.items': '新增轮播',
       };
       const labelFor = (path: string[]) => {
         const fullPath = [name, ...path].join('.');
@@ -693,6 +694,99 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         }, { once: true });
       }
 
+      // 通用新增弹窗（用户定：所有新增都要弹窗填写，名字必填，不直接塞 #数字 空项）
+      function openGenericAddDialog(pathArr) {
+        const items = getAt(pathArr);
+        const template = items.length ? items[0] : '';
+        const arrayLabel = ARRAY_LABELS[[name, ...pathArr].join('.')] ?? labelFor(pathArr);
+        // 模板里没有任何可填字段的极少数列表，保持直接加入
+        const hasScalar = isObj(template) && Object.values(template).some((v) => typeof v === 'string' || typeof v === 'number');
+        const hasLangMapField = isObj(template) && Object.values(template).some((v) => isLangMap(v));
+        if (!isObj(template) && typeof template === 'object') { addArrayItem(pathArr); return; }
+        if (isObj(template) && !hasScalar && !hasLangMapField) { addArrayItem(pathArr); return; }
+        addOptions.replaceChildren();
+        addDialogTitle.textContent = '新增' + arrayLabel;
+        addDialogDescription.textContent = '填写后才会加入列表，名字/标题必填。';
+        const form = el('form', 'new-page-fields');
+        const inputs = [];
+        let nameInput = null;
+        if (isObj(template)) {
+          const entries = Object.entries(template);
+          const nameKey = ['name', 'title', 'key', 'label', 'text'].find((k) => typeof template[k] === 'string')
+            ?? entries.find(([, v]) => typeof v === 'string')?.[0];
+          for (const [k, v] of entries) {
+            if (typeof v !== 'string' && typeof v !== 'number') continue;
+            const fieldLabel = el('label');
+            fieldLabel.appendChild(document.createTextNode(labelFor([...pathArr, k])));
+            const input = el('input', 'input');
+            input.type = typeof v === 'number' ? 'number' : 'text';
+            if (k === nameKey || ['href', 'url', 'icon', 'link'].includes(k)) input.required = true;
+            fieldLabel.appendChild(input);
+            form.appendChild(fieldLabel);
+            inputs.push({ key: k, input, numeric: typeof v === 'number' });
+            if (k === nameKey) nameInput = input;
+          }
+          if (!inputs.length && hasLangMapField) {
+            const fieldLabel = el('label');
+            fieldLabel.appendChild(document.createTextNode('名字'));
+            nameInput = el('input', 'input');
+            nameInput.type = 'text';
+            nameInput.required = true;
+            fieldLabel.appendChild(nameInput);
+            form.appendChild(fieldLabel);
+          }
+        } else {
+          const fieldLabel = el('label');
+          fieldLabel.appendChild(document.createTextNode('内容'));
+          nameInput = el('input', 'input');
+          nameInput.type = typeof template === 'number' ? 'number' : 'text';
+          nameInput.required = true;
+          fieldLabel.appendChild(nameInput);
+          form.appendChild(fieldLabel);
+        }
+        const actions = el('div', 'new-page-actions');
+        const submit = el('button', 'btn');
+        submit.type = 'submit';
+        submit.textContent = '添加';
+        actions.append(submit);
+        form.appendChild(actions);
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          if (isObj(template)) {
+            const item = blankLike(template);
+            for (const entry of inputs) {
+              const raw = entry.input.value.trim();
+              if (entry.numeric) item[entry.key] = raw === '' ? 0 : Number(raw);
+              else if (raw !== '') item[entry.key] = raw;
+            }
+            const nameValue = nameInput?.value.trim() ?? '';
+            if (nameValue) {
+              for (const [k, v] of Object.entries(template)) {
+                if (isLangMap(v)) {
+                  const locales = Object.keys(v).length ? Object.keys(v) : [...LANG_SET];
+                  item[k] = Object.fromEntries(locales.map((locale) => [locale, nameValue]));
+                  break;
+                }
+              }
+            }
+            items.push(item);
+          } else {
+            const raw = nameInput?.value.trim() ?? '';
+            items.push(typeof template === 'number' ? Number(raw) : raw);
+          }
+          pendingFocusPath = [...pathArr, items.length - 1];
+          addDialog.close();
+          saveButton.disabled = !renderVisual();
+        });
+        addOptions.appendChild(form);
+        addDialog.showModal();
+        (nameInput ?? form.querySelector('input'))?.focus();
+        addDialog.addEventListener('close', () => {
+          addDialogTitle.textContent = '选择新增列表';
+          addDialogDescription.textContent = '选择要添加项目的列表。';
+        }, { once: true });
+      }
+
       function addTarget(pathArr) {
         if (name === 'services' && pathArr.join('.') === 'items') {
           openServiceItemDialog(pathArr);
@@ -706,7 +800,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           openAppleCarouselDialog(pathArr);
           return;
         }
-        addArrayItem(pathArr);
+        openGenericAddDialog(pathArr);
       }
 
       document.addEventListener('admin:site-add-request', () => {
