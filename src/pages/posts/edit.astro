@@ -1004,7 +1004,8 @@ const key = Astro.url.searchParams.get('key') ?? '';
       .editor-heading .editor-back { min-height: 34px; padding: 6px 11px; font-size: 12px; }
       .editor-overview { align-items: flex-start; flex-direction: column; padding: 14px 16px; margin-bottom: 22px; }
       .editor-load-status { text-align: left; }
-      .editor-language-controls { align-items: stretch; flex-direction: column; }
+      .editor-language-controls { align-items: stretch; flex-direction: column; gap: 8px; }
+      .editor-language .editor-actions .status { min-height: 0; }
       .editor-language-capsule { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
       .editor-language-capsule::-webkit-scrollbar { display: none; }
       .editor-language-tab { padding-inline: clamp(10px, 3vw, 16px); font-size: clamp(12px, 3.8vw, 15px); }
