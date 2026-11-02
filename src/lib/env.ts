@@ -9,7 +9,6 @@ export interface RuntimeEnv {
   GITHUB_OWNER?: string;
   GITHUB_REPO?: string;
   GITHUB_BRANCH?: string;
-  LOCAL_SITE_URL?: string;
   ADMIN_LOCAL_PREVIEW?: string;
   ADMIN_KV?: any;
   [k: string]: any;

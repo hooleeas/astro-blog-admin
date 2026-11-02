@@ -8,21 +8,14 @@ GITHUB_CLIENT_ID=
 # OAuth Client Secret，也用作会话签名
 GITHUB_CLIENT_SECRET=
 
-# 允许登录的 GitHub 用户名（默认 hooleeas）
-GITHUB_OWNER=hooleeas
+# 允许登录的 GitHub 用户名（必填，填你自己的）
+GITHUB_OWNER=
 
-# 目标博客仓库，格式 owner/repo
-GITHUB_REPO=hooleeas/astro-blog
+# 目标博客仓库，格式 owner/repo（必填，填你自己的）
+GITHUB_REPO=
 
 # 目标分支
 GITHUB_BRANCH=main
 
-# GitHub Pages 图片仓库及分支
-GITHUB_PAGES_REPO=hooleeas/hooleeas.github.io
-GITHUB_PAGES_BRANCH=main
-
 # 本地开发时仅在 localhost / 127.0.0.1 / ::1 免登录，并启用本地文件读写
 ADMIN_LOCAL_PREVIEW=true
-
-# 本地模式下，图片由博客站点开发服务器提供；默认需另行启动 4323 端口
-LOCAL_SITE_URL=http://127.0.0.1:4323
