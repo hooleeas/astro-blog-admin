@@ -632,6 +632,9 @@ const key = Astro.url.searchParams.get('key') ?? '';
     .editor-section-heading p,
     .editor-card-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
     .editor-language-capsule {
+      -webkit-touch-callout: none;
+      user-select: none;
+      -webkit-user-select: none;
       isolation: isolate;
       position: relative;
       display: flex;
@@ -952,7 +955,9 @@ const key = Astro.url.searchParams.get('key') ?? '';
       .editor-actions { flex-wrap: wrap; }
       .editor-actions .status { flex-basis: 100%; margin-left: 0; }
       .editor-card { padding: 17px; }
-      .editor-fields { grid-template-columns: 1fr; gap: 14px; }
+      .editor-fields { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+      .editor-fields .editor-field input[type="date"].input { min-width: 0; max-width: 100%; }
+      .editor-body-input .cm-editor { font-size: 16px; }
       .editor-file-path { flex-direction: column; gap: 4px; }
       .editor-body-input { min-height: 420px; }
       .editor-body-input .cm-editor { height: 420px; }
