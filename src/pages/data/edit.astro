@@ -30,7 +30,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
     <div id="variable-editor-app" class="variable-editor" data-name={name}>
       <div id="parse-banner" class="banner hidden"></div>
 
-      <p class="hint">修改设置后点击保存生效。多语言文案请在对应页面中编辑。</p>
+      <p class="hint">修改设置后点击保存生效。多语言文案先选上方语言，再编辑对应语言的文字。</p>
       <div id="visual"></div>
       <div class="editor-actions">
         <button id="save-visual" class="btn" type="button" disabled hidden>保存</button>
@@ -172,7 +172,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
       const addDialogDescription = document.getElementById('site-add-description');
       let addTargets = [];
       let pendingFocusPath = null;
-      let filtersLang = 'zh-Hans'; // 主页文章筛选编辑区的当前语言
+      let editLang = 'zh-Hans'; // 设置编辑器的当前编辑语言（多语言字段与主页筛选共用）
 
       function esc(s) {
         return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -202,7 +202,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         if (typeof v === 'boolean' || typeof v === 'number' || typeof v === 'string' || v === null) return true;
         if (Array.isArray(v)) return true;
         if (isObj(v)) {
-          if (isLangMap(v)) return false;
+          if (isLangMap(v)) return true; // 多语言字段现在按当前编辑语言渲染，不再跳过
           return Object.values(v).some(hasRenderable);
         }
         return false;
@@ -287,9 +287,17 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           siteAddButton.dataset.hasTargets = 'false';
           return false;
         }
+        if (containsLangMap(working)) {
+          visualEl.appendChild(buildEditLangBar());
+        }
         for (const [k, v] of Object.entries(working)) {
           if (name === 'apple' && k === 'plans') continue;
-          if (isLangMap(v)) { skippedLang++; continue; }
+          if (isLangMap(v)) {
+            const card = el('div', 'card vv-section');
+            card.appendChild(renderLangText(k, v, [k]));
+            visualEl.appendChild(card);
+            continue;
+          }
           if (isObj(v)) {
             if (hasRenderable(v)) renderObjectCard(v, [k]);
             else skippedLang++;
@@ -306,7 +314,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           visualEl.appendChild(buildArticleFiltersCard());
         }
         if (skippedLang > 0) {
-          visualEl.appendChild(el('p', 'hint vv-note', '多语言文案请在对应页面中编辑。'));
+          visualEl.appendChild(el('p', 'hint vv-note', '多语言文案先选上方语言，再编辑对应语言的文字。'));
         }
         visualReady = true;
         // 新增入口放在各列表标题行右侧（用户定），顶栏不再放总的新增按钮
@@ -345,20 +353,20 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           .filter((l) => isObj(l) && typeof l.code === 'string' && l.enabled !== false)
           .map((l) => ({ code: l.code, label: typeof l.label === 'string' ? l.label : l.code }));
         const langList = langs.length ? langs : [...LANG_SET].map((code) => ({ code, label: code }));
-        if (!langList.some((l) => l.code === filtersLang)) filtersLang = langList[0].code;
+        if (!langList.some((l) => l.code === editLang)) editLang = langList[0].code;
         const tabs = el('div', 'vv-lang-tabs');
         for (const l of langList) {
-          const b = el('button', 'vv-lang-tab' + (l.code === filtersLang ? ' active' : ''), esc(l.label));
+          const b = el('button', 'vv-lang-tab' + (l.code === editLang ? ' active' : ''), esc(l.label));
           b.type = 'button';
           b.addEventListener('click', () => {
-            if (filtersLang === l.code) return;
-            filtersLang = l.code;
+            if (editLang === l.code) return;
+            editLang = l.code;
             saveButton.disabled = !renderVisual();
           });
           tabs.appendChild(b);
         }
         body.appendChild(tabs);
-        const translations = isObj(working.ui?.translations?.[filtersLang]) ? working.ui.translations[filtersLang] : {};
+        const translations = isObj(working.ui?.translations?.[editLang]) ? working.ui.translations[editLang] : {};
         const builtinRow = (label, key) => {
           const row = el('div', 'vv-row');
           row.appendChild(el('div', null, `<div class="vv-row-label">${esc(label)}</div>`));
@@ -380,18 +388,18 @@ const settingTitle = settingTitles[name] ?? '页面设置';
             const labelInput = el('input', 'input');
             labelInput.type = 'text';
             labelInput.placeholder = '筛选栏里看到的文字';
-            labelInput.value = item.label[filtersLang] ?? '';
+            labelInput.value = item.label[editLang] ?? '';
             labelInput.spellcheck = false;
-            labelInput.addEventListener('input', () => { item.label[filtersLang] = labelInput.value; });
+            labelInput.addEventListener('input', () => { item.label[editLang] = labelInput.value; });
             labelField.appendChild(labelInput);
             const valueField = el('div');
             valueField.appendChild(el('label', null, valueLabel));
             const valueInput = el('input', 'input');
             valueInput.type = 'text';
             valueInput.placeholder = valuePlaceholder;
-            valueInput.value = item[valueKey][filtersLang] ?? '';
+            valueInput.value = item[valueKey][editLang] ?? '';
             valueInput.spellcheck = false;
-            valueInput.addEventListener('input', () => { item[valueKey][filtersLang] = valueInput.value; });
+            valueInput.addEventListener('input', () => { item[valueKey][editLang] = valueInput.value; });
             valueField.appendChild(valueInput);
             const del = el('button', 'btn glass-button btn-sm danger', '删除');
             del.type = 'button';
@@ -428,7 +436,11 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         for (const [k, v] of Object.entries(obj)) {
           // 主页文章筛选有专门的编辑区（先选语言再编辑），通用渲染跳过
           if (name === 'config' && pathArr.join('.') === 'home' && k === 'articleFilters') continue;
-          if (isLangMap(v)) { skippedLang++; continue; }
+          if (isLangMap(v)) {
+            body.appendChild(renderLangText(k, v, [...pathArr, k]));
+            fieldCount++;
+            continue;
+          }
           if (isObj(v)) {
             if (hasRenderable(v)) subKeys.push(k);
             else skippedLang++;
@@ -596,22 +608,56 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         return wrap;
       }
 
-      // 多语言字段（标题/副标题/名称这类 {zh-Hans, en, …}）：给一个输入框，显示简中优先的值，
-      // 修改后同步写入该字段的全部语言（与新增弹窗的口径一致）；字段还不存在时按全部语言新建
+      // 编辑语言列表：主页设置用站点语言列表，其他设置用固定五语
+      const EDIT_LANG_LABELS = { 'zh-Hans': '简体中文', 'en': 'English', 'ja': '日本語', 'ko': '한국어', 'zh-Hant': '繁體中文' };
+      function editLangList() {
+        const fromSite = (Array.isArray(working?.languages) ? working.languages : [])
+          .filter((l) => isObj(l) && typeof l.code === 'string' && l.enabled !== false)
+          .map((l) => ({ code: l.code, label: typeof l.label === 'string' ? l.label : l.code }));
+        return fromSite.length ? fromSite : Object.entries(EDIT_LANG_LABELS).map(([code, label]) => ({ code, label }));
+      }
+      function containsLangMap(v) {
+        if (isLangMap(v)) return true;
+        if (Array.isArray(v)) return v.some(containsLangMap);
+        if (isObj(v)) return Object.values(v).some(containsLangMap);
+        return false;
+      }
+      function buildEditLangBar() {
+        const list = editLangList();
+        if (!list.some((l) => l.code === editLang)) editLang = list[0].code;
+        const bar = el('div', 'card vv-section vv-lang-bar');
+        bar.appendChild(el('span', 'vv-lang-bar-label', '编辑语言'));
+        const tabs = el('div', 'vv-lang-tabs');
+        for (const l of list) {
+          const b = el('button', 'vv-lang-tab' + (l.code === editLang ? ' active' : ''), esc(l.label));
+          b.type = 'button';
+          b.addEventListener('click', () => {
+            if (editLang === l.code) return;
+            editLang = l.code;
+            saveButton.disabled = !renderVisual();
+          });
+          tabs.appendChild(b);
+        }
+        bar.appendChild(tabs);
+        return bar;
+      }
+
+      // 多语言字段（标题/副标题/说明这类 {zh-Hans, en, …}）：按当前编辑语言显示与修改，
+      // 只改当前语言，其他语言的译文原样保留；字段还不存在时按当前语言新建
       function renderLangText(k, v, pathArr) {
         const wrap = el('div', 'vv-field');
         wrap.appendChild(el('label', null, esc(labelFor(pathArr))));
-        const locales = Object.keys(v);
-        const current = v['zh-Hans'] ?? v['en'] ?? locales.map((l) => v[l]).find((x) => typeof x === 'string' && x) ?? '';
-        const input = el('input', 'input');
-        input.type = 'text';
+        const current = typeof v[editLang] === 'string' ? v[editLang] : '';
+        const input = (current.length > 120 || current.includes('\n'))
+          ? el('textarea', 'input') : el('input', 'input');
+        if (input.tagName === 'TEXTAREA') input.rows = 3;
+        else input.type = 'text';
         input.value = current;
         input.spellcheck = false;
         input.addEventListener('input', () => {
           let map = getAt(pathArr);
           if (!isObj(map)) { setAt(pathArr, {}); map = getAt(pathArr); }
-          const keys = Object.keys(map).length ? Object.keys(map) : [...LANG_SET];
-          for (const locale of keys) map[locale] = input.value;
+          map[editLang] = input.value;
         });
         wrap.appendChild(input);
         return wrap;
@@ -792,7 +838,12 @@ const settingTitle = settingTitles[name] ?? '页面设置';
                 const sub = el('div', 'vv-subobj');
                 sub.appendChild(el('div', 'vv-subobj-title', esc(labelFor([...itemPath, k]))));
                 for (const [sk, sv] of Object.entries(v)) {
-                  if (isLangMap(sv) || isObj(sv)) { if (isLangMap(sv)) skippedLang++; continue; }
+                  if (isLangMap(sv)) {
+                    sub.appendChild(renderLangText(sk, sv, [...itemPath, k, sk]));
+                    anyField = true;
+                    continue;
+                  }
+                  if (isObj(sv)) continue;
                   sub.appendChild(renderField(sk, sv, [...itemPath, k, sk]));
                   anyField = true;
                 }
