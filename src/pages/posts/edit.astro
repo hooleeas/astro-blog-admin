@@ -1014,9 +1014,8 @@ const key = Astro.url.searchParams.get('key') ?? '';
       .editor-load-status { text-align: left; }
       .editor-language-controls { align-items: stretch; flex-direction: column; gap: 8px; }
       .editor-language .editor-actions .status { min-height: 0; }
-      .editor-language-capsule { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-      .editor-language-capsule::-webkit-scrollbar { display: none; }
-      .editor-language-tab { padding-inline: clamp(10px, 3vw, 16px); font-size: clamp(12px, 3.8vw, 15px); }
+      .editor-language-capsule { max-width: 100%; height: 36px; }
+      .editor-language-tab { padding-inline: 9px; font-size: 12.5px; }
       .editor-actions { flex-wrap: wrap; }
       .editor-actions .status { flex-basis: 100%; margin-left: 0; }
       .editor-card { padding: 17px; }
@@ -1035,6 +1034,9 @@ const key = Astro.url.searchParams.get('key') ?? '';
         background: color-mix(in srgb, var(--muted) 55%, transparent);
       }
       .editor-footnote { flex-direction: column; gap: 4px; }
+    }
+    @media (max-width: 380px) {
+      .editor-language-tab { padding-inline: 7px; font-size: 11.5px; }
     }
   </style>
 </AdminLayout>

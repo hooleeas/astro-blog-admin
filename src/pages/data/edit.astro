@@ -173,6 +173,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
       let addTargets = [];
       let pendingFocusPath = null;
       let editLang = 'zh-Hans'; // 设置编辑器的当前编辑语言（多语言字段与主页筛选共用）
+      let langFieldUpdaters = []; // 随编辑语言变化的字段刷新函数：切换语言只就地换值，不重建页面（防抖动，用户定）
+      let langCapsules = []; // 当前页面的语言胶囊（切换时同步指示位置）
 
       function esc(s) {
         return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -277,6 +279,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
       // ---- 表单渲染（递归） ----
       function renderVisual() {
         const prevScrollY = window.scrollY; // 重渲染后恢复滚动位置，删除等操作不跳回顶部（用户定）
+        langFieldUpdaters = [];
+        langCapsules = [];
         visualEl.innerHTML = '';
         addTargets = [];
         skippedLang = 0;
@@ -355,8 +359,14 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         const translations = isObj(working.ui?.translations?.[editLang]) ? working.ui.translations[editLang] : {};
         const builtinRow = (label, key) => {
           const row = el('div', 'vv-row');
-          row.appendChild(el('div', null, `<div class="vv-row-label">${esc(label)}</div>`));
+          const labelBox = el('div', null, `<div class="vv-row-label">${esc(label)}</div>`);
+          row.appendChild(labelBox);
           row.appendChild(makeSwitch(af[key], label, (checked) => { af[key] = checked; }));
+          const labelEl = labelBox.querySelector('.vv-row-label');
+          langFieldUpdaters.push(() => {
+            const t = isObj(working.ui?.translations?.[editLang]) ? working.ui.translations[editLang] : {};
+            if (labelEl) labelEl.textContent = t[key] ?? (key === 'thisMonth' ? '本月发布' : '热门文章');
+          });
           return row;
         };
         body.appendChild(builtinRow(translations.thisMonth ?? '本月发布', 'thisMonth'));
@@ -377,6 +387,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
             labelInput.value = item.label[editLang] ?? '';
             labelInput.spellcheck = false;
             labelInput.addEventListener('input', () => { item.label[editLang] = labelInput.value; });
+            langFieldUpdaters.push(() => { labelInput.value = item.label[editLang] ?? ''; });
             labelField.appendChild(labelInput);
             const valueField = el('div');
             valueField.appendChild(el('label', null, valueLabel));
@@ -386,6 +397,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
             valueInput.value = item[valueKey][editLang] ?? '';
             valueInput.spellcheck = false;
             valueInput.addEventListener('input', () => { item[valueKey][editLang] = valueInput.value; });
+            langFieldUpdaters.push(() => { valueInput.value = item[valueKey][editLang] ?? ''; });
             valueField.appendChild(valueInput);
             const del = el('button', 'btn glass-button btn-sm danger', '删除');
             del.type = 'button';
@@ -608,14 +620,21 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         if (isObj(v)) return Object.values(v).some(containsLangMap);
         return false;
       }
+      // 切换编辑语言：只同步胶囊指示位置 + 就地更换多语言字段的值，不重建页面、不动滚动（用户定）
+      function applyEditLang() {
+        for (const c of langCapsules) c.setActive?.(editLang);
+        for (const update of langFieldUpdaters) update();
+      }
       // 语言切换：用布局提供的、与文章编辑页完全相同的胶囊组件（滑动指示/长按拖动）
       function buildLangCapsule(list) {
         if (typeof window.createLangCapsule === 'function') {
-          return window.createLangCapsule(list, editLang, (code) => {
+          const capsule = window.createLangCapsule(list, editLang, (code) => {
             if (code === editLang) return;
             editLang = code;
-            saveButton.disabled = !renderVisual();
+            applyEditLang();
           });
+          langCapsules.push(capsule);
+          return capsule;
         }
         const tabs = el('div', 'vv-lang-tabs');
         for (const l of list) {
@@ -655,6 +674,11 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           let map = getAt(pathArr);
           if (!isObj(map)) { setAt(pathArr, {}); map = getAt(pathArr); }
           map[editLang] = input.value;
+        });
+        // 切换编辑语言时只换这个输入框的值，页面不重建
+        langFieldUpdaters.push(() => {
+          const map = getAt(pathArr);
+          input.value = isObj(map) && typeof map[editLang] === 'string' ? map[editLang] : '';
         });
         wrap.appendChild(input);
         return wrap;

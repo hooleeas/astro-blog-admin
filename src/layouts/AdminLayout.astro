@@ -738,9 +738,12 @@ const nav = [
       .editor-language-tab.missing { opacity: 0.48; }
       .editor-language-tab:disabled { cursor: not-allowed; }
       @media (max-width: 640px) {
-        .editor-language-capsule { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-        .editor-language-capsule::-webkit-scrollbar { display: none; }
-        .editor-language-tab { padding-inline: clamp(10px, 3vw, 16px); font-size: clamp(12px, 3.8vw, 15px); }
+        /* 移动端缩小字号与按钮间距，五种语言一排完整显示、不横滚（用户定） */
+        .editor-language-capsule { max-width: 100%; height: 36px; }
+        .editor-language-tab { padding-inline: 9px; font-size: 12.5px; }
+      }
+      @media (max-width: 380px) {
+        .editor-language-tab { padding-inline: 7px; font-size: 11.5px; }
       }
       .vv-lang-tab { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; }
       .vv-lang-tab.active { background: var(--text); color: var(--bg); border-color: transparent; }
@@ -1375,6 +1378,12 @@ const nav = [
         }, true);
 
         requestAnimationFrame(positionIndicator);
+        (capsule as HTMLElement & { setActive?: (code: string) => void }).setActive = (code: string) => {
+          if (!buttons.has(code)) return;
+          current = code;
+          buttons.forEach((b, c) => b.setAttribute('aria-pressed', String(c === current)));
+          positionIndicator();
+        };
         return capsule;
       };
 
