@@ -5,9 +5,9 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 
 <AdminLayout title="图床" active="images">
   <div id="cfg-warn" class="warn" hidden>
-    尚未配置 WebDAV，请先
+    图床尚未配置完成，请先
     <button class="settings-inline-open" type="button" data-open-settings>打开设置</button>
-    填写地址、账号、目录与链接前缀。
+    选择存储方式并填写相应配置。
   </div>
 
   <p class="dz-sub upload-guidance">支持 JPG、PNG、GIF、WebP、SVG、AVIF，单张最大 10 MB；JPG 和 PNG 默认转换为 WebP。</p>
@@ -169,6 +169,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const r2ModeHint = requiredElement<HTMLElement>(document, '#r2-mode-hint');
       const r2KeyFields = requiredElement<HTMLElement>(document, '#r2-key-fields');
       let r2Bound = false;
+      let blobBackend = false;
 
       function applyStorageVisibility() {
         const isR2 = storageSelect.value === 'r2';
@@ -212,10 +213,13 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           r2AccessKeyIdInput.value = d.r2AccessKeyId || '';
           r2SecretInput.placeholder = d.hasR2Secret ? '已设置（留空保留原密钥）' : '未设置';
           r2Bound = !!d.hasR2Binding;
+          blobBackend = !!d.hasBlobBackend;
           r2ModeHint.textContent = r2Bound
             ? '已检测到 Pages 绑定 IMGS_R2，将优先使用绑定连接 R2，下面的端点与密钥无需填写。'
-            : '未检测到 Pages 绑定 IMGS_R2：可先在 Pages 设置里绑定 R2 存储桶（变量名 IMGS_R2，绑定后需重新部署一次），或填写下面的端点与密钥走 S3 接口。';
-          r2KeyFields.hidden = r2Bound;
+            : blobBackend
+              ? '当前部署的图片存储由 EdgeOne Blob 提供，下面的端点与密钥无需填写。'
+              : '未检测到 Pages 绑定 IMGS_R2：可先在 Pages 设置里绑定 R2 存储桶（变量名 IMGS_R2，绑定后需重新部署一次），或填写下面的端点与密钥走 S3 接口。';
+          r2KeyFields.hidden = r2Bound || blobBackend;
           applyStorageVisibility();
         }
       }).catch(() => setSettingsMsg('读取设置失败：网络错误', false));
@@ -237,7 +241,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           linkPrefix: linkPrefixInput.value.trim(),
           pageTitle: pageTitleInput.value.trim(),
         };
-        if (r2Bound) {
+        if (r2Bound || blobBackend) {
           delete body.r2Endpoint;
           delete body.r2Bucket;
           delete body.r2AccessKeyId;

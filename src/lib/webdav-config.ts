@@ -108,7 +108,7 @@ export interface ConfigError {
 const KV_KEY = 'webdav:config';
 
 function notConfigured(): ConfigError {
-  return { status: 500, message: '未配置 WebDAV，请先到设置页填写' };
+  return { status: 500, message: '图床尚未配置，请先到设置页完成存储配置' };
 }
 
 /** 取 KV 存储（平台适配层）；未绑定或不可用时抛友好错误 */
