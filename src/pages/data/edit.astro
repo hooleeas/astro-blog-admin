@@ -437,11 +437,14 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         head.appendChild(el('span', null, `${esc(arrayLabel)}（${arr.length} 项）`));
         if (name !== 'apple' || pathArr.join('.') === 'carouselLogos') {
           addTargets.push({ path: [...pathArr], label: arrayLabel });
-          const addBtn = el('button', 'btn glass-button btn-sm');
-          addBtn.type = 'button';
-          addBtn.textContent = ADD_BUTTON_LABELS[[name, ...pathArr].join('.')] ?? '新增';
-          addBtn.addEventListener('click', () => addTarget([...pathArr]));
-          head.appendChild(addBtn);
+          // 语言列表是封闭预设：不新增、也不删除（用户定）
+          if (!(name === 'config' && pathArr.join('.') === 'languages')) {
+            const addBtn = el('button', 'btn glass-button btn-sm');
+            addBtn.type = 'button';
+            addBtn.textContent = ADD_BUTTON_LABELS[[name, ...pathArr].join('.')] ?? '新增';
+            addBtn.addEventListener('click', () => addTarget([...pathArr]));
+            head.appendChild(addBtn);
+          }
         }
         wrap.appendChild(head);
         const list = el('div');
