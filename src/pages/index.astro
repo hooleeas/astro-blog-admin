@@ -64,7 +64,7 @@ try {
       <p id="history-empty" class="history-empty" hidden>暂无上传记录</p>
     </dialog>
 
-    <div id="toast" class="toast"></div>
+    <div id="toast" class="toast" popover="manual"></div>
 
     <script>
       const dropzone = document.querySelector('#dropzone');
@@ -80,9 +80,19 @@ try {
 
       function showToast(message) {
         toast.textContent = message;
+        // 原生弹窗（showModal）在浏览器顶层，普通 toast 会被弹窗虚化背景盖住：用 Popover 把 toast 也送进顶层
+        if (typeof toast.showPopover === 'function') {
+          if (toast.matches(':popover-open')) toast.hidePopover();
+          toast.showPopover();
+        }
         toast.classList.add('show');
         window.clearTimeout(toastTimer);
-        toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2200);
+        toastTimer = window.setTimeout(() => {
+          toast.classList.remove('show');
+          window.setTimeout(() => {
+            if (!toast.classList.contains('show') && typeof toast.hidePopover === 'function' && toast.matches(':popover-open')) toast.hidePopover();
+          }, 300);
+        }, 2200);
       }
 
       async function copyText(text, label) {

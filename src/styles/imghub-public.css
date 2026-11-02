@@ -104,6 +104,7 @@ body {
   transition: opacity 0.2s ease, transform 0.2s ease; z-index: 50;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast[popover] { inset: auto; bottom: 28px; left: 50%; margin: 0; border: none; overflow: visible; }
 @media (max-width: 640px) {
   .dropzone { padding: 48px 16px; }
   .result-card { gap: 8px; padding: 8px; }
