@@ -79,7 +79,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await client.putFileContents(remotePath, data, { overwrite: false });
 
     // 只存 WebDAV 这一份，不再往任何 GitHub 仓库发布副本
-    return json({ ok: true, data: { url: getImageUrl(locals, filename, false, request.url), filename } });
+    return json({ ok: true, data: { url: getImageUrl(locals, filename, false, request.url, cfg.linkPrefix), filename } });
   } catch (e: any) {
     if (e && typeof e.status === 'number' && e.message) {
       return json({ ok: false, error: e.message }, e.status);

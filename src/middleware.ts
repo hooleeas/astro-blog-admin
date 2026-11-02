@@ -100,7 +100,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
     path === '/favicon.ico' ||
     path.startsWith('/_astro/') ||
     // 图床图片文件公开可读（复制到文章里的链接要能直接打开）；/images 页面本身不在此列，仍需登录
-    (path.startsWith('/images/') && path.length > '/images/'.length)
+    (path.startsWith('/images/') && path.length > '/images/'.length) ||
+    // 自定义链接前缀的图片文件同样公开（前缀是否正确由 [prefix] 路由按设置校验，不对返回 404）
+    (/^\/[^/]+\/[^/]+\.(png|jpe?g|gif|webp|svg|avif)$/i.test(path) && !path.startsWith('/api/'))
   ) {
     return next();
   }

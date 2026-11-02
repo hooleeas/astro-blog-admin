@@ -22,7 +22,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
       .filter((file) => file.type === 'file' && isImageFilename(file.basename))
       .map((file) => ({
         filename: file.basename,
-        url: getImageUrl(locals, file.basename, localPreview, request.url),
+        url: getImageUrl(locals, file.basename, localPreview, request.url, config.linkPrefix),
         size: file.size,
         lastmod: file.lastmod,
       }))

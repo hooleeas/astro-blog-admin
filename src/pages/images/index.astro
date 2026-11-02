@@ -7,7 +7,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
   <div id="cfg-warn" class="warn" hidden>
     尚未配置 WebDAV，请先
     <button class="settings-inline-open" type="button" data-open-settings>打开设置</button>
-    填写地址、账号与目录。
+    填写地址、账号、目录与链接前缀。
   </div>
 
   <p class="dz-sub upload-guidance">支持 JPG、PNG、GIF、WebP、SVG、AVIF，单张最大 10 MB；JPG 和 PNG 默认转换为 WebP。</p>
@@ -52,6 +52,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           <span class="flabel">上传目录</span>
           <input class="input" name="dir" type="text" placeholder="img" />
           <span class="hint">图片存放于 WebDAV 的该目录下，可填多级路径（如 photos/blog）；留空使用默认 img</span>
+        </label>
+        <label class="field">
+          <span class="flabel">对外链接前缀</span>
+          <input class="input" name="linkPrefix" type="text" placeholder="images" />
+          <span class="hint">图片对外链接为 /前缀/文件名（如 /images/IMG_2032.webp）；留空使用默认 images，改后旧的 /images/ 链接仍可打开</span>
         </label>
         <label class="field check-field">
           <span class="toggle-switch">
@@ -121,6 +126,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const usernameInput = requiredElement<HTMLInputElement>(form, '[name="username"]');
       const webpInput = requiredElement<HTMLInputElement>(form, '[name="webp"]');
       const dirInput = requiredElement<HTMLInputElement>(form, '[name="dir"]');
+      const linkPrefixInput = requiredElement<HTMLInputElement>(form, '[name="linkPrefix"]');
       const closeButton = requiredElement<HTMLButtonElement>(dialog, '[data-close-settings]');
 
       function setSettingsMsg(text: string, ok: boolean) {
@@ -147,6 +153,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           usernameInput.value = d.username || '';
           webpInput.checked = d.webp !== false;
           dirInput.value = d.dir || '';
+          linkPrefixInput.value = d.linkPrefix || '';
           passwordInput.placeholder = d.hasPassword ? '已设置（留空保留原密码）' : '未设置';
         }
       }).catch(() => setSettingsMsg('读取设置失败：网络错误', false));
@@ -160,6 +167,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           password: passwordInput.value,
           webp: webpInput.checked,
           dir: dirInput.value.trim(),
+          linkPrefix: linkPrefixInput.value.trim(),
         };
         try {
           const response = await fetch('/api/settings', {

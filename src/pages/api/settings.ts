@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getWebdavConfig, saveWebdavConfig, toPublic } from '../../lib/webdav-config';
+import { getWebdavConfig, saveWebdavConfig, toPublic, normalizeLinkPrefix, DEFAULT_LINK_PREFIX } from '../../lib/webdav-config';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -36,6 +36,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       username?: unknown;
       password?: unknown;
       dir?: unknown;
+      linkPrefix?: unknown;
       webp?: unknown;
     } | null;
     if (!body || typeof body !== 'object') {
@@ -55,6 +56,22 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       return json({ ok: false, error: '目录不能包含 ..' }, 400);
     }
 
+    // 对外链接前缀：未传则保留已保存值（同密码的处理方式）
+    let linkPrefix: string;
+    if (body.linkPrefix === undefined) {
+      const old = await getWebdavConfig(locals).catch(() => null);
+      linkPrefix = old?.linkPrefix ?? DEFAULT_LINK_PREFIX;
+    } else {
+      const normalized = normalizeLinkPrefix(body.linkPrefix);
+      if (normalized === null) {
+        return json({ ok: false, error: '链接前缀不合法：只能是单级路径（不含 / 和空格），如 images' }, 400);
+      }
+      if (['api', 'posts', 'notes', 'pages', 'data', 'settings', 'login', 'admin'].includes(normalized)) {
+        return json({ ok: false, error: '该前缀与后台路径冲突，请换一个' }, 400);
+      }
+      linkPrefix = normalized;
+    }
+
     // 密码为空 → 保留 KV 里旧密码
     let password = String(body.password ?? '');
     if (!password) {
@@ -68,6 +85,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       password,
       dir,
       webp: body.webp !== false,
+      linkPrefix,
     });
     return json({ ok: true });
   } catch (e) {

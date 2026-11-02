@@ -8,6 +8,8 @@ export interface WebdavConfig {
   dir: string;
   /** 是否上传时转 WebP（默认 true，可在设置页开关） */
   webp: boolean;
+  /** 图片对外链接的路径前缀（默认 images），链接形如 /<前缀>/<文件名> */
+  linkPrefix: string;
 }
 
 export interface WebdavConfigPublic {
@@ -18,6 +20,8 @@ export interface WebdavConfigPublic {
   hasPassword: boolean;
   /** 是否上传时转 WebP */
   webp: boolean;
+  /** 图片对外链接的路径前缀 */
+  linkPrefix: string;
 }
 
 /** 图床默认存放目录（设置页未填 dir 时使用） */
@@ -26,6 +30,20 @@ export const IMG_DIR = 'img';
 /** 图床实际存放目录：设置页填了 dir 就用它，留空用默认 img */
 export function imageDir(cfg: WebdavConfig): string {
   return cfg.dir || IMG_DIR;
+}
+
+/** 对外链接默认前缀 */
+export const DEFAULT_LINK_PREFIX = 'images';
+
+/**
+ * 规范化对外链接前缀：单级路径（不含 /、\、空白与控制字符），留空用默认 images；
+ * 不合法返回 null（设置接口据此报错，读取配置时回退默认）。
+ */
+export function normalizeLinkPrefix(raw: unknown): string | null {
+  const s = String(raw ?? '').trim().replace(/^\/+|\/+$/g, '');
+  if (!s) return DEFAULT_LINK_PREFIX;
+  if (s.includes('/') || s.includes('\\') || s === '.' || s === '..' || /[\s\u0000-\u001f\u007f]/.test(s)) return null;
+  return s;
 }
 
 export interface ConfigError {
@@ -73,13 +91,14 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
     password: String(parsed.password || ''),
     dir: String(parsed.dir || '').replace(/^\/+|\/+$/g, ''),
     webp: parsed.webp !== false,
+    linkPrefix: normalizeLinkPrefix(parsed.linkPrefix) ?? DEFAULT_LINK_PREFIX,
   };
 }
 
 /** 写 WebDAV 配置到 KV。password 由调用方决定（空则调用方先填入旧值）。 */
 export async function saveWebdavConfig(
   locals: unknown,
-  cfg: { url: string; username: string; password: string; dir: string; webp: boolean },
+  cfg: { url: string; username: string; password: string; dir: string; webp: boolean; linkPrefix: string },
 ): Promise<void> {
   const kv = getKV(locals);
   await kv.put(
@@ -90,6 +109,7 @@ export async function saveWebdavConfig(
       password: cfg.password,
       dir: cfg.dir,
       webp: cfg.webp,
+      linkPrefix: cfg.linkPrefix,
       updatedAt: new Date().toISOString(),
     }),
   );
@@ -103,5 +123,6 @@ export function toPublic(cfg: WebdavConfig): WebdavConfigPublic {
     dir: cfg.dir,
     hasPassword: cfg.password.length > 0,
     webp: cfg.webp,
+    linkPrefix: cfg.linkPrefix,
   };
 }

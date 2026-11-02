@@ -13,9 +13,9 @@ export function isLocalImagePreview(locals: unknown, request: Request): boolean 
     (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]');
 }
 
-export function getImageUrl(locals: unknown, filename: string, localPreview: boolean, requestUrl?: string): string {
-  // 图片地址只用根路径 /images/<文件名>，不带域名：从任何域名打开都自动跟随当前域名，
-  // 图片实体只存 WebDAV，由 /images/[filename] 路由回源读取。
+export function getImageUrl(locals: unknown, filename: string, localPreview: boolean, requestUrl?: string, linkPrefix: string = 'images'): string {
+  // 图片地址只用根路径 /<前缀>/<文件名>，不带域名：从任何域名打开都自动跟随当前域名；
+  // 前缀可在图床设置里改（默认 images），图片实体只存 WebDAV，由对应路由回源读取。
   void locals; void localPreview; void requestUrl;
-  return `/images/${encodeURIComponent(filename)}`;
+  return `/${linkPrefix}/${encodeURIComponent(filename)}`;
 }
