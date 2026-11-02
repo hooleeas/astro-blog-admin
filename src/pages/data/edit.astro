@@ -137,6 +137,12 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         'apple.carouselLogos': 'Apple 轮播图',
         'services.items': '服务项目列表',
       };
+      const ADD_BUTTON_LABELS: Record<string, string> = {
+        'config.navigation.items': '新增导航',
+        'config.languages': '新增语言',
+        'services.items': '新增服务',
+        'apple.carouselLogos': '新增轮播图',
+      };
       const labelFor = (path: string[]) => {
         const fullPath = [name, ...path].join('.');
         if (fullPath === 'config.site.name') return '站点名称';
@@ -297,8 +303,9 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           visualEl.appendChild(el('p', 'hint vv-note', '多语言文案请在对应页面中编辑。'));
         }
         visualReady = true;
-        siteAddButton.hidden = addTargets.length === 0;
-        siteAddButton.dataset.hasTargets = String(addTargets.length > 0);
+        // 新增入口放在各列表标题行右侧（用户定），顶栏不再放总的新增按钮
+        siteAddButton.hidden = true;
+        siteAddButton.dataset.hasTargets = 'false';
         document.dispatchEvent(new Event('admin:content-loaded'));
         const newItem = visualEl.querySelector('[data-new-array-item="true"]');
         if (newItem) {
@@ -430,6 +437,11 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         head.appendChild(el('span', null, `${esc(arrayLabel)}（${arr.length} 项）`));
         if (name !== 'apple' || pathArr.join('.') === 'carouselLogos') {
           addTargets.push({ path: [...pathArr], label: arrayLabel });
+          const addBtn = el('button', 'btn glass-button btn-sm');
+          addBtn.type = 'button';
+          addBtn.textContent = ADD_BUTTON_LABELS[[name, ...pathArr].join('.')] ?? '新增';
+          addBtn.addEventListener('click', () => addTarget([...pathArr]));
+          head.appendChild(addBtn);
         }
         wrap.appendChild(head);
         const list = el('div');
