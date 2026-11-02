@@ -147,6 +147,35 @@ export async function writeLocalPost(path: string, content: string, expectedSha:
   return hashLocalContent(content);
 }
 
+/** 本地改名保存（与 updateLocalNote 同语义）：目标已存在时以 EEXIST 失败，绝不覆盖。 */
+export async function updateLocalPost(
+  path: string,
+  nextPath: string,
+  content: string,
+  expectedSha: string,
+): Promise<string> {
+  const filePath = getLocalPostPath(path);
+  const newFilePath = getLocalPostPath(nextPath);
+  const currentContent = await readFile(filePath, 'utf8');
+  if (hashLocalContent(currentContent) !== expectedSha) {
+    throw Object.assign(new Error('Local file changed since it was loaded'), { code: 'CONFLICT' });
+  }
+  if (path === nextPath) {
+    await writeFile(filePath, content, 'utf8');
+    return hashLocalContent(content);
+  }
+  await writeFile(newFilePath, content, { encoding: 'utf8', flag: 'wx' });
+  try {
+    await unlink(filePath);
+  } catch (error) {
+    await unlink(newFilePath).catch((cleanupError) => {
+      console.error('Failed to clean up renamed local post after rename error', cleanupError);
+    });
+    throw error;
+  }
+  return hashLocalContent(content);
+}
+
 function getLocalPagePath(slug: string): string {
   if (!PAGE_SLUG_RE.test(slug)) throw new Error('Unsupported local page');
   return join(LOCAL_REPO_ROOT, 'src/pages', `${slug}.astro`);

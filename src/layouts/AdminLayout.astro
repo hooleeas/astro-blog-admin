@@ -358,6 +358,15 @@ const nav = [
         max-width: min(60vw, 520px); overflow: hidden; color: var(--muted);
         font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap;
       }
+      .note-file-field {
+        display: flex; align-items: center; gap: 12px; margin-top: 14px;
+        font-size: 15px; font-weight: 600; color: var(--text);
+      }
+      .note-file-control {
+        display: flex; flex: 1; align-items: center; gap: 2px; min-width: 0;
+        font-size: 14px; font-weight: 400; color: var(--muted);
+      }
+      .note-file-control .note-slug-input { flex: 1; min-width: 120px; margin-top: 0; }
       .new-page-dialog {
         width: min(460px, calc(100% - 32px));
         max-height: min(90dvh, 620px);
@@ -534,7 +543,7 @@ const nav = [
       .form-grid > label .date-input-row .note-date-input {
         min-width: 0; min-height: 40px; margin-top: 0; padding: 8px 10px; font-size: 14px;
       }
-      .date-input-row .note-date-input { flex: 1; }
+      .date-input-row .note-date-input { flex: 0 1 auto; width: 190px; max-width: 100%; }
       .date-input-row .btn { flex: 0 0 auto; min-height: 36px; padding: 6px 12px; font-size: 13px; }
       .form-grid > label.check {
         display: flex; align-items: center; gap: 10px; min-height: 50px;

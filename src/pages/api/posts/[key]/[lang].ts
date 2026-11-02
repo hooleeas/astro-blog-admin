@@ -9,6 +9,14 @@ export const prerender = false;
 
 type GhEx = Omit<Gh, 'putFile'> & {
   deleteFiles: (locals: unknown, paths: string[], message: string) => Promise<{ commit: string }>;
+  moveFile: (
+    locals: unknown,
+    oldPath: string,
+    newPath: string,
+    content: string,
+    expectedSha: string,
+    message: string,
+  ) => Promise<{ commit: string }>;
   putFile: (
     locals: unknown,
     path: string,
@@ -33,8 +41,9 @@ function isLocalPreview(locals: APIContext['locals'], request: Request) {
  * 在 Astro 文件路由里是同一个模式（两个动态段），拆成两个文件会路由冲突，
  * 因此合并在此文件实现，URL 约定保持不变：
  *
- * - PUT    /api/posts/:lang/:slug — 保存单语言版本，body: { frontmatter, body, sha }
- *          （此时 params.key 实际是语言代码，params.lang 实际是 slug）
+ * - PUT    /api/posts/:lang/:slug — 保存单语言版本，body: { frontmatter, body, sha, newSlug? }
+ *          （此时 params.key 实际是语言代码，params.lang 实际是 slug；
+ *          newSlug 传了且与当前 slug 不同时，本次保存同时把该语言版本改名）
  * - DELETE /api/posts/:key/:lang  — 删除单个语言版本（慎用）
  *          （此时 params.key 是 translationKey，params.lang 是语言代码）
  */
@@ -58,9 +67,23 @@ export async function PUT({ locals, params, request }: APIContext) {
   if (!v.valid) return fail('frontmatter 校验失败：' + v.errors.join('；'));
   if (!sha) return fail('缺少 sha（请先重新加载再保存）');
 
+  // 文件名（slug）可改：body.newSlug 传了就校验，实际与当前不同才改名。
+  const POST_SLUG_RE = /^[\p{L}\p{N}._-]+$/u;
+  let newSlug = '';
+  if (body?.newSlug !== undefined) {
+    newSlug = String(body.newSlug).trim().replace(/\.(md|mdx)$/i, '');
+    if (!newSlug) return fail('文件名不能为空');
+    if (!POST_SLUG_RE.test(newSlug)) return fail('文件名不合法（仅允许文字、数字、. _ -）');
+  }
+  const renaming = !!newSlug && newSlug !== slug;
+  const renamedPath = (oldPath: string) => {
+    const ext = oldPath.endsWith('.mdx') ? '.mdx' : '.md';
+    return oldPath.slice(0, oldPath.length - (slug.length + ext.length)) + newSlug + ext;
+  };
+
   if (isLocalPreview(locals, request)) {
     try {
-      const { hashLocalContent, listLocalRepoFiles, writeLocalPost } = await import('../../../../lib/local-data.js');
+      const { hashLocalContent, listLocalRepoFiles, writeLocalPost, updateLocalPost } = await import('../../../../lib/local-data.js');
       const files = await listLocalRepoFiles('src/content/posts');
       const ref = postRefsFromPaths(files.map((file) => file.path))
         .find((item) => item.lang === lang && item.slug === slug);
@@ -72,11 +95,17 @@ export async function PUT({ locals, params, request }: APIContext) {
       }
 
       const serialized = serializePost(fmIn as Record<string, any>, text);
+      if (renaming) {
+        const newPath = renamedPath(ref.path);
+        const nextSha = await updateLocalPost(ref.path, newPath, serialized, sha);
+        return ok({ path: newPath, slug: newSlug, sha: nextSha });
+      }
       const nextSha = await writeLocalPost(ref.path, serialized, sha);
       return ok({ path: ref.path, sha: nextSha });
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === 'CONFLICT') return fail('文件已被他人修改（sha 不一致），请刷新后重试', 409);
+      if (code === 'EEXIST') return fail('目标文件名已存在，请修改文件名或处理同名文件', 409);
       if (code === 'ENOENT') return fail('文件不存在', 404);
       return fail('保存本地文章失败：' + (error as Error).message, 500);
     }
@@ -92,10 +121,17 @@ export async function PUT({ locals, params, request }: APIContext) {
     if (cur.sha !== sha) return fail('文件已被他人修改（sha 不一致），请刷新后重试', 409);
 
     const content = serializePost(fmIn as Record<string, any>, text);
+    if (renaming) {
+      const newPath = renamedPath(ref.path);
+      await gh.moveFile(locals, ref.path, newPath, content, sha, `admin: 重命名文章 ${ref.path} → ${newPath}`);
+      const moved = await gh.getFile(locals, newPath);
+      return ok({ path: newPath, slug: newSlug, sha: moved.sha });
+    }
     const saved = await gh.putFile(locals, ref.path, content, `admin: 更新文章 ${ref.path}`, sha);
     return ok({ path: ref.path, sha: saved.sha });
   } catch (e) {
-    return fail('保存失败：' + (e as Error)?.message, 500);
+    const status = (e as { status?: number })?.status;
+    return fail('保存失败：' + (e as Error)?.message, status === 409 ? 409 : 500);
   }
 }
 

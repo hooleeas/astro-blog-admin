@@ -28,7 +28,7 @@ const valid = NOTE_FILE_RE.test(file);
           <label class="note-date-field">
             <span>日期（date）</span>
             <span class="date-input-row">
-              <input id="f-date" class="input mono note-date-input" type="text" inputmode="numeric" placeholder="YYYY-MM-DD" maxlength="10" autocomplete="off" required />
+              <input id="f-date" class="input mono note-date-input" type="date" required />
               <button id="date-today-btn" class="btn btn-sm btn-ghost" type="button">今天</button>
             </span>
           </label>
@@ -39,6 +39,14 @@ const valid = NOTE_FILE_RE.test(file);
               <span class="toggle-switch-thumb"></span>
             </span>
           </label>
+        </div>
+        <div class="note-file-field">
+          <span class="note-file-label">文件名</span>
+          <span class="note-file-control mono">
+            <span id="slug-date-prefix"></span>
+            <input id="f-slug" class="input mono note-slug-input" type="text" autocomplete="off" aria-label="文件名（日期之后的部分）" />
+            <span>.md</span>
+          </span>
         </div>
       </div>
 
@@ -71,12 +79,19 @@ const valid = NOTE_FILE_RE.test(file);
       }
 
       let sha = '';
+      const slugEl = document.getElementById('f-slug');
+      const slugPrefixEl = document.getElementById('slug-date-prefix');
       const slug = file.replace(/^\d{4}-\d{2}-\d{2}-/u, '').replace(/\.md$/u, '');
+      if (slugEl) slugEl.value = slug;
       const updateFilenamePreview = () => {
         const date = dateEl.value.trim();
-        fileNameEl.textContent = date ? `${date}-${slug}.md` : file;
+        const name = slugEl ? slugEl.value.trim() : slug;
+        if (slugPrefixEl) slugPrefixEl.textContent = date ? `${date}-` : '';
+        fileNameEl.textContent = date ? `${date}-${name}.md` : file;
       };
       dateEl.addEventListener('input', updateFilenamePreview);
+      dateEl.addEventListener('change', updateFilenamePreview);
+      if (slugEl) slugEl.addEventListener('input', updateFilenamePreview);
       todayButton.addEventListener('click', () => {
         const parts = new Intl.DateTimeFormat('en-CA', {
           timeZone: 'Asia/Shanghai',
@@ -126,6 +141,17 @@ const valid = NOTE_FILE_RE.test(file);
           dateEl.focus();
           return;
         }
+        const slugValue = slugEl ? slugEl.value.trim().replace(/\.md$/u, '') : slug;
+        if (!slugValue) {
+          statusEl.textContent = '文件名不能为空';
+          if (slugEl) slugEl.focus();
+          return;
+        }
+        if (/^\d{4}-\d{2}-\d{2}-/u.test(slugValue)) {
+          statusEl.textContent = '文件名不要带日期前缀，日期请用日期框修改';
+          if (slugEl) slugEl.focus();
+          return;
+        }
         statusEl.textContent = '保存中…';
         saveButton.setAttribute('disabled', '');
         try {
@@ -136,6 +162,7 @@ const valid = NOTE_FILE_RE.test(file);
               frontmatter: { date, draft: draftEl.checked },
               body: bodyEl.value,
               sha,
+              slug: slugValue,
             }),
           });
           const result = await response.json();

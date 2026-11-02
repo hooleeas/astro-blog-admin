@@ -406,7 +406,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
                 </span>
               </label>
             </div>
-            <div class="editor-file-path"><span>文件路径</span><code>${esc(`src/content/posts/${activeLang}/${version.slug}.md`)}</code></div>
+            <div class="editor-file-path"><span>文件路径</span><code>${esc(`src/content/posts/${activeLang}/`)}</code><input id="f-slug" class="input mono editor-slug-input" type="text" value="${esc(version.slug)}" aria-label="文件名（slug，可改名）" autocomplete="off" /><code>.md</code></div>
           </section>
           <section class="card editor-card editor-body-card">
             <div class="editor-card-heading">
@@ -521,10 +521,22 @@ const key = Astro.url.searchParams.get('key') ?? '';
         const lang = activeLang;
         const version = lang ? versions[lang] : undefined;
         if (!lang || !version || !bodyEditor) return;
+        const slugInput = document.querySelector<HTMLInputElement>('#f-slug');
+        const newSlug = slugInput ? slugInput.value.trim().replace(/\.(md|mdx)$/i, '') : version.slug;
+        if (!newSlug) {
+          alert('文件名不能为空');
+          saveStatusEl.textContent = '保存失败';
+          return;
+        }
+        if (!/^[\p{L}\p{N}._-]+$/u.test(newSlug)) {
+          alert('文件名不合法（仅允许文字、数字、. _ -）');
+          saveStatusEl.textContent = '保存失败';
+          return;
+        }
         setSaveDisabled(true);
         saveStatusEl.textContent = '保存中…';
         try {
-          const res = await api<{ sha: string }>(
+          const res = await api<{ sha: string; slug?: string }>(
             '/api/posts/' + encodeURIComponent(lang) + '/' + encodeURIComponent(version.slug),
             {
               method: 'PUT',
@@ -533,6 +545,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
                 frontmatter: collectFrontmatter(),
                 body: bodyEditor.state.doc.toString(),
                 sha: version.sha,
+                newSlug,
               }),
             },
           );
@@ -545,6 +558,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
             saveStatusEl.textContent = '保存失败';
             return;
           }
+          if (res.data.slug && res.data.slug !== version.slug) version.slug = res.data.slug;
           version.sha = res.data.sha;
           version.frontmatter = collectFrontmatter();
           version.body = bodyEditor.state.doc.toString();
@@ -923,6 +937,11 @@ const key = Astro.url.searchParams.get('key') ?? '';
       font-size: 12px;
     }
     .editor-file-path code { overflow-wrap: anywhere; color: var(--text); }
+    .editor-file-path .editor-slug-input {
+      flex: 0 1 320px;
+      min-width: 140px;
+      align-self: center;
+    }
     .editor-markdown-badge {
       padding: 4px 8px;
       color: var(--muted);
