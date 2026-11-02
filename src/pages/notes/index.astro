@@ -10,10 +10,14 @@ export const prerender = false;
     <div id="list"></div>
   </div>
 
-  <script data-astro-rerun>
-    (() => {
+  <script>
+    // 普通脚本 + astro:page-load 时按当前页面重新初始化（data-astro-rerun 在现行构建下不再执行，导致列表卡在「加载中…」，故弃用）
+    const bootNotesList = () => {
+    if (window.location.pathname !== '/notes') return;
     const listEl = document.getElementById('list');
     const statusEl = document.getElementById('list-status');
+    if (!listEl || !statusEl || listEl.dataset.booted === 'true') return;
+    listEl.dataset.booted = 'true';
 
     function esc(s) {
       return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -79,7 +83,9 @@ export const prerender = false;
     }
 
     load();
-    })();
+    };
+    bootNotesList();
+    document.addEventListener('astro:page-load', bootNotesList);
   </script>
 
   <style is:global>
