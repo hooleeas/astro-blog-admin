@@ -268,8 +268,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
           });
           const result = await response.json();
           if (result.ok) {
-            setSettingsMsg('', true);
-            showToast('已保存');
+            setSettingsMsg('已保存', true);
             passwordInput.value = '';
             passwordInput.placeholder = '已设置（留空保留原密码）';
             r2SecretInput.value = '';
@@ -554,7 +553,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       btns.className = 'btns';
       const b1 = document.createElement('button');
       b1.className = 'btn btn-sm'; b1.textContent = 'URL';
-      b1.addEventListener('click', () => copyText(url, '链接'));
+      b1.addEventListener('click', () => copyText(abs, '链接'));
       const b2 = document.createElement('button');
       b2.className = 'btn btn-ghost btn-sm'; b2.textContent = 'Markdown';
       b2.addEventListener('click', () => copyText(md, 'Markdown 片段'));

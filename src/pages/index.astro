@@ -325,7 +325,7 @@ try {
         btns.className = 'btns';
         const b1 = document.createElement('button');
         b1.className = 'btn'; b1.type = 'button'; b1.textContent = 'URL';
-        b1.addEventListener('click', () => copyText(url, '链接'));
+        b1.addEventListener('click', () => copyText(abs, '链接'));
         const b2 = document.createElement('button');
         b2.className = 'btn'; b2.type = 'button'; b2.textContent = 'Markdown';
         b2.addEventListener('click', () => copyText(md, 'Markdown 片段'));
