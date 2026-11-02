@@ -190,9 +190,20 @@ export async function debugBlobPlatform(): Promise<Record<string, unknown>> {
     if (out.resolved) {
       try {
         const fs: any = await import('node:fs');
+        const crypto: any = await import('node:crypto');
         const text = fs.readFileSync(out.resolved as string, 'utf8');
         out.resolvedPlaceholderIntact = text.includes('{{PAGES_BLOB_DEPLOY_CREDENTIAL}}');
         out.resolvedSize = text.length;
+        out.resolvedSha256 = crypto.createHash('sha256').update(text).digest('hex');
+        out.pagesBlobOccurrences = (text.match(/PAGES_BLOB/g) || []).length;
+        out.braceOpenCount = (text.match(/\{\{/g) || []).length;
+        const veMatch = text.match(/="(\{\{[^"]*\}\})"/);
+        out.veLiteralLength = veMatch ? veMatch[1].length : null;
+        const idx = text.indexOf('PAGES_BLOB');
+        out.maskedContext =
+          idx >= 0
+            ? text.slice(Math.max(0, idx - 30), idx + 50).replace(/[A-Za-z0-9]/g, '•')
+            : null;
         const mod2 = req('@edgeone/pages-blob');
         const gs = mod2?.getStore ?? mod2?.default?.getStore;
         out.requireGetStoreType = typeof gs;
