@@ -19,7 +19,8 @@ export function getImageUrl(locals: unknown, filename: string, localPreview: boo
   void locals; void localPreview;
   const path = `images/${encodeURIComponent(filename)}`;
   if (requestUrl) {
-    return new URL(path, new URL(requestUrl)).toString();
+    // 只取 Origin 拼链接：请求本身在 /api/* 下，用整条 URL 做相对解析会多出一截 /api
+    return `${new URL(requestUrl).origin}/${path}`;
   }
   return `/${path}`;
 }
