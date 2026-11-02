@@ -774,7 +774,10 @@ const key = Astro.url.searchParams.get('key') ?? '';
       cursor: pointer;
       transition: color 180ms ease;
     }
-    .editor-language-tab:hover:not(:disabled) { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
+    /* 悬停变淡只对有真鼠标的设备生效；触屏点按后 :hover 会粘住让文字一直淡着（用户报） */
+    @media (hover: hover) and (pointer: fine) {
+      .editor-language-tab:hover:not(:disabled) { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
+    }
     .editor-language-tab:active { color: var(--header-text); }
     .editor-language-tab:focus-visible { outline: 2px solid color-mix(in srgb, var(--header-text) 72%, transparent); outline-offset: -3px; }
     .editor-language-tab.missing { opacity: 0.48; }

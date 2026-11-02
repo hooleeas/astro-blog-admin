@@ -276,7 +276,9 @@ const nav = [
         box-shadow: inset 0 1px 0 color-mix(in srgb, var(--header-text) 9%, transparent), 0 10px 32px rgba(0, 0, 0, 0.16);
         transition: color 180ms ease;
       }
-      .theme-toggle:hover { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
+      @media (hover: hover) and (pointer: fine) {
+        .theme-toggle:hover { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
+      }
       .theme-toggle:focus-visible { outline: 2px solid color-mix(in srgb, var(--header-text) 72%, transparent); outline-offset: 3px; }
       .glass-button {
         border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
@@ -644,7 +646,7 @@ const nav = [
       .vv-field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
       .vv-field .input { width: 100%; }
       .vv-img-preview { display: block; margin: 0 0 10px; width: 100%; max-width: 320px; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-      .vv-img-preview.square { width: 96px; height: 96px; aspect-ratio: 1 / 1; }
+      .vv-img-preview.square { width: 96px; height: 96px; aspect-ratio: 1 / 1; object-fit: contain; }
       .vv-lang-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
       .vv-lang-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
       .vv-lang-bar-label { font-size: 13px; font-weight: 600; }
@@ -732,7 +734,10 @@ const nav = [
         cursor: pointer;
         transition: color 180ms ease;
       }
-      .editor-language-tab:hover:not(:disabled) { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
+      /* 悬停变淡只对有真鼠标的设备生效；触屏点按后 :hover 会粘住让文字一直淡着（用户报） */
+      @media (hover: hover) and (pointer: fine) {
+        .editor-language-tab:hover:not(:disabled) { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
+      }
       .editor-language-tab:active { color: var(--header-text); }
       .editor-language-tab:focus-visible { outline: 2px solid color-mix(in srgb, var(--header-text) 72%, transparent); outline-offset: -3px; }
       .editor-language-tab.missing { opacity: 0.48; }
