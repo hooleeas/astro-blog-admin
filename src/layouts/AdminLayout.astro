@@ -119,6 +119,8 @@ const nav = [
       @keyframes panelIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
       #panel > *, #visual > *, #list > *, #results > * { animation: panelIn 0.28s ease; }
 
+      button, a, input, select, textarea, label, [role="button"] { touch-action: manipulation; }
+
       /* ============ 顶栏 ============ */
       .topbar {
         position: sticky; top: 16px; z-index: 100;
