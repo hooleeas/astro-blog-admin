@@ -57,19 +57,27 @@ body {
   border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px;
   transition: border-color 0.2s ease, background-color 0.3s ease;
 }
-.result-card img { width: 112px; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex-shrink: 0; }
+.result-card img { width: 144px; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex-shrink: 0; }
 .result-card .info { display: flex; flex-direction: column; justify-content: center; gap: 8px; flex: 1; min-width: 0; }
 .result-card .name { font-size: 13px; color: var(--muted); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.result-card .name a { color: inherit; text-decoration: none; }
+.result-card .name a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; text-decoration: none; }
 .result-card .name a:hover { text-decoration: underline; }
 .result-card .btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
   min-height: 32px; padding: 6px 14px; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent), 0 4px 14px rgba(0, 0, 0, 0.10);
+  color: var(--text);
   font-size: 12px; cursor: pointer;
 }
-.btn:hover { border-color: var(--accent); }
+.btn:hover {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  border-color: color-mix(in srgb, var(--text) 26%, transparent);
+}
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(8px);
   background: var(--text); color: var(--bg); font-size: 13px;
@@ -80,6 +88,6 @@ body {
 @media (max-width: 640px) {
   .dropzone { padding: 48px 16px; }
   .result-card { gap: 8px; padding: 8px; }
-  .result-card img { width: 92px; height: auto; }
+  .result-card img { width: 112px; height: auto; }
   .result-card .btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
 }
