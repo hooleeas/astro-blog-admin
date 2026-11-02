@@ -69,12 +69,8 @@ const dataFiles = [
             );
             const inlineScripts = Array.from(parsed.querySelectorAll<HTMLScriptElement>('script:not([src])'))
               .filter((script) => (script.textContent || '').trim().length > 0 && !hostCodes.has(script.textContent || ''));
-            if (!inlineScripts.length) {
-              const found = Array.from(parsed.querySelectorAll('script'))
-                .map((script) => script.getAttribute('src') || '(内联脚本)')
-                .join(', ');
-              throw new Error('编辑页面脚本未找到（抓到的脚本：' + found + '）');
-            }
+            // 没有新内联脚本也不报错：无 import 的页面脚本会被 Astro 合并进布局的公共打包文件，
+            // 代码已随当前页加载，下面的 admin:content-loaded 通知会让目标页的初始化接管（页面设置就是这种情况）
             for (const inlineScript of inlineScripts) {
               const blobUrl = URL.createObjectURL(new Blob([inlineScript.textContent || ''], { type: 'text/javascript' }));
               try {
