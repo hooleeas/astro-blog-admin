@@ -117,7 +117,23 @@ function loadBlobModule(): Promise<any | null> {
   if (!blobModulePromise) {
     blobModulePromise = (async () => {
       try {
-        return await import('@edgeone/pages-blob');
+        // EdgeOne 必须绕开打包器，从 node_modules 在运行时加载：
+        // 部署流水线只把 node_modules 里 SDK 的凭证占位符替换为真实凭证，
+        // 打包内联进代码包的副本是占位符原文，运行时会报缺 deployCredential
+        // （实测：页面级打包不认 vite 的 external 配置，内联无可避免）。
+        if (isEdgeOne(null)) {
+          try {
+            const nodeModule: any = await import('node:module');
+            const req = nodeModule.createRequire(import.meta.url);
+            const mod = req('@edgeone/pages-blob');
+            if (mod?.getStore) return mod;
+            if (mod?.default?.getStore) return mod.default;
+          } catch {
+            /* 落回普通 import */
+          }
+        }
+        const mod: any = await import('@edgeone/pages-blob');
+        return mod?.getStore ? mod : (mod?.default ?? mod);
       } catch {
         return null;
       }
@@ -139,20 +155,19 @@ async function blobStore(name: string): Promise<any | null> {
 
 /* ---------------- 临时诊断（Blob 问题定位后删除） ---------------- */
 
-/** 不吞错地复现 Blob 加载链：模块形状、getStore 位置、建 store 与读写往返的原始报错 */
+/** 经真实加载器（loadBlobModule）复现 Blob 链：模块形状、建 store 与读写往返的原始报错 */
 export async function debugBlobPlatform(): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
-  const mod: any = await import('@edgeone/pages-blob');
+  const mod: any = await loadBlobModule();
+  out.moduleLoaded = !!mod;
   out.moduleKeys = mod ? Object.keys(mod) : null;
-  out.getStoreOnModule = typeof mod?.getStore;
-  out.getStoreOnDefault = typeof mod?.default?.getStore;
-  const getStore = mod?.getStore ?? mod?.default?.getStore;
-  if (typeof getStore !== 'function') {
+  out.getStoreType = typeof mod?.getStore;
+  if (typeof mod?.getStore !== 'function') {
     out.stage = 'no-getStore';
     return out;
   }
   try {
-    const store = getStore({ name: 'admin-config', consistency: 'strong' });
+    const store = mod.getStore({ name: 'admin-config', consistency: 'strong' });
     out.storeCreated = !!store;
     await store.set('__debug__', 'ok');
     out.set = 'ok';
