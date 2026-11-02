@@ -176,6 +176,43 @@ export async function debugBlobPlatform(): Promise<Record<string, unknown>> {
   } catch (e) {
     out.storeError = (e as Error)?.message ?? String(e);
   }
+  // require 路径逐步取证：解析到哪个文件、那份文件占位符是否还在、直连读写结果
+  try {
+    out.metaUrl = import.meta.url;
+    const nodeModule: any = await import('node:module');
+    const req = nodeModule.createRequire(import.meta.url);
+    out.requireCreated = true;
+    try {
+      out.resolved = req.resolve('@edgeone/pages-blob');
+    } catch (e) {
+      out.resolveError = (e as Error)?.message ?? String(e);
+    }
+    if (out.resolved) {
+      try {
+        const fs: any = await import('node:fs');
+        const text = fs.readFileSync(out.resolved as string, 'utf8');
+        out.resolvedPlaceholderIntact = text.includes('{{PAGES_BLOB_DEPLOY_CREDENTIAL}}');
+        out.resolvedSize = text.length;
+        const mod2 = req('@edgeone/pages-blob');
+        const gs = mod2?.getStore ?? mod2?.default?.getStore;
+        out.requireGetStoreType = typeof gs;
+        if (typeof gs === 'function') {
+          try {
+            const s = gs({ name: 'admin-config', consistency: 'strong' });
+            await s.set('__debug__', 'ok');
+            out.requirePathGet = await s.get('__debug__', { type: 'text', consistency: 'strong' });
+            await s.delete('__debug__');
+          } catch (e) {
+            out.requirePathError = (e as Error)?.message ?? String(e);
+          }
+        }
+      } catch (e) {
+        out.resolvedReadError = (e as Error)?.message ?? String(e);
+      }
+    }
+  } catch (e) {
+    out.requireError = (e as Error)?.message ?? String(e);
+  }
   return out;
 }
 

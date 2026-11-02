@@ -76,8 +76,9 @@ export async function GET({ locals }: { locals: unknown }) {
             try {
               const text = fs.readFileSync(sdk, 'utf8');
               hits.push({
-                file: 'node_modules/@edgeone/pages-blob/dist/index.js',
+                file: sdk,
                 placeholderIntact: text.includes('{{PAGES_BLOB_DEPLOY_CREDENTIAL}}'),
+                size: text.length,
                 hasSts: text.includes('blob-sts'),
               });
             } catch {}
