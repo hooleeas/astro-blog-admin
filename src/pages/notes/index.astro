@@ -81,4 +81,33 @@ export const prerender = false;
     load();
     })();
   </script>
+
+  <style is:global>
+    @media (max-width: 640px) {
+      /* 卡片布局：左文件名/日期/状态 / 右编辑、删除上下排列（随记无封面） */
+      .tbl tbody tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          "file actions"
+          "date actions"
+          "status actions";
+        align-items: center;
+        column-gap: 12px;
+        row-gap: 3px;
+        padding: 12px 14px;
+      }
+      .tbl td { display: block; width: auto; border-bottom: none; padding: 0; }
+      .tbl td::before { display: none; }
+      .tbl td:nth-child(1) { grid-area: date; color: var(--muted); font-size: 13px; }
+      .tbl td:nth-child(2) { grid-area: file; font-weight: 600; overflow-wrap: anywhere; }
+      .tbl td:nth-child(3) { grid-area: status; }
+      .tbl td.cell-actions {
+        grid-area: actions;
+        display: flex; flex-direction: column; justify-content: center; align-items: stretch;
+        gap: 8px; padding: 0;
+      }
+      .tbl td.cell-actions .link { justify-content: center; min-width: 62px; }
+    }
+  </style>
 </AdminLayout>

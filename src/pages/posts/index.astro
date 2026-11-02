@@ -127,6 +127,32 @@ export const prerender = false;
     @media (max-width: 640px) {
       .post-list-cover { width: 80px; }
       .post-list-title-copy { padding-right: 10px; padding-left: 92px; }
+      /* 卡片布局：左封面（整高）/ 中标题+日期 / 右编辑、删除上下排列 */
+      .tbl tbody tr {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          "title actions"
+          "date actions";
+        align-items: center;
+        column-gap: 12px;
+        row-gap: 2px;
+        padding: 12px;
+      }
+      .tbl td { display: block; width: auto; border-bottom: none; padding: 0; }
+      .tbl td::before { display: none; }
+      .tbl td:nth-child(1) { grid-area: title; }
+      .tbl td:nth-child(2) { grid-area: date; padding-left: 92px; color: var(--muted); font-size: 13px; }
+      .post-list-cell { position: static; max-width: none !important; }
+      .post-list-cover { inset: 0 auto 0 0; border-radius: var(--radius) 0 0 var(--radius); }
+      .post-list-title-copy { padding-top: 0; padding-bottom: 0; }
+      .tbl td.cell-actions {
+        grid-area: actions;
+        display: flex; flex-direction: column; justify-content: center; align-items: stretch;
+        gap: 8px; padding: 0;
+      }
+      .tbl td.cell-actions .link { justify-content: center; min-width: 62px; }
     }
     .post-list-key {
       display: block;
