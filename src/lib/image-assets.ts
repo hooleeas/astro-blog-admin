@@ -27,10 +27,11 @@ export function getImageUrl(locals: unknown, filename: string, localPreview: boo
     return new URL(imagePath, siteUrl).toString();
   }
 
-  const repo = (env.GITHUB_PAGES_REPO || 'hooleeas/hooleeas.github.io')
-    .split('/')
-    .map(encodeURIComponent)
-    .join('/');
-  const branch = encodeURIComponent(env.GITHUB_PAGES_BRANCH || 'main');
-  return `https://cdn.jsdelivr.net/gh/${repo}@${branch}/${imagePath}`;
+  // 正式链接用博客自己的 GitHub Pages 域名，不走第三方 CDN
+  const repoFull = env.GITHUB_PAGES_REPO || 'hooleeas/hooleeas.github.io';
+  const [owner = 'hooleeas', repoName = 'hooleeas.github.io'] = repoFull.split('/');
+  const base = repoName.toLowerCase() === `${owner.toLowerCase()}.github.io`
+    ? `https://${owner}.github.io`
+    : `https://${owner}.github.io/${encodeURIComponent(repoName)}`;
+  return `${base}/${imagePath}`;
 }
