@@ -125,9 +125,9 @@ export const prerender = false;
     }
     .post-list-cell { position: relative; padding: 0 !important; }
     @media (max-width: 640px) {
-      .post-list-cover { width: 80px; }
-      .post-list-title-copy { padding-right: 10px; padding-left: 92px; }
-      /* 列表布局：左封面（16:9）/ 中标题+日期 / 右编辑、删除上下排列；条目无圆角、用上下分割线（同桌面端） */
+      .post-list-cover { display: none; }
+      .post-list-title-copy { padding-right: 10px; padding-left: 0; }
+      /* 列表布局（移动端不显示封面）：标题+日期 / 右编辑、删除上下排列；条目无圆角、用上下分割线（同桌面端） */
       .tbl tbody tr {
         background: transparent;
         border: none;
@@ -146,16 +146,12 @@ export const prerender = false;
         padding: 12px;
       }
       .tbl tbody tr:first-child { border-top: 1px solid var(--line); }
+      .tbl tbody td { border-bottom: none; }
       .tbl td { display: block; width: auto; border-bottom: none; padding: 0; }
       .tbl td::before { display: none; }
       .tbl td:nth-child(1) { grid-area: title; }
-      .tbl td:nth-child(2) { grid-area: date; padding-left: 92px; color: var(--muted); font-size: 13px; }
+      .tbl td:nth-child(2) { grid-area: date; padding-left: 0; color: var(--muted); font-size: 13px; }
       .post-list-cell { position: static; max-width: none !important; }
-      .post-list-cover {
-        inset: auto; left: 0; top: 50%; transform: translateY(-50%);
-        aspect-ratio: 16 / 9; height: auto;
-        border: 1px solid var(--line); border-radius: 0;
-      }
       .post-list-title-copy { padding-top: 0; padding-bottom: 0; }
       .tbl td.cell-actions {
         grid-area: actions;
