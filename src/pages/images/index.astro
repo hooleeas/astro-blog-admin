@@ -5,6 +5,8 @@ import { isEdgeOne } from '../../lib/platform';
 
 // 存储方式第二档的显示名按平台走：CF 上是 Cloudflare R2，EO 上实际由 EdgeOne Blob 承载
 const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflare R2';
+// 配置的实际存放处：CF 是 KV，EO 是 Blob
+const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 KV';
 ---
 
 <AdminLayout title="图床" active="images">
@@ -28,7 +30,7 @@ const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflar
     <header class="settings-dialog-head">
       <div>
         <h2 id="settings-title">图床设置</h2>
-        <p>图床配置保存在服务器 KV 中，不会进入代码仓库。</p>
+        <p>图床配置保存在{configStoreLabel}中，不会进入代码仓库。</p>
       </div>
       <button class="settings-close" type="button" aria-label="关闭设置" data-close-settings>&times;</button>
     </header>
@@ -84,7 +86,7 @@ const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflar
         <label class="field">
           <span class="flabel">上传目录</span>
           <input class="input" name="dir" type="text" placeholder="img" />
-          <span class="hint">图片存放于该目录下（WebDAV 的目录 / R2 内的同名路径），可填多级路径（如 photos/blog）；留空使用默认 img</span>
+          <span class="hint">图片存放于该目录下（所选存储内的同名路径），可填多级路径（如 photos/blog）；留空使用默认 img</span>
         </label>
         <label class="field">
           <span class="flabel">对外链接前缀</span>
