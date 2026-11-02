@@ -642,6 +642,15 @@ const nav = [
       .vv-field .input { width: 100%; }
       .vv-array-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; }
       .vv-array-head > span { font-size: 13px; font-weight: 600; }
+      .vv-icon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+      .vv-icon-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); cursor: pointer; text-align: left; }
+      .vv-icon-card:hover { border-color: color-mix(in srgb, var(--text) 35%, var(--line)); }
+      .vv-icon-tile { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 12px; overflow: hidden; }
+      .vv-icon-tile img { width: 24px; height: 24px; object-fit: contain; }
+      .vv-icon-tile-lg { width: 56px; height: 56px; border-radius: 14px; }
+      .vv-icon-tile-lg img { width: 30px; height: 30px; }
+      .vv-icon-card-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; color: var(--text); }
+      .vv-icon-preview { display: flex; justify-content: center; padding: 2px 0 8px; }
       .vv-color { display: flex; gap: 10px; align-items: stretch; }
       .vv-color .input { flex: 1; min-width: 0; }
       .vv-color-picker { -webkit-appearance: none; appearance: none; flex: 0 0 52px; width: 52px; height: auto; align-self: stretch; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: none; cursor: pointer; overflow: hidden; }

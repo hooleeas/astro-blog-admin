@@ -486,10 +486,124 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           }
         }
         wrap.appendChild(head);
-        const list = el('div');
-        arr.forEach((item, i) => list.appendChild(renderArrayItem(item, pathArr, i)));
-        wrap.appendChild(list);
+        if (ICON_GRID_PATHS.includes([name, ...pathArr].join('.'))) {
+          const grid = el('div', 'vv-icon-grid');
+          arr.forEach((item, i) => { if (isObj(item)) grid.appendChild(renderIconCard(item, pathArr, i)); });
+          wrap.appendChild(grid);
+        } else {
+          const list = el('div');
+          arr.forEach((item, i) => list.appendChild(renderArrayItem(item, pathArr, i)));
+          wrap.appendChild(list);
+        }
         return wrap;
+      }
+
+      // 轮播图标列表用双列网格 + 预览卡呈现，点击卡片弹窗编辑（用户定）
+      const ICON_GRID_PATHS = ['config.home.creativity.items', 'apple.carouselLogos'];
+      function iconTile(item, large = false) {
+        const tile = el('span', 'vv-icon-tile' + (large ? ' vv-icon-tile-lg' : ''));
+        tile.style.background = typeof item.color === 'string' && item.color ? item.color : 'var(--surface)';
+        if (typeof item.icon === 'string' && item.icon) {
+          const img = document.createElement('img');
+          img.src = item.icon;
+          img.alt = '';
+          img.loading = 'lazy';
+          img.addEventListener('error', () => img.remove());
+          tile.appendChild(img);
+        }
+        return tile;
+      }
+      function renderIconCard(item, pathArr, i) {
+        const card = el('button', 'vv-icon-card');
+        card.type = 'button';
+        card.appendChild(iconTile(item));
+        card.appendChild(el('span', 'vv-icon-card-name', esc(String(item.name ?? item.title ?? ''))));
+        card.addEventListener('click', () => openIconEditDialog(pathArr, i));
+        return card;
+      }
+      function openIconEditDialog(pathArr, index) {
+        const items = getAt(pathArr);
+        const item = items[index];
+        if (!isObj(item)) return;
+        addOptions.replaceChildren();
+        addDialogTitle.textContent = '编辑' + String(item.name ?? '轮播图标');
+        addDialogDescription.textContent = '修改后点「保存修改」，最后记得点页面顶部的保存。';
+        const form = el('form', 'new-page-fields');
+        const fields = [];
+        const previewWrap = el('div', 'vv-icon-preview');
+        form.appendChild(previewWrap);
+        const refreshPreview = () => {
+          const merged = { ...item };
+          for (const f of fields) {
+            if (f.bool) continue;
+            const raw = f.getValue().trim();
+            if (raw !== '') merged[f.key] = raw;
+          }
+          previewWrap.replaceChildren(iconTile(merged, true));
+        };
+        let nameInput = null;
+        for (const [k, v] of Object.entries(item)) {
+          if (typeof v === 'boolean') {
+            const fieldLabel = el('label');
+            fieldLabel.appendChild(document.createTextNode(labelFor([...pathArr, k])));
+            const sw = makeSwitch(v, labelFor([...pathArr, k]), () => {});
+            fieldLabel.appendChild(sw);
+            form.appendChild(fieldLabel);
+            fields.push({ key: k, numeric: false, bool: true, getValue: () => String(sw.querySelector('input')?.checked ?? false) });
+            continue;
+          }
+          if (typeof v !== 'string' && typeof v !== 'number') continue;
+          const fieldLabel = el('label');
+          fieldLabel.appendChild(document.createTextNode(labelFor([...pathArr, k])));
+          if (typeof v === 'string' && isColorValue(k, v)) {
+            const control = makeColorControl(v, refreshPreview);
+            fieldLabel.appendChild(control.wrap);
+            form.appendChild(fieldLabel);
+            fields.push({ key: k, numeric: false, getValue: () => control.text.value });
+            continue;
+          }
+          const input = el('input', 'input');
+          input.type = typeof v === 'number' ? 'number' : 'text';
+          input.value = String(v);
+          if (k === 'name') { input.required = true; nameInput = input; }
+          input.addEventListener('input', refreshPreview);
+          fieldLabel.appendChild(input);
+          form.appendChild(fieldLabel);
+          fields.push({ key: k, numeric: typeof v === 'number', getValue: () => input.value });
+        }
+        refreshPreview();
+        const actions = el('div', 'new-page-actions');
+        const del = el('button', 'btn glass-button danger');
+        del.type = 'button';
+        del.textContent = '删除这一项';
+        del.addEventListener('click', () => {
+          if (!confirm('确定删除这一项吗？')) return;
+          items.splice(index, 1);
+          addDialog.close();
+          saveButton.disabled = !renderVisual();
+        });
+        const submit = el('button', 'btn');
+        submit.type = 'submit';
+        submit.textContent = '保存修改';
+        actions.append(del, submit);
+        form.appendChild(actions);
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          for (const f of fields) {
+            if (f.bool) { item[f.key] = f.getValue() === 'true'; continue; }
+            const raw = f.getValue().trim();
+            item[f.key] = f.numeric ? (raw === '' ? 0 : Number(raw)) : raw;
+          }
+          addDialog.close();
+          saveButton.disabled = !renderVisual();
+        });
+        addOptions.appendChild(form);
+        addDialog.showModal();
+        (nameInput ?? form.querySelector('input'))?.focus();
+        addDialog.addEventListener('close', () => {
+          addDialogTitle.textContent = '选择新增列表';
+          addDialogDescription.textContent = '选择要添加项目的列表。';
+        }, { once: true });
       }
 
       function renderArrayItem(item, pathArr, i) {
