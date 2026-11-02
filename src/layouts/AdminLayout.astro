@@ -154,6 +154,16 @@ const nav = [
         gap: 8px;
       }
       .topbar-actions .btn { flex: 0 0 auto; white-space: nowrap; }
+      .topbar-home {
+        position: absolute;
+        top: 0;
+        right: calc(100% + 8px);
+        display: flex;
+        width: max-content;
+        align-items: center;
+        gap: 8px;
+      }
+      .topbar-home .btn { flex: 0 0 auto; white-space: nowrap; }
       .topbar-actions .note-delete-button {
         min-height: 38px; padding: 8px 16px; border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
         border-radius: 999px; background: color-mix(in srgb, var(--surface) 72%, transparent);
@@ -308,6 +318,7 @@ const nav = [
           display: flex; align-items: center; justify-content: flex-end; gap: 8px;
         }
         .topbar-actions .btn { flex: 0 0 auto; }
+        .topbar-home { position: relative; top: auto; right: auto; flex: 0 0 auto; }
         .topbar-actions .note-delete-button { flex: 0 0 auto; }
         .nav-capsule {
           flex: 0 1 auto; min-width: 0; width: fit-content; max-width: calc(100% - 48px);
@@ -867,6 +878,9 @@ const nav = [
       <header class="topbar" transition:persist="admin-topbar">
         <div class="topbar-inner">
           <div class="topbar-controls">
+            <div class="topbar-home">
+              <a class="btn" href="/">主页</a>
+            </div>
             <div class="topbar-navigation">
               <div class="nav-capsule">
                 <span class="navigation-indicator" aria-hidden="true"></span>
