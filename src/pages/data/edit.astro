@@ -484,9 +484,12 @@ const settingTitle = settingTitles[name] ?? '页面设置';
             anyField = true;
           }
           if (!anyField) body.appendChild(el('p', 'hint', '该项无可编辑字段。'));
-          const del = delBtn('删除这一项');
-          del.classList.add('vv-item-del');
-          body.appendChild(del);
+          // 语言列表不提供删除：语言是站点预设，删掉会连带文章语言出问题（用户定）
+          if (!(name === 'config' && pathArr.join('.') === 'languages')) {
+            const del = delBtn('删除这一项');
+            del.classList.add('vv-item-del');
+            body.appendChild(del);
+          }
           headBtn.addEventListener('click', () => {
             const hidden = body.classList.toggle('hidden');
             tg.textContent = hidden ? '展开' : '收起';
