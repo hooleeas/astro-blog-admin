@@ -105,6 +105,53 @@ export async function GET({ locals }: { locals: unknown }) {
   } catch (e) {
     out.fsProbe = 'ERR ' + (e as Error)?.message;
   }
+
+  // v7 未污染指纹：占位符字符串用字符码拼，源码里不出现连续原文，流水线改写不到它
+  try {
+    const fs2: any = await import('node:fs');
+    const path2: any = await import('node:path');
+    const crypto2: any = await import('node:crypto');
+    const PH = String.fromCharCode(
+      123, 123, 80, 65, 71, 69, 83, 95, 66, 76, 79, 66, 95, 68, 69, 80, 76, 79, 89, 95, 67, 82,
+      69, 68, 69, 78, 84, 73, 65, 76, 125, 125,
+    );
+    const fingerprint = (file: string) => {
+      try {
+        const text = fs2.readFileSync(file, 'utf8');
+        return {
+          sha256: crypto2.createHash('sha256').update(text).digest('hex'),
+          size: text.length,
+          hasPlaceholder: text.includes(PH),
+          hasPlaceholderCI: text.toLowerCase().includes(PH.toLowerCase()),
+          hasSts: text.includes('blob-sts'),
+        };
+      } catch (e) {
+        return { error: (e as Error)?.message };
+      }
+    };
+    const files: Record<string, unknown> = {};
+    files['self'] = { path: import.meta.url, ...fingerprint(new URL(import.meta.url).pathname) };
+    try {
+      const chunksDir = '/var/user/chunks';
+      for (const name of fs2.readdirSync(chunksDir)) {
+        if (!name.endsWith('.mjs')) continue;
+        const full = path2.join(chunksDir, name);
+        const text = fs2.readFileSync(full, 'utf8');
+        if (text.includes('edgeoneBlobKv') || text.includes('getKVStore')) {
+          files['platformChunk'] = { path: full, ...fingerprint(full) };
+        }
+      }
+    } catch (e) {
+      files['platformChunk'] = { error: (e as Error)?.message };
+    }
+    files['sdkNodeModules'] = {
+      path: '/var/user/node_modules/@edgeone/pages-blob/dist/index.js',
+      ...fingerprint('/var/user/node_modules/@edgeone/pages-blob/dist/index.js'),
+    };
+    out.fingerprints = files;
+  } catch (e) {
+    out.fingerprints = 'ERR ' + (e as Error)?.message;
+  }
   return new Response(JSON.stringify(out, null, 2), {
     headers: { 'content-type': 'application/json; charset=utf-8' },
   });
