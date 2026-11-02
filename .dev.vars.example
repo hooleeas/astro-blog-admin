@@ -9,7 +9,7 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 
 # 允许登录的 GitHub 用户名（必填，填你自己的）
-GITHUB_OWNER=
+GITHUB_NAME=
 
 # 目标博客仓库，格式 owner/repo（必填，填你自己的）
 GITHUB_REPO=

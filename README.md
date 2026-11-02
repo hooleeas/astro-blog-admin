@@ -4,7 +4,7 @@ Astro 博客内容仓库的管理后台，用于管理文章、随记、页面�
 
 - 框架：Astro 5，SSR
 - 云端部署：Cloudflare Pages（`@astrojs/cloudflare` adapter）
-- 云端鉴权：GitHub OAuth，仅 `GITHUB_OWNER` 指定的账号可登录
+- 云端鉴权：GitHub OAuth，仅 `GITHUB_NAME` 指定的账号可登录
 - 本地预览：显式开启后，限本机回环地址免登录，内容 API 使用本地文件
 - 仓库公开，**不要把密钥写入代码或提交历史**；本地密钥放在已忽略的 `.dev.vars`，云端密钥放 Cloudflare 环境变量
 
@@ -54,7 +54,7 @@ npm run dev -- --host 127.0.0.1 --port 4323
 |---|---|
 | `GITHUB_CLIENT_ID` | GitHub OAuth App 的 Client ID。获取方式：GitHub → Settings → Developer settings → OAuth Apps → New OAuth App，其中 Authorization callback URL 填 `https://你的后台域名/api/auth/callback`；创建后在应用页面复制 Client ID |
 | `GITHUB_CLIENT_SECRET` | 同一个 OAuth App 的 Client Secret（在应用页面点 Generate a new client secret 生成）；它同时用作后台登录会话的签名密钥，不要外泄 |
-| `GITHUB_OWNER` | 唯一允许登录本后台的 GitHub 用户名，填你自己的（即个人主页地址 `github.com/` 后面那串）；未设置时任何人无法登录 |
+| `GITHUB_NAME` | 唯一允许登录本后台的 GitHub 用户名，填你自己的（即个人主页地址 `github.com/` 后面那串）；未设置时任何人无法登录 |
 | `GITHUB_REPO` | 博客内容仓库，格式为「用户名/仓库名」；文章、随记、页面、站点设置都读写这个仓库，登录账号需要对它有写权限 |
 
 ### 云端可选
@@ -90,8 +90,8 @@ npm run dev -- --host 127.0.0.1 --port 4323
 1. 在 Cloudflare Pages 创建项目并连接仓库。若后台位于 `astro-blog-admin` 子目录，设置项目 Root directory 为 `astro-blog-admin`。
 2. Build command 使用 `npm run build`，Build output directory 使用 `dist`。
 3. 确认已绑定 KV 命名空间，绑定名为 `ADMIN_KV`；图床想用 R2 时再把 R2 存储桶以 `IMGS_R2` 绑定（可选，见上文绑定表）。
-4. 在 Pages 的 Production 和 Preview 环境变量中分别填好四个必填变量（`GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`、`GITHUB_OWNER`、`GITHUB_REPO`）。不要设置 `ADMIN_LOCAL_PREVIEW=true`。
-5. 在 GitHub OAuth App 中将授权回调 URL 配置为 `https://你的后台域名/api/auth/callback`。登录账号需与 `GITHUB_OWNER` 一致，并对 `GITHUB_REPO` 有写权限。
+4. 在 Pages 的 Production 和 Preview 环境变量中分别填好四个必填变量（`GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`、`GITHUB_NAME`、`GITHUB_REPO`）。不要设置 `ADMIN_LOCAL_PREVIEW=true`。
+5. 在 GitHub OAuth App 中将授权回调 URL 配置为 `https://你的后台域名/api/auth/callback`。登录账号需与 `GITHUB_NAME` 一致，并对 `GITHUB_REPO` 有写权限。
 6. 部署完成后，登录云端后台，在图床“设置”中选择存储方式并测试连接。云端图床配置保存在云端 KV，不会从本地复制过去。
 
 云端内容编辑通过 GitHub API 修改 `GITHUB_REPO` 指定的仓库；图床图片按设置保存到 WebDAV 或 Cloudflare R2。
