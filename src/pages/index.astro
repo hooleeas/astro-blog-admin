@@ -82,6 +82,12 @@ try {
           originalShowModal.call(this);
           if (!this.hasAttribute('tabindex')) this.setAttribute('tabindex', '-1');
           this.focus({ preventScroll: true });
+          dialogProto.__scrollLocks = (dialogProto.__scrollLocks || 0) + 1;
+          if (dialogProto.__scrollLocks === 1) document.body.style.overflow = 'hidden';
+          this.addEventListener('close', () => {
+            dialogProto.__scrollLocks = Math.max(0, (dialogProto.__scrollLocks || 1) - 1);
+            if (dialogProto.__scrollLocks === 0) document.body.style.overflow = '';
+          }, { once: true });
         };
       }
       document.querySelector('#theme-toggle').addEventListener('click', () => {

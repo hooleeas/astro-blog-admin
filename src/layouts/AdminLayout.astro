@@ -644,7 +644,10 @@ const nav = [
       .vv-array-head > span { font-size: 13px; font-weight: 600; }
       .vv-color { display: flex; gap: 10px; align-items: stretch; }
       .vv-color .input { flex: 1; min-width: 0; }
-      .vv-color-picker { flex: 0 0 52px; width: 52px; padding: 2px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; }
+      .vv-color-picker { -webkit-appearance: none; appearance: none; flex: 0 0 52px; width: 52px; height: auto; align-self: stretch; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: none; cursor: pointer; overflow: hidden; }
+      .vv-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+      .vv-color-picker::-webkit-color-swatch { border: none; border-radius: 11px; }
+      .vv-color-picker::-moz-color-swatch { border: none; border-radius: 11px; }
       .vv-item { border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 8px; overflow: hidden; }
       .vv-item-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; background: none; border: none; color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; min-height: 50px; text-align: left; }
       .vv-item-head:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
@@ -1005,7 +1008,7 @@ const nav = [
       // 主题切换（机制与博客前台一致）
       let adminThemeTimeout: number | undefined;
       // 弹窗打开时浏览器会自动聚焦第一个按钮并带出系统蓝圈：统一把焦点先落在弹窗本身（页面随后自行聚焦输入框的不受影响）
-      const dialogProto = HTMLDialogElement.prototype as HTMLDialogElement & { __focusPatched?: boolean };
+      const dialogProto = HTMLDialogElement.prototype as HTMLDialogElement & { __focusPatched?: boolean; __scrollLocks?: number };
       if (!dialogProto.__focusPatched) {
         dialogProto.__focusPatched = true;
         const originalShowModal = HTMLDialogElement.prototype.showModal;
@@ -1013,6 +1016,13 @@ const nav = [
           originalShowModal.call(this);
           if (!this.hasAttribute('tabindex')) this.setAttribute('tabindex', '-1');
           this.focus({ preventScroll: true });
+          // 弹窗打开时锁住背景滚动，全部关闭后恢复（计数应对叠开的弹窗）
+          dialogProto.__scrollLocks = (dialogProto.__scrollLocks ?? 0) + 1;
+          if (dialogProto.__scrollLocks === 1) document.body.style.overflow = 'hidden';
+          this.addEventListener('close', () => {
+            dialogProto.__scrollLocks = Math.max(0, (dialogProto.__scrollLocks ?? 1) - 1);
+            if (dialogProto.__scrollLocks === 0) document.body.style.overflow = '';
+          }, { once: true });
         };
       }
       const themeBtn = document.getElementById('theme-toggle');
