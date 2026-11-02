@@ -1,11 +1,10 @@
 // Worker 2：GitHub Contents API / Git Data API 封装
 // 首参一律传 Astro locals；GitHub token 由 middleware 在校验会话后写入 locals.githubToken
-// （GITHUB_REPO 默认 hooleeas/astro-blog，GITHUB_BRANCH 默认 main）。
+// （GITHUB_REPO 必填、无默认值：未在 Pages 环境变量中设置时直接报错；GITHUB_BRANCH 默认 main）。
 // 兼容 Cloudflare Workers：base64 用 TextEncoder + btoa 分段实现，不用 Node Buffer。
 import { getEnv } from './env.js';
 
 const API_BASE = 'https://api.github.com';
-const DEFAULT_REPO = 'hooleeas/astro-blog';
 const DEFAULT_BRANCH = 'main';
 
 export class GithubError extends Error {
@@ -28,8 +27,15 @@ function repoConfig(locals: unknown): RepoConfig {
   // token 由 middleware 校验会话后写入 locals（OAuth 登录时签发）
   const token = (locals as any)?.githubToken as string | undefined;
   if (!token) throw new GithubError(401, '未登录或会话已失效');
+  const repo = (env.GITHUB_REPO || '').trim();
+  if (!repo) {
+    throw new GithubError(500, '未配置环境变量 GITHUB_REPO：请到 Cloudflare Pages 项目（astro-blog-admin）的 设置 → 环境变量（生产）中添加 GITHUB_REPO，值填内容仓库的「用户名/仓库名」，保存后重新部署一次');
+  }
+  if (!/^[^/\s]+\/[^/\s]+$/.test(repo)) {
+    throw new GithubError(500, `环境变量 GITHUB_REPO 格式不对：「${repo}」应为「用户名/仓库名」，如 hooleeas/astro-blog`);
+  }
   return {
-    repo: env.GITHUB_REPO || DEFAULT_REPO,
+    repo,
     branch: env.GITHUB_BRANCH || DEFAULT_BRANCH,
     token,
   };
