@@ -358,15 +358,6 @@ const nav = [
         max-width: min(60vw, 520px); overflow: hidden; color: var(--muted);
         font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap;
       }
-      .note-file-field {
-        display: flex; align-items: center; gap: 12px; margin-top: 14px;
-        font-size: 15px; font-weight: 600; color: var(--text);
-      }
-      .note-file-control {
-        display: flex; flex: 1; align-items: center; gap: 2px; min-width: 0;
-        font-size: 14px; font-weight: 400; color: var(--muted);
-      }
-      .note-file-control .note-slug-input { flex: 1; min-width: 120px; margin-top: 0; }
       .new-page-dialog {
         width: min(460px, calc(100% - 32px));
         max-height: min(90dvh, 620px);
@@ -543,7 +534,7 @@ const nav = [
       .form-grid > label .date-input-row .note-date-input {
         min-width: 0; min-height: 40px; margin-top: 0; padding: 8px 10px; font-size: 14px;
       }
-      .date-input-row .note-date-input { flex: 0 1 auto; width: 190px; max-width: 100%; }
+      .date-input-row .note-date-input { flex: 1; }
       .date-input-row .btn { flex: 0 0 auto; min-height: 36px; padding: 6px 12px; font-size: 13px; }
       .form-grid > label.check {
         display: flex; align-items: center; gap: 10px; min-height: 50px;
@@ -652,10 +643,6 @@ const nav = [
       .vv-field:last-child { border-bottom: none; }
       .vv-field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
       .vv-field .input { width: 100%; }
-      .vv-img-preview { display: block; max-width: 100%; max-height: 160px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 10px; object-fit: contain; }
-      .vv-img-preview[hidden] { display: none; }
-      .vv-prim-thumb { width: 40px; height: 40px; flex: none; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; }
-      .vv-prim-thumb[hidden] { display: none; }
       .vv-array-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; }
       .vv-array-head > span { font-size: 13px; font-weight: 600; }
       .vv-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; padding: 12px; }
@@ -867,6 +854,7 @@ const nav = [
       }
       .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
       .toast[popover] { inset: auto; bottom: 28px; left: 50%; margin: 0; border: none; overflow: visible; }
+      .toast.error { background: var(--danger); color: #fff; }
 
       /* ============ 移动端 ============ */
       @media (max-width: 640px) {
@@ -1023,6 +1011,7 @@ const nav = [
     <main class:list={['content', { 'embedded-content': embedded }]}>
       <slot />
     </main>
+    <div id="admin-toast" class="toast" popover="manual" role="status"></div>
     <script>
       type NavigationIndicatorPosition = {
         x: number;
@@ -1033,24 +1022,26 @@ const nav = [
 
       const root = document.documentElement;
 
-      // 全局提示弹窗（与图床「链接已复制」同款 toast）：保存成功等反馈统一走它
-      let adminToastTimer: number | undefined;
-      const adminToastEl = document.getElementById('admin-toast');
-      (window as unknown as { showAdminToast?: (msg: string) => void }).showAdminToast = (msg: string) => {
-        if (!adminToastEl) return;
-        adminToastEl.textContent = msg;
-        if (typeof adminToastEl.showPopover === 'function') {
-          if (adminToastEl.matches(':popover-open')) adminToastEl.hidePopover();
-          adminToastEl.showPopover();
-        }
-        adminToastEl.classList.add('show');
+      // 全站保存反馈：自动消失的提示弹窗（成功/失败），不用需要点确认的原生弹窗（用户定）
+      let adminToastTimer = 0;
+      (window as unknown as { adminToast: (message: string, isError?: boolean) => void }).adminToast = (message: string, isError = false) => {
+        const toast = document.getElementById('admin-toast');
+        if (!toast) return;
+        toast.textContent = message;
+        toast.classList.toggle('error', isError);
+        try {
+          if (toast.isConnected && typeof toast.showPopover === 'function' && !toast.matches(':popover-open')) {
+            toast.showPopover();
+          }
+        } catch { /* 顶层打开失败时退回普通定位显示 */ }
+        toast.classList.add('show');
         window.clearTimeout(adminToastTimer);
         adminToastTimer = window.setTimeout(() => {
-          adminToastEl.classList.remove('show');
-          window.setTimeout(() => {
-            if (!adminToastEl.classList.contains('show') && typeof adminToastEl.hidePopover === 'function' && adminToastEl.matches(':popover-open')) adminToastEl.hidePopover();
-          }, 300);
-        }, 2200);
+          toast.classList.remove('show');
+          try {
+            if (toast.matches(':popover-open')) toast.hidePopover();
+          } catch { /* 已关闭则忽略 */ }
+        }, isError ? 4200 : 2400);
       };
 
       // 主题切换（机制与博客前台一致）
@@ -1574,7 +1565,6 @@ const nav = [
       }
 
     </script>
-    <div id="admin-toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
   </body>
 </html>
 

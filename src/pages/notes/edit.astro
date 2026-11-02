@@ -28,7 +28,7 @@ const valid = NOTE_FILE_RE.test(file);
           <label class="note-date-field">
             <span>日期（date）</span>
             <span class="date-input-row">
-              <input id="f-date" class="input mono note-date-input" type="date" required />
+              <input id="f-date" class="input mono note-date-input" type="text" inputmode="numeric" placeholder="YYYY-MM-DD" maxlength="10" autocomplete="off" required />
               <button id="date-today-btn" class="btn btn-sm btn-ghost" type="button">今天</button>
             </span>
           </label>
@@ -39,14 +39,6 @@ const valid = NOTE_FILE_RE.test(file);
               <span class="toggle-switch-thumb"></span>
             </span>
           </label>
-        </div>
-        <div class="note-file-field">
-          <span class="note-file-label">文件名</span>
-          <span class="note-file-control mono">
-            <span id="slug-date-prefix"></span>
-            <input id="f-slug" class="input mono note-slug-input" type="text" autocomplete="off" aria-label="文件名（日期之后的部分）" />
-            <span>.md</span>
-          </span>
         </div>
       </div>
 
@@ -79,19 +71,12 @@ const valid = NOTE_FILE_RE.test(file);
       }
 
       let sha = '';
-      const slugEl = document.getElementById('f-slug');
-      const slugPrefixEl = document.getElementById('slug-date-prefix');
       const slug = file.replace(/^\d{4}-\d{2}-\d{2}-/u, '').replace(/\.md$/u, '');
-      if (slugEl) slugEl.value = slug;
       const updateFilenamePreview = () => {
         const date = dateEl.value.trim();
-        const name = slugEl ? slugEl.value.trim() : slug;
-        if (slugPrefixEl) slugPrefixEl.textContent = date ? `${date}-` : '';
-        fileNameEl.textContent = date ? `${date}-${name}.md` : file;
+        fileNameEl.textContent = date ? `${date}-${slug}.md` : file;
       };
       dateEl.addEventListener('input', updateFilenamePreview);
-      dateEl.addEventListener('change', updateFilenamePreview);
-      if (slugEl) slugEl.addEventListener('input', updateFilenamePreview);
       todayButton.addEventListener('click', () => {
         const parts = new Intl.DateTimeFormat('en-CA', {
           timeZone: 'Asia/Shanghai',
@@ -141,17 +126,6 @@ const valid = NOTE_FILE_RE.test(file);
           dateEl.focus();
           return;
         }
-        const slugValue = slugEl ? slugEl.value.trim().replace(/\.md$/u, '') : slug;
-        if (!slugValue) {
-          statusEl.textContent = '文件名不能为空';
-          if (slugEl) slugEl.focus();
-          return;
-        }
-        if (/^\d{4}-\d{2}-\d{2}-/u.test(slugValue)) {
-          statusEl.textContent = '文件名不要带日期前缀，日期请用日期框修改';
-          if (slugEl) slugEl.focus();
-          return;
-        }
         statusEl.textContent = '保存中…';
         saveButton.setAttribute('disabled', '');
         try {
@@ -162,12 +136,12 @@ const valid = NOTE_FILE_RE.test(file);
               frontmatter: { date, draft: draftEl.checked },
               body: bodyEl.value,
               sha,
-              slug: slugValue,
             }),
           });
           const result = await response.json();
           if (!response.ok || !result.ok) {
             statusEl.textContent = '保存失败：' + (result.error || response.statusText);
+            (window as any).adminToast?.('保存失败：' + (result.error || response.statusText), true);
             return;
           }
           if (result.data.file && result.data.file !== file) {
@@ -176,13 +150,15 @@ const valid = NOTE_FILE_RE.test(file);
             fileNameEl.textContent = file;
             history.replaceState(history.state, '', `/notes/edit?file=${encodeURIComponent(file)}`);
           }
-          statusEl.textContent = '';
-          (window as any).showAdminToast?.('已保存');
+          statusEl.textContent = '已保存 ✓';
+          (window as any).adminToast?.('保存成功');
           const currentResponse = await fetch('/api/notes/' + encodeURIComponent(file));
           const current = await currentResponse.json();
           if (currentResponse.ok && current.ok) sha = current.data.sha;
+          setTimeout(() => { statusEl.textContent = ''; }, 2000);
         } catch (error) {
           statusEl.textContent = `保存失败：${error instanceof Error ? error.message : String(error)}`;
+          (window as any).adminToast?.(`保存失败：${error instanceof Error ? error.message : String(error)}`, true);
         } finally {
           saveButton.removeAttribute('disabled');
         }

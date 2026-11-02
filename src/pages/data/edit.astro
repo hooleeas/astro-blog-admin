@@ -1064,10 +1064,11 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           // 展开状态、滚动位置和其他正在编辑的内容都不受影响（用户定）
           if (res.data?.sha) sha = res.data.sha;
           saveStatusEl.textContent = '已保存 ✓';
+          window.adminToast?.('保存成功');
           window.setTimeout(() => { saveStatusEl.textContent = ''; }, 2000);
         } catch (error) {
           saveStatusEl.textContent = '保存失败';
-          alert('保存失败：' + (error instanceof Error ? error.message : String(error)));
+          window.adminToast?.('保存失败：' + (error instanceof Error ? error.message : String(error)), true);
         } finally {
           saveButton.disabled = !visualReady;
         }

@@ -95,15 +95,17 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
             const res = await r.json();
             if (!res.ok) {
               editorStatus.textContent = '';
-              alert('保存失败：' + res.error);
+              (window as any).adminToast?.('保存失败：' + res.error, true);
               return;
             }
-            editorStatus.textContent = '';
-            (window as any).showAdminToast?.('已保存');
-            const cur = await (await fetch('/api/pages/' + encodeURIComponent(pageSlug))).json();
-            if (cur.ok) sha = cur.data.sha;
+            editorStatus.textContent = '已保存 ✓';
+            // 保存成功只更新 sha，不动页面内容（用户定）
+            if (res.data?.sha) sha = res.data.sha;
+            (window as any).adminToast?.('保存成功');
+            setTimeout(() => { editorStatus.textContent = ''; }, 2000);
           } catch (error) {
             editorStatus.textContent = '保存失败：' + (error instanceof Error ? error.message : String(error));
+            (window as any).adminToast?.('保存失败：' + (error instanceof Error ? error.message : String(error)), true);
             console.error('保存页面源码失败', error);
           }
         });

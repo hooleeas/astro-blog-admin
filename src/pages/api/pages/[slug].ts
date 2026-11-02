@@ -69,12 +69,13 @@ export async function PUT({ locals, params, request }: APIContext) {
       return fail(`保存本地页面失败：${(error as Error).message}`, 500);
     }
   }
+  let savedPage: { sha: string; path: string };
   try {
-    await gh.putFile(locals, PAGES_PREFIX + file, content, `admin: 更新页面 ${file}`, sha);
+    savedPage = await gh.putFile(locals, PAGES_PREFIX + file, content, `admin: 更新页面 ${file}`, sha);
   } catch (e) {
     return fail('保存失败：' + (e as Error)?.message, 500);
   }
-  return ok({ slug, file });
+  return ok({ slug, file, sha: savedPage.sha });
 }
 
 /** DELETE /api/pages/[slug] — 删除，body: { sha }（或 ?sha=）；默认页面禁止删除 */
