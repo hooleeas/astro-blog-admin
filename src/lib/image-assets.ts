@@ -1,5 +1,4 @@
 import { getEnv } from './env';
-import { IMG_DIR } from './webdav-config';
 
 const IMAGE_FILENAME_RE = /^[^/\\\u0000-\u001f\u007f]+\.(png|jpe?g|gif|webp|svg|avif)$/i;
 
@@ -15,23 +14,12 @@ export function isLocalImagePreview(locals: unknown, request: Request): boolean 
 }
 
 export function getImageUrl(locals: unknown, filename: string, localPreview: boolean, requestUrl?: string): string {
-  const env = getEnv(locals as any);
-  const imagePath = `${IMG_DIR}/${encodeURIComponent(filename)}`;
-  if (localPreview) {
-    if (env.LOCAL_SITE_URL) {
-      return new URL(imagePath, new URL(env.LOCAL_SITE_URL)).toString();
-    }
-    // 未显式配置博客地址时，跟随访问者实际使用的域名（博客本地端口 4323）
-    const req = new URL(requestUrl || 'http://127.0.0.1:4323');
-    const siteUrl = new URL(`${req.protocol}//${req.hostname}:4323`);
-    return new URL(imagePath, siteUrl).toString();
+  // 链接域名跟随访问者打开页面时用的域名（本地/pages.dev/自定义域名都一样处理），
+  // 路径统一 /images/<文件名>；图片实体只存 WebDAV，由 /images/[filename] 路由回源读取。
+  void locals; void localPreview;
+  const path = `images/${encodeURIComponent(filename)}`;
+  if (requestUrl) {
+    return new URL(path, new URL(requestUrl)).toString();
   }
-
-  // 正式链接用博客自己的 GitHub Pages 域名，不走第三方 CDN
-  const repoFull = env.GITHUB_PAGES_REPO || 'hooleeas/hooleeas.github.io';
-  const [owner = 'hooleeas', repoName = 'hooleeas.github.io'] = repoFull.split('/');
-  const base = repoName.toLowerCase() === `${owner.toLowerCase()}.github.io`
-    ? `https://${owner}.github.io`
-    : `https://${owner}.github.io/${encodeURIComponent(repoName)}`;
-  return `${base}/${imagePath}`;
+  return `/${path}`;
 }

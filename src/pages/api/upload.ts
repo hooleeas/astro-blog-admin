@@ -6,8 +6,7 @@ import type { APIRoute } from 'astro';
 // 在 Cloudflare Pages Functions / workerd 里可直接运行。
 import { createClient } from 'webdav/web';
 import { getWebdavConfig, IMG_DIR } from '../../lib/webdav-config';
-import { putPagesAsset } from '../../lib/github';
-import { getImageUrl, isImageFilename, isLocalImagePreview } from '../../lib/image-assets';
+import { getImageUrl, isImageFilename } from '../../lib/image-assets';
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'];
@@ -74,25 +73,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const remotePath = `/${IMG_DIR}/${filename}`;
     await client.putFileContents(remotePath, data, { overwrite: false });
 
-    const localPreview = isLocalImagePreview(locals, request);
-    if (localPreview) {
-      try {
-        const { writeLocalImageAsset } = await import('../../lib/local-data.js');
-        await writeLocalImageAsset(filename, new Uint8Array(data));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return json({ ok: false, error: `图片已存入 WebDAV，但写入本地站点失败：${message}` }, 500);
-      }
-    } else {
-      try {
-        await putPagesAsset(locals, `${IMG_DIR}/${filename}`, new Uint8Array(data), `admin: 发布图床图片 ${filename}`);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return json({ ok: false, error: `图片已存入 WebDAV，但发布到本站失败：${message}` }, 502);
-      }
-    }
-
-    return json({ ok: true, data: { url: getImageUrl(locals, filename, localPreview, request.url), filename } });
+    // 只存 WebDAV 这一份，不再往任何 GitHub 仓库发布副本
+    return json({ ok: true, data: { url: getImageUrl(locals, filename, false, request.url), filename } });
   } catch (e: any) {
     if (e && typeof e.status === 'number' && e.message) {
       return json({ ok: false, error: e.message }, e.status);
