@@ -466,6 +466,21 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           setAt(pathArr, (wasNull && input.value === '') ? null : input.value);
         });
         wrap.appendChild(input);
+        // 图片地址类字段在输入框下给预览图（背景图宽幅、头像 1:1），随输入实时更新，加载失败自动隐藏
+        if (/image$/i.test(k) || k === 'icon' || k === 'src') {
+          const preview = el('img', 'vv-img-preview' + (k === 'avatarImage' ? ' square' : ''));
+          preview.alt = '';
+          preview.loading = 'lazy';
+          if (s) preview.src = s; else preview.classList.add('hidden');
+          preview.addEventListener('error', () => preview.classList.add('hidden'));
+          preview.addEventListener('load', () => preview.classList.remove('hidden'));
+          input.addEventListener('input', () => {
+            const v = input.value.trim();
+            if (v) preview.src = v;
+            else preview.classList.add('hidden');
+          });
+          wrap.appendChild(preview);
+        }
         return wrap;
       }
 
