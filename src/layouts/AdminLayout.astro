@@ -1583,6 +1583,25 @@ const nav = [
         });
       }
 
+      // 刷新/直达时首次测量可能赶在字体与布局落定之前，指示气泡会停在错位置（用户报的小气泡）：
+      // 在字体就绪、整页加载完成、窗口尺寸变化时各静默重测一次纠正
+      if (capsule && indicator && capsule.dataset.navigationSettleListeners !== 'true') {
+        capsule.dataset.navigationSettleListeners = 'true';
+        const repositionNavigationIndicator = () => {
+          if (capsule.classList.contains('is-long-pressing') || capsule.classList.contains('is-dragging')) return;
+          const position = getNavigationIndicatorPosition();
+          if (!position || position.width <= 0) return;
+          const previousTransition = indicator.style.transition;
+          indicator.style.transition = 'none';
+          setNavigationIndicatorPosition(position);
+          getComputedStyle(indicator).transform;
+          indicator.style.transition = previousTransition;
+        };
+        document.fonts?.ready.then(repositionNavigationIndicator).catch(() => undefined);
+        window.addEventListener('load', repositionNavigationIndicator);
+        window.addEventListener('resize', repositionNavigationIndicator);
+      }
+
       if (root.dataset.adminNavigationListeners !== 'true') {
         root.dataset.adminNavigationListeners = 'true';
         document.querySelector<HTMLButtonElement>('#post-save-btn')?.addEventListener('click', () => {
