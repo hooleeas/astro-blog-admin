@@ -1,4 +1,323 @@
 ---
 export const prerender = false;
-return Astro.redirect('/posts', 302);
+import { getWebdavConfig } from '../lib/webdav-config';
+
+// 公开页标题取图床设置（服务端渲染，访客打开即是设定值）；未设置时用默认「图床」
+let pageTitle = '图床';
+try {
+  const cfg = await getWebdavConfig(Astro.locals);
+  if (cfg.pageTitle) pageTitle = cfg.pageTitle;
+} catch {}
 ---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>{pageTitle}</title>
+    <link rel="icon" href="/icon/favicon.ico?v=8" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/png" href="/icon/icon_16x16.png?v=8" sizes="16x16" />
+    <link rel="icon" type="image/png" href="/icon/icon_32x32.png?v=8" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/icon/icon_48x48.png?v=8" sizes="48x48" />
+    <link rel="icon" type="image/png" href="/icon/icon_512x512.png?v=8" sizes="512x512" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icon/icon_180x180.png?v=8" />
+    <link rel="manifest" href="/icon/site.webmanifest?v=8" />
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem('admin-theme');
+          if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          if (t === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      /* 与博客/后台同款配色 + 深色模式 */
+      :root {
+        --bg: #fafafa; --surface: #ffffff; --text: #17191c; --muted: #747a83;
+        --line: #e6e8eb; --accent: #16834a; --accent-ink: #ffffff;
+        --radius: 14px; --radius-lg: 20px;
+        color-scheme: light;
+      }
+      :root.dark {
+        --bg: #111315; --surface: #181b1f; --text: #f1f3f5; --muted: #9aa1aa;
+        --line: #2b3036; --accent: #f2a33a; --accent-ink: #17191c;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        font-family: Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        animation: pageIn 0.3s ease;
+      }
+      @keyframes pageIn { from { opacity: 0; } to { opacity: 1; } }
+      .wrap { width: min(100% - 32px, 860px); margin: 0 auto; padding: 28px 0 56px; }
+      .head { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
+      .page-title { margin: 4px 0 0; font-size: 32px; text-align: center; }
+      .theme-toggle {
+        width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto;
+        border: 1px solid var(--line); background: var(--surface); color: var(--text);
+        font-size: 18px; cursor: pointer; display: grid; place-items: center;
+      }
+      .guidance { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 10px 0 18px; text-align: center; }
+      .dropzone {
+        border: 2px dashed var(--line); border-radius: var(--radius-lg);
+        padding: 56px 20px; text-align: center; cursor: pointer;
+        background: var(--surface);
+        transition: border-color 0.2s ease, background-color 0.2s ease;
+      }
+      .dropzone:hover, .dropzone.dragover {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+      }
+      .dropzone:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 2px; }
+      .dz-main { margin: 0 0 8px; font-size: 17px; font-weight: 700; }
+      .dz-sub { margin: 0; color: var(--muted); font-size: 13px; }
+      .dz-link { color: var(--accent); text-decoration: underline; }
+      .progress-wrap { margin-top: 14px; }
+      .progress-bar { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+      .progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.2s ease; }
+      .progress-text { color: var(--muted); font-size: 13px; margin: 8px 0 0; overflow-wrap: anywhere; }
+      .results { display: grid; gap: 10px; margin-top: 18px; }
+      .result-card {
+        display: flex; gap: 12px; align-items: center;
+        background: var(--surface); border: 1px solid var(--line);
+        border-radius: var(--radius); padding: 10px;
+      }
+      .result-card img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex-shrink: 0; }
+      .result-card .info { flex: 1; min-width: 0; display: grid; gap: 4px; }
+      .result-card .name { margin: 0; font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .result-card .url { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+      .result-card .url a { color: var(--accent); }
+      .result-card .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 32px; padding: 6px 14px; border-radius: 999px;
+        border: 1px solid var(--line); background: var(--surface); color: var(--text);
+        font-size: 12px; cursor: pointer;
+      }
+      .btn:hover { border-color: var(--accent); }
+      .toast {
+        position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(8px);
+        background: var(--text); color: var(--bg); font-size: 13px;
+        padding: 9px 18px; border-radius: 999px; opacity: 0; pointer-events: none;
+        transition: opacity 0.2s ease, transform 0.2s ease; z-index: 50;
+      }
+      .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+      @media (max-width: 640px) {
+        .dropzone { padding: 44px 16px; }
+        .result-card img { width: 48px; height: 48px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="head">
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="切换深色模式">◐</button>
+      </div>
+      <h1 class="page-title">{pageTitle}</h1>
+      <p class="guidance">支持 JPG、PNG、GIF、WebP、SVG、AVIF，单张最大 10 MB；JPG 和 PNG 默认转换为 WebP。上传的图片任何人凭链接都能访问，请勿上传隐私内容。</p>
+
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择或粘贴图片上传">
+        <p class="dz-main">粘贴、拖拽或点击上传图片</p>
+        <p class="dz-sub">按 Ctrl+V / ⌘V 粘贴；也可拖拽图片到此处，或<span class="dz-link">点击选择</span>。</p>
+        <input id="file-input" type="file" accept="image/*" multiple hidden />
+      </div>
+
+      <div id="progress-wrap" class="progress-wrap" hidden>
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+        <p id="progress-text" class="progress-text"></p>
+      </div>
+
+      <div id="results" class="results"></div>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+      const dropzone = document.querySelector('#dropzone');
+      const fileInput = document.querySelector('#file-input');
+      const progressWrap = document.querySelector('#progress-wrap');
+      const progressFill = document.querySelector('#progress-fill');
+      const progressText = document.querySelector('#progress-text');
+      const results = document.querySelector('#results');
+      const toast = document.querySelector('#toast');
+      let toastTimer = 0;
+
+      document.querySelector('#theme-toggle').addEventListener('click', () => {
+        const dark = document.documentElement.classList.toggle('dark');
+        try { localStorage.setItem('admin-theme', dark ? 'dark' : 'light'); } catch (e) {}
+      });
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add('show');
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2200);
+      }
+
+      async function copyText(text, label) {
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast(label + '已复制');
+          return;
+        } catch {}
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showToast(label + '已复制'); }
+        catch { showToast('复制失败，请手动复制'); }
+        document.body.removeChild(ta);
+      }
+
+      // 是否转 WebP 以后台设置为准（公开接口只返回这一个开关）
+      let webpEnabled = true;
+      fetch('/api/public-config').then(r => r.json()).then(res => {
+        if (res && res.ok) webpEnabled = res.data.webp !== false;
+      }).catch(() => {});
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      dropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+      });
+      ['dragenter', 'dragover'].forEach(ev => dropzone.addEventListener(ev, (e) => {
+        e.preventDefault(); dropzone.classList.add('dragover');
+      }));
+      ['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, (e) => {
+        e.preventDefault(); dropzone.classList.remove('dragover');
+      }));
+      dropzone.addEventListener('drop', (e) => {
+        const files = Array.from(e.dataTransfer?.files || []);
+        if (files.length) uploadAll(files);
+      });
+      document.addEventListener('paste', (event) => {
+        const items = Array.from(event.clipboardData?.items ?? []);
+        const files = items
+          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+          .map((item) => item.getAsFile())
+          .filter((file) => file !== null);
+        if (!files.length) return;
+        event.preventDefault();
+        uploadAll(files);
+      });
+      fileInput.addEventListener('change', () => {
+        const files = Array.from(fileInput.files || []);
+        fileInput.value = '';
+        if (files.length) uploadAll(files);
+      });
+
+      const CONVERTIBLE = ['image/png', 'image/jpeg'];
+
+      // PNG/JPG 在浏览器端转 WebP（canvas），保持原文件名、后缀换 .webp
+      async function maybeToWebp(file) {
+        if (!webpEnabled || !CONVERTIBLE.includes(file.type)) return file;
+        try {
+          const bitmap = await createImageBitmap(file);
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return file;
+          ctx.drawImage(bitmap, 0, 0);
+          bitmap.close();
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.92));
+          if (!blob) return file;
+          const name = file.name.replace(/\.[^.]+$/, '') + '.webp';
+          return new File([blob], name, { type: 'image/webp' });
+        } catch {
+          return file; // 转换失败则原图上传
+        }
+      }
+
+      async function uploadAll(files) {
+        for (const f of files) {
+          progressWrap.hidden = false;
+          progressText.textContent = '处理中：' + f.name;
+          const ready = await maybeToWebp(f);
+          await uploadOne(ready);
+        }
+      }
+
+      function uploadOne(file) {
+        return new Promise((resolve) => {
+          progressWrap.hidden = false;
+          progressFill.style.width = '0%';
+          progressText.textContent = '上传中：' + file.name;
+
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/public-upload');
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const pct = Math.round((e.loaded / e.total) * 100);
+              progressFill.style.width = pct + '%';
+              progressText.textContent = '上传中：' + file.name + '（' + pct + '%）';
+            }
+          });
+          xhr.addEventListener('load', () => {
+            let res = null;
+            try { res = JSON.parse(xhr.responseText); } catch {}
+            if (xhr.status === 200 && res && res.ok) {
+              progressFill.style.width = '100%';
+              progressText.textContent = '上传完成：' + file.name;
+              addResult(res.data.url, res.data.filename);
+            } else {
+              progressText.textContent = '上传失败：' + (res && res.error ? res.error : 'HTTP ' + xhr.status);
+            }
+            resolve();
+          });
+          xhr.addEventListener('error', () => {
+            progressText.textContent = '上传失败：网络错误';
+            resolve();
+          });
+          const form = new FormData();
+          form.append('file', file);
+          xhr.send(form);
+        });
+      }
+
+      function addResult(url, filename) {
+        const card = document.createElement('div');
+        card.className = 'result-card';
+        const md = '![](' + url + ')';
+
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = filename;
+        img.loading = 'lazy';
+
+        const info = document.createElement('div');
+        info.className = 'info';
+        const name = document.createElement('p');
+        name.className = 'name';
+        name.textContent = filename;
+        const urlP = document.createElement('p');
+        urlP.className = 'url';
+        const a = document.createElement('a');
+        a.href = url; a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = url;
+        urlP.appendChild(a);
+        const btns = document.createElement('div');
+        btns.className = 'btns';
+        const b1 = document.createElement('button');
+        b1.className = 'btn'; b1.type = 'button'; b1.textContent = '复制链接';
+        b1.addEventListener('click', () => copyText(url, '链接'));
+        const b2 = document.createElement('button');
+        b2.className = 'btn'; b2.type = 'button'; b2.textContent = '复制 Markdown';
+        b2.addEventListener('click', () => copyText(md, 'Markdown 片段'));
+        btns.append(b1, b2);
+
+        info.append(name, urlP, btns);
+        card.append(img, info);
+        results.prepend(card);
+      }
+    </script>
+  </body>
+</html>

@@ -94,6 +94,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const path = new URL(context.request.url).pathname;
 
   if (
+    // 根路径是公开图床页（访客上传），后台在 /posts 等子路径
+    path === '/' ||
     path === '/login' ||
     path === '/api/auth/login' ||
     path === '/api/auth/callback' ||
@@ -115,7 +117,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // 后台页面路径（需登录）；未知路径放行，渲染公开 404
   const isAdminPage =
-    path === '/' ||
     ['/posts', '/notes', '/pages', '/data', '/images', '/settings'].some(
       (p) => path === p || path.startsWith(p + '/')
     );
