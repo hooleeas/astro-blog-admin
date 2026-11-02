@@ -349,23 +349,9 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         const card = el('div', 'card vv-section');
         card.appendChild(el('h3', 'vv-sec-title', '主页文章筛选'));
         const body = el('div');
-        const langs = (Array.isArray(working.languages) ? working.languages : [])
-          .filter((l) => isObj(l) && typeof l.code === 'string' && l.enabled !== false)
-          .map((l) => ({ code: l.code, label: typeof l.label === 'string' ? l.label : l.code }));
-        const langList = langs.length ? langs : [...LANG_SET].map((code) => ({ code, label: code }));
+        const langList = editLangList();
         if (!langList.some((l) => l.code === editLang)) editLang = langList[0].code;
-        const tabs = el('div', 'vv-lang-tabs');
-        for (const l of langList) {
-          const b = el('button', 'vv-lang-tab' + (l.code === editLang ? ' active' : ''), esc(l.label));
-          b.type = 'button';
-          b.addEventListener('click', () => {
-            if (editLang === l.code) return;
-            editLang = l.code;
-            saveButton.disabled = !renderVisual();
-          });
-          tabs.appendChild(b);
-        }
-        body.appendChild(tabs);
+        body.appendChild(buildLangCapsule(langList));
         const translations = isObj(working.ui?.translations?.[editLang]) ? working.ui.translations[editLang] : {};
         const builtinRow = (label, key) => {
           const row = el('div', 'vv-row');
@@ -622,11 +608,15 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         if (isObj(v)) return Object.values(v).some(containsLangMap);
         return false;
       }
-      function buildEditLangBar() {
-        const list = editLangList();
-        if (!list.some((l) => l.code === editLang)) editLang = list[0].code;
-        const bar = el('div', 'card vv-section vv-lang-bar');
-        bar.appendChild(el('span', 'vv-lang-bar-label', '编辑语言'));
+      // 语言切换：用布局提供的、与文章编辑页完全相同的胶囊组件（滑动指示/长按拖动）
+      function buildLangCapsule(list) {
+        if (typeof window.createLangCapsule === 'function') {
+          return window.createLangCapsule(list, editLang, (code) => {
+            if (code === editLang) return;
+            editLang = code;
+            saveButton.disabled = !renderVisual();
+          });
+        }
         const tabs = el('div', 'vv-lang-tabs');
         for (const l of list) {
           const b = el('button', 'vv-lang-tab' + (l.code === editLang ? ' active' : ''), esc(l.label));
@@ -638,7 +628,14 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           });
           tabs.appendChild(b);
         }
-        bar.appendChild(tabs);
+        return tabs;
+      }
+      function buildEditLangBar() {
+        const list = editLangList();
+        if (!list.some((l) => l.code === editLang)) editLang = list[0].code;
+        const bar = el('div', 'vv-lang-bar');
+        bar.appendChild(el('span', 'vv-lang-bar-label', '编辑语言'));
+        bar.appendChild(buildLangCapsule(list));
         return bar;
       }
 

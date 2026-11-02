@@ -646,9 +646,102 @@ const nav = [
       .vv-img-preview { display: block; margin-top: 10px; width: 100%; max-width: 320px; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
       .vv-img-preview.square { width: 96px; height: 96px; aspect-ratio: 1 / 1; }
       .vv-lang-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-      .vv-lang-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      .vv-lang-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
       .vv-lang-bar-label { font-size: 13px; font-weight: 600; }
-      .vv-lang-bar .vv-lang-tabs { margin-bottom: 0; }
+      /* 语言切换胶囊：与文章编辑页完全同一套样式（用户定，全站统一） */
+      .editor-language-capsule {
+        -webkit-touch-callout: none;
+        user-select: none;
+        -webkit-user-select: none;
+        isolation: isolate;
+        position: relative;
+        display: flex;
+        align-items: stretch;
+        width: fit-content;
+        max-width: 100%;
+        height: 40px;
+        overflow: hidden;
+        border: 1px solid color-mix(in srgb, var(--header-text) 14%, transparent);
+        border-radius: 999px;
+        background: var(--header-glass-bg);
+        -webkit-backdrop-filter: blur(10px) saturate(180%);
+        backdrop-filter: blur(10px) saturate(180%);
+        box-shadow:
+          inset 0 1px 0 color-mix(in srgb, var(--header-text) 9%, transparent),
+          0 10px 32px rgba(0, 0, 0, 0.16);
+      }
+      .editor-language-indicator {
+        position: absolute;
+        z-index: 0;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        border: 1px solid color-mix(in srgb, var(--header-text) 12%, transparent);
+        border-radius: 999px;
+        background: linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--header-text) 11%, transparent),
+          color-mix(in srgb, var(--header-text) 4%, transparent)
+        );
+        box-shadow:
+          inset 0 1px color-mix(in srgb, var(--header-text) 16%, transparent),
+          0 3px 10px rgba(0, 0, 0, 0.09);
+        transition:
+          transform 520ms cubic-bezier(0.22, 1.35, 0.36, 1),
+          width 420ms cubic-bezier(0.22, 1.15, 0.36, 1),
+          height 280ms cubic-bezier(0.2, 0.75, 0.25, 1);
+      }
+      .editor-language-capsule.is-long-pressing {
+        z-index: 2;
+        overflow: visible;
+        touch-action: none;
+      }
+      .editor-language-capsule.is-long-pressing > .editor-language-indicator { z-index: 2; }
+      .editor-language-capsule.is-long-pressing .editor-language-indicator {
+        border-color: color-mix(in srgb, var(--header-text) 24%, transparent);
+        background:
+          radial-gradient(ellipse at 28% 18%, color-mix(in srgb, #fff 32%, transparent), transparent 46%),
+          linear-gradient(
+            145deg,
+            color-mix(in srgb, var(--header-text) 20%, transparent),
+            color-mix(in srgb, var(--header-text) 7%, transparent)
+          );
+        box-shadow:
+          inset 0 1px 2px color-mix(in srgb, #fff 34%, transparent),
+          0 10px 32px rgba(0, 0, 0, 0.2);
+      }
+      .editor-language-tab {
+        position: relative;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        height: 100%;
+        padding: 3px 16px;
+        border: 0;
+        border-inline-start: 1px solid transparent;
+        border-radius: 0;
+        background: transparent;
+        color: var(--header-text);
+        font: inherit;
+        font-size: 15px;
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: color 180ms ease;
+      }
+      .editor-language-tab:hover:not(:disabled) { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
+      .editor-language-tab:active { color: var(--header-text); }
+      .editor-language-tab:focus-visible { outline: 2px solid color-mix(in srgb, var(--header-text) 72%, transparent); outline-offset: -3px; }
+      .editor-language-tab.missing { opacity: 0.48; }
+      .editor-language-tab:disabled { cursor: not-allowed; }
+      @media (max-width: 640px) {
+        .editor-language-capsule { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+        .editor-language-capsule::-webkit-scrollbar { display: none; }
+        .editor-language-tab { padding-inline: clamp(10px, 3vw, 16px); font-size: clamp(12px, 3.8vw, 15px); }
+      }
       .vv-lang-tab { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; }
       .vv-lang-tab.active { background: var(--text); color: var(--bg); border-color: transparent; }
       .vv-filter-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -1110,6 +1203,179 @@ const nav = [
           dialog.addEventListener('close', onClose);
           dialog.showModal();
         });
+      };
+
+      // 语言切换胶囊：与文章编辑页完全同一套组件（滑动指示、点按切换、长按放大拖动选语言、长按期间锁定页面滚动），全站共用（用户定）
+      (window as unknown as { createLangCapsule: (langs: { code: string; label: string }[], active: string, onSelect: (code: string) => void) => HTMLElement }).createLangCapsule = (langs, active, onSelect) => {
+        const capsule = document.createElement('div');
+        capsule.className = 'editor-language-capsule';
+        capsule.setAttribute('role', 'group');
+        capsule.setAttribute('aria-label', '编辑语言');
+        const indicator = document.createElement('span');
+        indicator.className = 'editor-language-indicator';
+        indicator.setAttribute('aria-hidden', 'true');
+        capsule.appendChild(indicator);
+        let current = active;
+        const buttons = new Map<string, HTMLButtonElement>();
+        function positionIndicator(): void {
+          const btn = buttons.get(current);
+          if (!btn) return;
+          const capsuleRect = capsule.getBoundingClientRect();
+          const buttonRect = btn.getBoundingClientRect();
+          const capsuleStyle = getComputedStyle(capsule);
+          const borderLeft = Number.parseFloat(capsuleStyle.borderLeftWidth);
+          const borderTop = Number.parseFloat(capsuleStyle.borderTopWidth);
+          indicator.style.width = `${buttonRect.width}px`;
+          indicator.style.height = `${capsuleRect.height}px`;
+          indicator.style.transform = `translate3d(${buttonRect.left - capsuleRect.left - borderLeft}px, ${-borderTop}px, 0)`;
+        }
+        function select(code: string): void {
+          current = code;
+          buttons.forEach((b, c) => b.setAttribute('aria-pressed', String(c === current)));
+          positionIndicator();
+          onSelect(code);
+        }
+        for (const l of langs) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'editor-language-tab';
+          b.dataset.lang = l.code;
+          b.textContent = l.label;
+          b.setAttribute('aria-pressed', String(l.code === current));
+          b.addEventListener('click', () => { if (l.code !== current) select(l.code); });
+          buttons.set(l.code, b);
+          capsule.appendChild(b);
+        }
+
+        let languagePress: {
+          pointerId: number;
+          startButton: HTMLButtonElement;
+          startX: number;
+          startY: number;
+          lastX: number;
+          moved: boolean;
+          activated: boolean;
+          timer: number;
+        } | null = null;
+        let suppressLanguageClick = false;
+        let suppressLanguageClickTimer = 0;
+        const blockLanguageTouchScroll = (touchEvent: TouchEvent): void => { touchEvent.preventDefault(); };
+        const stopLanguageTouchScrollBlock = (): void => {
+          document.removeEventListener('touchmove', blockLanguageTouchScroll);
+        };
+
+        capsule.addEventListener('pointerdown', (event) => {
+          if (!event.isPrimary || event.button !== 0) return;
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const startButton = target.closest<HTMLButtonElement>('.editor-language-tab');
+          if (!startButton || startButton.disabled) return;
+          const press = {
+            pointerId: event.pointerId,
+            startButton,
+            startX: event.clientX,
+            startY: event.clientY,
+            lastX: event.clientX,
+            moved: false,
+            activated: false,
+            timer: 0,
+          };
+          languagePress = press;
+          press.timer = window.setTimeout(() => {
+            if (languagePress !== press) return;
+            press.activated = true;
+            capsule.classList.add('is-long-pressing');
+            document.addEventListener('touchmove', blockLanguageTouchScroll, { passive: false });
+            indicator.style.transition = 'none';
+            indicator.style.width = `${startButton.getBoundingClientRect().width}px`;
+            indicator.style.height = `${capsule.getBoundingClientRect().height + 12}px`;
+            indicator.style.transform = `translate3d(${startButton.offsetLeft}px, -6px, 0)`;
+            startButton.setPointerCapture(press.pointerId);
+          }, 450);
+        });
+
+        capsule.addEventListener('pointermove', (event) => {
+          const press = languagePress;
+          if (!press || press.pointerId !== event.pointerId) return;
+          press.lastX = event.clientX;
+          if (!press.activated) return;
+          if (Math.abs(event.clientX - press.startX) >= 8) {
+            press.moved = true;
+            capsule.classList.add('is-dragging');
+          }
+          const rect = capsule.getBoundingClientRect();
+          const borderLeft = Number.parseFloat(getComputedStyle(capsule).borderLeftWidth);
+          const width = indicator.getBoundingClientRect().width;
+          const x = Math.max(0, Math.min(
+            capsule.clientWidth - width,
+            event.clientX - rect.left - borderLeft - width / 2,
+          ));
+          indicator.style.transform = `translate3d(${x}px, -6px, 0)`;
+          event.preventDefault();
+        });
+
+        const languageDropTarget = (): HTMLButtonElement | null => {
+          const rect = indicator.getBoundingClientRect();
+          const center = rect.left + rect.width / 2;
+          let best: HTMLButtonElement | null = null;
+          let bestDistance = Number.POSITIVE_INFINITY;
+          capsule.querySelectorAll<HTMLButtonElement>('.editor-language-tab').forEach((tab) => {
+            const tabRect = tab.getBoundingClientRect();
+            const distance = center < tabRect.left
+              ? tabRect.left - center
+              : center > tabRect.right
+                ? center - tabRect.right
+                : 0;
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              best = tab;
+            }
+          });
+          return best;
+        };
+
+        capsule.addEventListener('pointerup', (event) => {
+          const press = languagePress;
+          if (!press || press.pointerId !== event.pointerId) return;
+          stopLanguageTouchScrollBlock();
+          languagePress = null;
+          window.clearTimeout(press.timer);
+          if (!press.activated) return;
+          event.preventDefault();
+          const target = press.moved ? languageDropTarget() : press.startButton;
+          const targetLang = target?.dataset.lang;
+          capsule.classList.remove('is-long-pressing', 'is-dragging');
+          indicator.style.transition = '';
+          if (targetLang && targetLang !== current) select(targetLang);
+          else positionIndicator();
+          suppressLanguageClick = true;
+          window.clearTimeout(suppressLanguageClickTimer);
+          suppressLanguageClickTimer = window.setTimeout(() => {
+            suppressLanguageClick = false;
+          }, 0);
+        });
+
+        const cancelLanguagePress = (event: PointerEvent): void => {
+          if (!languagePress || languagePress.pointerId !== event.pointerId) return;
+          stopLanguageTouchScrollBlock();
+          window.clearTimeout(languagePress.timer);
+          languagePress = null;
+          capsule.classList.remove('is-long-pressing', 'is-dragging');
+          indicator.style.transition = '';
+          positionIndicator();
+        };
+        capsule.addEventListener('pointercancel', cancelLanguagePress);
+        capsule.addEventListener('lostpointercapture', cancelLanguagePress);
+        capsule.addEventListener('click', (event) => {
+          if (suppressLanguageClick) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            suppressLanguageClick = false;
+          }
+        }, true);
+
+        requestAnimationFrame(positionIndicator);
+        return capsule;
       };
 
       // 主题切换（机制与博客前台一致）
