@@ -1,6 +1,10 @@
 ---
 export const prerender = false;
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import { isEdgeOne } from '../../lib/platform';
+
+// 存储方式第二档的显示名按平台走：CF 上是 Cloudflare R2，EO 上实际由 EdgeOne Blob 承载
+const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflare R2';
 ---
 
 <AdminLayout title="图床" active="images">
@@ -34,7 +38,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           <span class="flabel">存储方式</span>
           <select class="input" name="storage" id="settings-storage">
             <option value="webdav">WebDAV</option>
-            <option value="r2">Cloudflare R2</option>
+            <option value="r2">{objectStorageLabel}</option>
           </select>
           <span class="hint">图片实际存放在所选存储中；切换存储不会迁移已有图片，原存储里的图片切回去仍可访问</span>
         </label>
