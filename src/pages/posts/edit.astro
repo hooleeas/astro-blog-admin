@@ -276,6 +276,28 @@ const key = Astro.url.searchParams.get('key') ?? '';
         event.preventDefault();
       });
 
+      const languageDropTarget = (): HTMLButtonElement | null => {
+        const indicator = tabsEl.querySelector<HTMLElement>('.editor-language-indicator');
+        if (!indicator) return null;
+        const rect = indicator.getBoundingClientRect();
+        const center = rect.left + rect.width / 2;
+        let best: HTMLButtonElement | null = null;
+        let bestDistance = Number.POSITIVE_INFINITY;
+        tabsEl.querySelectorAll<HTMLButtonElement>('.editor-language-tab').forEach((tab) => {
+          const tabRect = tab.getBoundingClientRect();
+          const distance = center < tabRect.left
+            ? tabRect.left - center
+            : center > tabRect.right
+              ? center - tabRect.right
+              : 0;
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = tab;
+          }
+        });
+        return best;
+      };
+
       tabsEl.addEventListener('pointerup', (event) => {
         const press = languagePress;
         if (!press || press.pointerId !== event.pointerId) return;
@@ -286,9 +308,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
         event.preventDefault();
 
         const indicator = tabsEl.querySelector<HTMLElement>('.editor-language-indicator');
-        const target = press.moved
-          ? document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLButtonElement>('.editor-language-tab')
-          : press.startButton;
+        const target = press.moved ? languageDropTarget() : press.startButton;
         const targetLang = target?.dataset.lang as Lang | undefined;
         tabsEl.classList.remove('is-long-pressing', 'is-dragging');
         if (indicator) indicator.style.transition = '';
