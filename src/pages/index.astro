@@ -64,6 +64,16 @@ try {
       <p id="history-empty" class="history-empty" hidden>暂无上传记录</p>
     </dialog>
 
+    <dialog id="upload-progress-dialog" class="upload-progress-dialog" aria-label="上传进度">
+      <div class="up-head">
+        <h2 class="up-title">正在上传</h2>
+        <button class="up-close" type="button" aria-label="关闭进度弹窗">&times;</button>
+      </div>
+      <p class="up-name"></p>
+      <div class="up-bar"><div class="up-fill"></div></div>
+      <div class="up-meta"><span class="up-pct">0%</span><span class="up-count"></span></div>
+    </dialog>
+
     <div id="toast" class="toast" popover="manual"></div>
 
     <script>
@@ -189,16 +199,73 @@ try {
       }
 
       async function uploadAll(files) {
+        upStart(files.length);
+        let index = 0;
         for (const f of files) {
           const ready = await maybeToWebp(f);
-          await uploadOne(ready);
+          upBegin(index, ready.name);
+          await uploadOne(ready, (frac) => upSet(frac));
+          index += 1;
         }
+        upEnd();
       }
 
-      function uploadOne(file) {
+      // 上传进度弹窗：盖在页面上显示当前文件与进度；关掉只关弹窗，不中断上传
+      const upDialog = document.querySelector('#upload-progress-dialog');
+      const upName = upDialog.querySelector('.up-name');
+      const upFill = upDialog.querySelector('.up-fill');
+      const upPct = upDialog.querySelector('.up-pct');
+      const upCount = upDialog.querySelector('.up-count');
+      let upTotal = 0;
+      let upDismissed = false;
+      let upCloseTimer = 0;
+
+      function upShow() {
+        if (!upDismissed && !upDialog.open) upDialog.showModal();
+      }
+      function upStart(total) {
+        upTotal = total;
+        upDismissed = false;
+        window.clearTimeout(upCloseTimer);
+        upShow();
+      }
+      function upBegin(index, filename) {
+        upName.textContent = filename;
+        upCount.textContent = upTotal > 1 ? (index + 1) + ' / ' + upTotal : '';
+        upSet(0);
+        upShow();
+      }
+      function upSet(frac) {
+        if (frac === null) {
+          upFill.classList.add('indeterminate');
+          upPct.textContent = '上传中…';
+        } else {
+          upFill.classList.remove('indeterminate');
+          upFill.style.width = Math.round(frac * 100) + '%';
+          upPct.textContent = Math.round(frac * 100) + '%';
+        }
+      }
+      function upEnd() {
+        upSet(1);
+        window.clearTimeout(upCloseTimer);
+        upCloseTimer = window.setTimeout(() => { if (upDialog.open) upDialog.close(); }, 400);
+      }
+      upDialog.querySelector('.up-close').addEventListener('click', () => {
+        upDismissed = true;
+        upDialog.close();
+      });
+      upDialog.addEventListener('cancel', () => { upDismissed = true; });
+      upDialog.addEventListener('click', (event) => {
+        if (event.target === upDialog) { upDismissed = true; upDialog.close(); }
+      });
+
+      function uploadOne(file, onProgress) {
         return new Promise((resolve) => {
           const xhr = new XMLHttpRequest();
           xhr.open('POST', '/api/public-upload');
+          xhr.upload.addEventListener('progress', (e) => {
+            if (onProgress) onProgress(e.lengthComputable ? e.loaded / e.total : null);
+          });
           xhr.addEventListener('load', () => {
             let res = null;
             try { res = JSON.parse(xhr.responseText); } catch {}
