@@ -579,8 +579,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           setAt(pathArr, (wasNull && input.value === '') ? null : input.value);
         });
         wrap.appendChild(input);
-        // 图片地址类字段在输入框下给预览图（背景图宽幅、头像 1:1），随输入实时更新，加载失败自动隐藏；
-        // 相对地址是博客站点路径，走 /api/preview-image 从博客仓库取原图
+        // 图片地址类字段的预览图放在子标题上方（用户定，不在输入框下方），随输入实时更新，加载失败自动隐藏；
+        // icon 与头像类预览为 1:1，其余为宽幅；相对地址是博客站点路径，走 /api/preview-image 从博客仓库取原图
         if (/image$/i.test(k) || k === 'icon' || k === 'src') {
           const previewSrc = (v) => {
             const t = String(v ?? '').trim();
@@ -589,8 +589,10 @@ const settingTitle = settingTitles[name] ?? '页面设置';
             if (t.startsWith('/')) return '/api/preview-image?path=' + encodeURIComponent(t);
             return t;
           };
-          const isAvatar = k === 'avatarImage' || pathArr.some((p) => /avatar/i.test(String(p)));
-          const preview = el('img', 'vv-img-preview' + (isAvatar ? ' square' : ''));
+          const isSquare = /icon/i.test(k) || k === 'avatarImage' ||
+            pathArr.some((p) => /(avatar|icon)/i.test(String(p))) ||
+            /(^|\/)(icon|avatar)[_-]/i.test(s);
+          const preview = el('img', 'vv-img-preview' + (isSquare ? ' square' : ''));
           preview.alt = '';
           preview.loading = 'lazy';
           if (s) preview.src = previewSrc(s); else preview.classList.add('hidden');
@@ -601,7 +603,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
             if (v) preview.src = v;
             else preview.classList.add('hidden');
           });
-          wrap.appendChild(preview);
+          wrap.insertBefore(preview, wrap.firstChild);
         }
         return wrap;
       }
