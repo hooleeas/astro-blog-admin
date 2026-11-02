@@ -205,7 +205,7 @@ const nav = [
           opacity 220ms ease;
       }
       .topbar.is-navigation-dragging { z-index: 130; }
-      .nav-capsule.is-long-pressing { z-index: 2; }
+      .nav-capsule.is-long-pressing { z-index: 2; touch-action: none; }
       .nav-capsule.is-long-pressing > .navigation-indicator { z-index: 2; }
       .nav-capsule.is-long-pressing .navigation-indicator {
         border-radius: 999px;
@@ -1276,6 +1276,10 @@ const nav = [
         } | null = null;
         const topbar = capsule?.closest<HTMLElement>('.topbar');
         let suppressNavClick = false;
+        const blockTouchScroll = (touchEvent: TouchEvent): void => { touchEvent.preventDefault(); };
+        const stopTouchScrollBlock = (): void => {
+          document.removeEventListener('touchmove', blockTouchScroll);
+        };
 
         const positionIndicatorAtPointer = (clientX: number, width: number, height: number) => {
           if (!capsule || !indicator) return;
@@ -1331,6 +1335,7 @@ const nav = [
             drag.longPressActivated = true;
             topbar?.classList.add('is-navigation-dragging');
             capsule.classList.add('is-long-pressing');
+            document.addEventListener('touchmove', blockTouchScroll, { passive: false });
             if (drag.moved) capsule.classList.add('is-dragging');
             indicator.style.transition = 'none';
             positionIndicatorAtPointer(drag.lastX, drag.width, drag.height);
@@ -1362,6 +1367,7 @@ const nav = [
         document.addEventListener('pointerup', (event) => {
           const drag = navDrag;
           if (!drag || drag.pointerId !== event.pointerId) return;
+          stopTouchScrollBlock();
           navDrag = null;
           window.clearTimeout(drag.longPressTimer);
           if (!drag.longPressActivated) {
@@ -1432,6 +1438,7 @@ const nav = [
         });
         const cancelNavDrag = (event: PointerEvent) => {
           if (!navDrag || navDrag.pointerId !== event.pointerId) return;
+          stopTouchScrollBlock();
           window.clearTimeout(navDrag.longPressTimer);
           if (navDrag.longPressActivated) {
             topbar?.classList.remove('is-navigation-dragging');

@@ -217,6 +217,10 @@ const key = Astro.url.searchParams.get('key') ?? '';
       } | null = null;
       let suppressLanguageClick = false;
       let suppressLanguageClickTimer = 0;
+      const blockLanguageTouchScroll = (touchEvent: TouchEvent): void => { touchEvent.preventDefault(); };
+      const stopLanguageTouchScrollBlock = (): void => {
+        document.removeEventListener('touchmove', blockLanguageTouchScroll);
+      };
 
       tabsEl.addEventListener('pointerdown', (event) => {
         if (!event.isPrimary || event.button !== 0) return;
@@ -241,6 +245,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
           if (languagePress !== press) return;
           press.activated = true;
           tabsEl.classList.add('is-long-pressing');
+          document.addEventListener('touchmove', blockLanguageTouchScroll, { passive: false });
           indicator.style.transition = 'none';
           indicator.style.width = `${startButton.getBoundingClientRect().width}px`;
           indicator.style.height = `${tabsEl.getBoundingClientRect().height + 12}px`;
@@ -274,6 +279,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
       tabsEl.addEventListener('pointerup', (event) => {
         const press = languagePress;
         if (!press || press.pointerId !== event.pointerId) return;
+        stopLanguageTouchScrollBlock();
         languagePress = null;
         window.clearTimeout(press.timer);
         if (!press.activated) return;
@@ -297,6 +303,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
 
       const cancelLanguagePress = (event: PointerEvent): void => {
         if (!languagePress || languagePress.pointerId !== event.pointerId) return;
+        stopLanguageTouchScrollBlock();
         window.clearTimeout(languagePress.timer);
         languagePress = null;
         tabsEl.classList.remove('is-long-pressing', 'is-dragging');
@@ -676,6 +683,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
     .editor-language-capsule.is-long-pressing {
       z-index: 2;
       overflow: visible;
+      touch-action: none;
     }
     .editor-language-capsule.is-long-pressing > .editor-language-indicator { z-index: 2; }
     .editor-language-capsule.is-long-pressing .editor-language-indicator {
