@@ -5,6 +5,7 @@ import type { APIRoute } from 'astro';
 import { createClient } from 'webdav/web';
 import { AwsClient } from 'aws4fetch';
 import { getWebdavConfig, normalizeR2Endpoint, normalizeR2Bucket } from '../../../lib/webdav-config';
+import { getR2Binding, R2_BINDING_NAME } from '../../../lib/image-store';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -28,6 +29,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // 存储方式为 Cloudflare R2 时测 R2：表单值优先，密钥留空沿用已保存的
     if ((body as any).storage === 'r2') {
+      // 已绑 Pages 变量时直接测绑定连通性，不需要任何密钥字段
+      const bound = getR2Binding(locals);
+      if (bound) {
+        await bound.list({ limit: 1 });
+        return json({ ok: true, data: { message: `连接成功，Cloudflare R2 已通过 Pages 绑定（${R2_BINDING_NAME}）接入` } });
+      }
       const b = body as any;
       const endpoint = normalizeR2Endpoint(typeof b.r2Endpoint === 'string' && b.r2Endpoint.trim() ? b.r2Endpoint : saved.r2Endpoint) || '';
       const bucket = normalizeR2Bucket(typeof b.r2Bucket === 'string' && b.r2Bucket.trim() ? b.r2Bucket : saved.r2Bucket) || '';

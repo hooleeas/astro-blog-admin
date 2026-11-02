@@ -60,7 +60,7 @@ export async function processImageUpload(locals: unknown, requestUrl: string, fi
   // 存放位置取设置页的 dir（留空用默认 img）；存储方式（WebDAV / Cloudflare R2）由存储层按设置分发
   // 重名自动改名：原名已被占用时在扩展名前加 _1、_2… 找空位，原文件不覆盖、不动
   const taken = async (name: string) => {
-    try { return await storeFileExists(cfg, name); } catch { return false; }
+    try { return await storeFileExists(locals, cfg, name); } catch { return false; }
   };
   if (await taken(filename)) {
     const dot = filename.lastIndexOf('.');
@@ -74,7 +74,7 @@ export async function processImageUpload(locals: unknown, requestUrl: string, fi
     }
     filename = candidate;
   }
-  await storePutFile(cfg, filename, data);
+  await storePutFile(locals, cfg, filename, data);
 
   // 只存 WebDAV 这一份，不再往任何 GitHub 仓库发布副本
   return { url: getImageUrl(locals, filename, false, requestUrl, cfg.linkPrefix), filename };

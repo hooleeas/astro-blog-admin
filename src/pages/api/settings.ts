@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { getWebdavConfig, saveWebdavConfig, toPublic, normalizeLinkPrefix, DEFAULT_LINK_PREFIX, normalizePageTitle, normalizeR2Endpoint, normalizeR2Bucket } from '../../lib/webdav-config';
+import { getR2Binding } from '../../lib/image-store';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -18,11 +19,11 @@ function err(e: unknown): Response {
   return json({ ok: false, error: `操作失败：${(e as Error)?.message || String(e)}` }, 500);
 }
 
-/** 返回 WebDAV 配置 —— password 永不返回，只给 hasPassword */
+/** 返回图床配置 —— 密码与 R2 密钥永不返回，只给 hasPassword / hasR2Secret；另带 hasR2Binding（Pages 是否已绑定 R2） */
 export const GET: APIRoute = async ({ locals }) => {
   try {
     const cfg = await getWebdavConfig(locals);
-    return json({ ok: true, data: toPublic(cfg) });
+    return json({ ok: true, data: { ...toPublic(cfg), hasR2Binding: getR2Binding(locals) !== null } });
   } catch (e) {
     return err(e);
   }
@@ -90,8 +91,9 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       : (oldCfg?.r2AccessKeyId ?? '');
     let r2SecretAccessKey = String(body.r2SecretAccessKey ?? '');
     if (!r2SecretAccessKey) r2SecretAccessKey = oldCfg?.r2SecretAccessKey ?? '';
-    if (storage === 'r2') {
-      if (!r2Endpoint) return json({ ok: false, error: 'R2 端点必填' }, 400);
+    // 已通过 Pages 绑定 R2 时，下面的端点与密钥都不必填（绑定优先，运行时直接走绑定）
+    if (storage === 'r2' && getR2Binding(locals) === null) {
+      if (!r2Endpoint) return json({ ok: false, error: 'R2 端点必填（或先在 Pages 设置里绑定 R2 存储桶，变量名 IMGS_R2）' }, 400);
       if (!r2Bucket) return json({ ok: false, error: 'R2 存储桶名必填' }, 400);
       if (!r2AccessKeyId) return json({ ok: false, error: 'R2 访问密钥 ID 必填' }, 400);
       if (!r2SecretAccessKey) return json({ ok: false, error: 'R2 密钥必填' }, 400);

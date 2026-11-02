@@ -12,7 +12,7 @@ function json(data: unknown, status = 200): Response {
 export const GET: APIRoute = async ({ locals, request }) => {
   try {
     const config = await getWebdavConfig(locals);
-    const files = await storeListFiles(config);
+    const files = await storeListFiles(locals, config);
     const localPreview = isLocalImagePreview(locals, request);
     const images = files
       .filter((file) => isImageFilename(file.filename))

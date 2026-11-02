@@ -9,7 +9,7 @@ export async function serveImage(locals: unknown, filename: string): Promise<Res
   }
   try {
     const config = await getWebdavConfig(locals);
-    const body = await storeGetFile(config, filename);
+    const body = await storeGetFile(locals, config, filename);
     return new Response(body, {
       status: 200,
       headers: {

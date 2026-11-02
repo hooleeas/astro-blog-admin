@@ -3,7 +3,36 @@
 // 注意：不要用默认入口 'webdav'（依赖 node-fetch），'webdav/web' 是官方自包含 web 构建。
 import { createClient } from 'webdav/web';
 import { AwsClient } from 'aws4fetch';
+import { getEnv } from './env';
 import { imageDir, type WebdavConfig } from './webdav-config';
+
+/** Pages 项目里 R2 存储桶的绑定变量名（在 Pages 设置 → 函数 → R2 存储桶绑定里添加） */
+export const R2_BINDING_NAME = 'IMGS_R2';
+
+/** R2 绑定对象的最小结构（Cloudflare R2Bucket 接口子集） */
+interface R2BucketLike {
+  head(key: string): Promise<unknown | null>;
+  get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
+  put(key: string, value: ArrayBuffer, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+  delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<{
+    objects: Array<{ key: string; size: number; uploaded: Date | string }>;
+    truncated: boolean;
+    cursor?: string;
+  }>;
+}
+
+/** 取 Pages 绑定里的 R2 存储桶；没绑或形状不对返回 null */
+export function getR2Binding(locals: unknown): R2BucketLike | null {
+  try {
+    const env = getEnv(locals as any);
+    const bucket = (env as any)?.[R2_BINDING_NAME];
+    if (bucket && typeof bucket.put === 'function' && typeof bucket.get === 'function') {
+      return bucket as R2BucketLike;
+    }
+  } catch {}
+  return null;
+}
 
 export interface StoredImage {
   filename: string;
@@ -37,8 +66,12 @@ function requireWebdav(cfg: WebdavConfig): void {
 }
 function requireR2(cfg: WebdavConfig): void {
   if (!cfg.r2Endpoint || !cfg.r2Bucket || !cfg.r2AccessKeyId || !cfg.r2SecretAccessKey) {
-    fail(500, '未配置 Cloudflare R2，请先到图床设置页填写');
+    fail(500, `未检测到 Pages 绑定（${R2_BINDING_NAME}），也没有填写完整的 R2 密钥：请二选一——在 Pages 设置里绑定 R2 存储桶（变量名 ${R2_BINDING_NAME}），或在图床设置页填写 R2 端点与密钥`);
   }
+}
+
+function r2Key(cfg: WebdavConfig, filename: string): string {
+  return `${imageDir(cfg)}/${filename}`;
 }
 
 /* ---------------- WebDAV ---------------- */
@@ -96,8 +129,10 @@ function xmlUnescape(s: string): string {
 
 /* ---------------- 统一接口 ---------------- */
 
-export async function storeFileExists(cfg: WebdavConfig, filename: string): Promise<boolean> {
+export async function storeFileExists(locals: unknown, cfg: WebdavConfig, filename: string): Promise<boolean> {
   if (cfg.storage === 'r2') {
+    const bucket = getR2Binding(locals);
+    if (bucket) return (await bucket.head(r2Key(cfg, filename))) !== null;
     const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename), { method: 'HEAD' });
     return res.ok;
   }
@@ -105,8 +140,13 @@ export async function storeFileExists(cfg: WebdavConfig, filename: string): Prom
   return client.exists(`/${imageDir(cfg)}/${filename}`);
 }
 
-export async function storePutFile(cfg: WebdavConfig, filename: string, data: ArrayBuffer): Promise<void> {
+export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename: string, data: ArrayBuffer): Promise<void> {
   if (cfg.storage === 'r2') {
+    const bucket = getR2Binding(locals);
+    if (bucket) {
+      await bucket.put(r2Key(cfg, filename), data, { httpMetadata: { contentType: imageContentType(filename) } });
+      return;
+    }
     const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename), {
       method: 'PUT',
       body: data,
@@ -120,8 +160,14 @@ export async function storePutFile(cfg: WebdavConfig, filename: string, data: Ar
   await client.putFileContents(`/${imageDir(cfg)}/${filename}`, data, { overwrite: false });
 }
 
-export async function storeGetFile(cfg: WebdavConfig, filename: string): Promise<Uint8Array> {
+export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename: string): Promise<Uint8Array> {
   if (cfg.storage === 'r2') {
+    const bucket = getR2Binding(locals);
+    if (bucket) {
+      const obj = await bucket.get(r2Key(cfg, filename));
+      if (!obj) fail(404, '图片不存在');
+      return new Uint8Array(await obj.arrayBuffer());
+    }
     const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename));
     if (!res.ok) await r2Error(res, '读取');
     return new Uint8Array(await res.arrayBuffer());
@@ -131,8 +177,29 @@ export async function storeGetFile(cfg: WebdavConfig, filename: string): Promise
   return data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data as unknown as ArrayLike<number>);
 }
 
-export async function storeListFiles(cfg: WebdavConfig): Promise<StoredImage[]> {
+export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promise<StoredImage[]> {
   if (cfg.storage === 'r2') {
+    const bucket = getR2Binding(locals);
+    if (bucket) {
+      const prefix = `${imageDir(cfg)}/`;
+      const out: StoredImage[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 20; page++) {
+        const res = await bucket.list({ prefix, cursor, limit: 1000 });
+        for (const obj of res.objects) {
+          const name = obj.key.slice(prefix.length);
+          if (!name || name.includes('/')) continue;
+          out.push({
+            filename: name,
+            size: obj.size,
+            lastmod: obj.uploaded instanceof Date ? obj.uploaded.toISOString() : String(obj.uploaded || ''),
+          });
+        }
+        if (!res.truncated || !res.cursor) break;
+        cursor = res.cursor;
+      }
+      return out;
+    }
     requireR2(cfg);
     const prefix = `${imageDir(cfg)}/`;
     const url = `${cfg.r2Endpoint}/${cfg.r2Bucket}?list-type=2&encoding-type=url&prefix=${encodeURIComponent(prefix)}`;
@@ -166,8 +233,13 @@ export async function storeListFiles(cfg: WebdavConfig): Promise<StoredImage[]> 
     .map((file) => ({ filename: file.basename, size: file.size, lastmod: file.lastmod }));
 }
 
-export async function storeDeleteFile(cfg: WebdavConfig, filename: string): Promise<void> {
+export async function storeDeleteFile(locals: unknown, cfg: WebdavConfig, filename: string): Promise<void> {
   if (cfg.storage === 'r2') {
+    const bucket = getR2Binding(locals);
+    if (bucket) {
+      await bucket.delete(r2Key(cfg, filename));
+      return;
+    }
     const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename), { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await r2Error(res, '删除');
     return;

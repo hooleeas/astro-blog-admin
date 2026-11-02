@@ -15,11 +15,11 @@ export const DELETE: APIRoute = async ({ locals, params }) => {
 
   try {
     const config = await getWebdavConfig(locals);
-    if (!await storeFileExists(config, filename)) {
+    if (!await storeFileExists(locals, config, filename)) {
       return json({ ok: false, error: '图床中不存在这张图片' }, 404);
     }
     // 图片只存当前存储一份，删除也只删这一份
-    await storeDeleteFile(config, filename);
+    await storeDeleteFile(locals, config, filename);
     return json({ ok: true, data: { filename } });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

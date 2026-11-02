@@ -59,6 +59,8 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         </label>
         </div>
         <div id="r2-fields" hidden>
+        <p class="hint" id="r2-mode-hint" style="margin: 0 0 4px;"></p>
+        <div id="r2-key-fields">
         <label class="field">
           <span class="flabel">R2 端点 <em style="color: var(--danger); font-style: normal;">*</em></span>
           <input class="input" name="r2Endpoint" type="url" placeholder="https://<账号ID>.r2.cloudflarestorage.com" />
@@ -77,6 +79,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           <input class="input" id="settings-r2-secret" name="r2SecretAccessKey" type="password" placeholder="未设置" />
           <span class="hint">R2 API 令牌的 Secret Access Key；留空则保留已保存的密钥</span>
         </label>
+        </div>
         </div>
         <label class="field">
           <span class="flabel">上传目录</span>
@@ -170,6 +173,9 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const r2BucketInput = requiredElement<HTMLInputElement>(form, '[name="r2Bucket"]');
       const r2AccessKeyIdInput = requiredElement<HTMLInputElement>(form, '[name="r2AccessKeyId"]');
       const r2SecretInput = requiredElement<HTMLInputElement>(document, '#settings-r2-secret');
+      const r2ModeHint = requiredElement<HTMLElement>(document, '#r2-mode-hint');
+      const r2KeyFields = requiredElement<HTMLElement>(document, '#r2-key-fields');
+      let r2Bound = false;
 
       function applyStorageVisibility() {
         const isR2 = storageSelect.value === 'r2';
@@ -212,6 +218,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           r2BucketInput.value = d.r2Bucket || '';
           r2AccessKeyIdInput.value = d.r2AccessKeyId || '';
           r2SecretInput.placeholder = d.hasR2Secret ? '已设置（留空保留原密钥）' : '未设置';
+          r2Bound = !!d.hasR2Binding;
+          r2ModeHint.textContent = r2Bound
+            ? '已检测到 Pages 绑定 IMGS_R2，将优先使用绑定连接 R2，下面的端点与密钥无需填写。'
+            : '未检测到 Pages 绑定 IMGS_R2：可先在 Pages 设置里绑定 R2 存储桶（变量名 IMGS_R2，绑定后需重新部署一次），或填写下面的端点与密钥走 S3 接口。';
+          r2KeyFields.hidden = r2Bound;
           applyStorageVisibility();
         }
       }).catch(() => setSettingsMsg('读取设置失败：网络错误', false));
@@ -219,7 +230,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         setSettingsMsg('保存中…', true);
-        const body = {
+        const body: Record<string, unknown> = {
           storage: storageSelect.value,
           r2Endpoint: r2EndpointInput.value.trim(),
           r2Bucket: r2BucketInput.value.trim(),
@@ -233,6 +244,12 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           linkPrefix: linkPrefixInput.value.trim(),
           pageTitle: pageTitleInput.value.trim(),
         };
+        if (r2Bound) {
+          delete body.r2Endpoint;
+          delete body.r2Bucket;
+          delete body.r2AccessKeyId;
+          delete body.r2SecretAccessKey;
+        }
         try {
           const response = await fetch('/api/settings', {
             method: 'PUT',
