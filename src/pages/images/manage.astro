@@ -38,7 +38,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
     .image-manager .image-status.error { color: var(--danger); }
     .image-manager .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; margin-top: 20px; }
     .image-manager .image-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-    .image-manager .image-preview { display: grid; place-items: center; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; padding: 10px; background: color-mix(in srgb, var(--bg) 80%, var(--text) 4%); }
+    .image-manager .image-preview { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; padding: 10px; background: color-mix(in srgb, var(--bg) 80%, var(--text) 4%); }
     .image-manager .image-preview img { width: 100%; height: 100%; object-fit: contain; }
     .image-manager .image-preview .broken { color: var(--muted); font-size: 13px; }
     .image-manager .image-details { padding: 12px; }
