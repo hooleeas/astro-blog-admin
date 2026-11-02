@@ -64,15 +64,7 @@ try {
       <p id="history-empty" class="history-empty" hidden>暂无上传记录</p>
     </dialog>
 
-    <dialog id="upload-progress-dialog" class="upload-progress-dialog" aria-label="上传进度">
-      <div class="up-head">
-        <h2 class="up-title">正在上传</h2>
-        <button class="up-close" type="button" aria-label="关闭进度弹窗">&times;</button>
-      </div>
-      <p class="up-name"></p>
-      <div class="up-bar"><div class="up-fill"></div></div>
-      <div class="up-meta"><span class="up-pct">0%</span><span class="up-count"></span></div>
-    </dialog>
+    <div id="upload-progress" class="upload-progress" aria-live="polite"></div>
 
     <div id="toast" class="toast" popover="manual"></div>
 
@@ -199,65 +191,69 @@ try {
       }
 
       async function uploadAll(files) {
-        upStart(files.length);
-        let index = 0;
+        const pending = [];
         for (const f of files) {
           const ready = await maybeToWebp(f);
-          upBegin(index, ready.name);
-          await uploadOne(ready, (frac) => upSet(frac));
-          index += 1;
+          const bar = upCreate(ready.name);
+          pending.push(uploadOne(ready, (frac) => bar.set(frac)).then((ok) => {
+            if (ok) bar.done();
+            else bar.fail();
+          }));
         }
-        upEnd();
+        await Promise.all(pending);
       }
 
-      // 上传进度弹窗：盖在页面上显示当前文件与进度；关掉只关弹窗，不中断上传
-      const upDialog = document.querySelector('#upload-progress-dialog');
-      const upName = upDialog.querySelector('.up-name');
-      const upFill = upDialog.querySelector('.up-fill');
-      const upPct = upDialog.querySelector('.up-pct');
-      const upCount = upDialog.querySelector('.up-count');
-      let upTotal = 0;
-      let upDismissed = false;
-      let upCloseTimer = 0;
+      // 顶部多条进度：每个文件一条（文件名 + 细进度线 + 百分比），悬浮在页面最上方、不挡内容；
+      // 转换逐个来、上传同时进行，完成的停留片刻自动淡出
+      const upBox = document.querySelector('#upload-progress');
 
-      function upShow() {
-        if (!upDismissed && !upDialog.open) upDialog.showModal();
-      }
-      function upStart(total) {
-        upTotal = total;
-        upDismissed = false;
-        window.clearTimeout(upCloseTimer);
-        upShow();
-      }
-      function upBegin(index, filename) {
-        upName.textContent = filename;
-        upCount.textContent = upTotal > 1 ? (index + 1) + ' / ' + upTotal : '';
-        upSet(0);
-        upShow();
-      }
-      function upSet(frac) {
-        if (frac === null) {
-          upFill.classList.add('indeterminate');
-          upPct.textContent = '上传中…';
-        } else {
-          upFill.classList.remove('indeterminate');
-          upFill.style.width = Math.round(frac * 100) + '%';
-          upPct.textContent = Math.round(frac * 100) + '%';
+      function upCreate(filename) {
+        const row = document.createElement('div');
+        row.className = 'up-row';
+        const head = document.createElement('div');
+        head.className = 'up-row-head';
+        const name = document.createElement('span');
+        name.className = 'up-row-name';
+        name.textContent = filename;
+        const pct = document.createElement('span');
+        pct.className = 'up-row-pct';
+        pct.textContent = '0%';
+        head.append(name, pct);
+        const track = document.createElement('div');
+        track.className = 'up-row-bar';
+        const fill = document.createElement('div');
+        fill.className = 'up-row-fill';
+        track.appendChild(fill);
+        row.append(head, track);
+        upBox.appendChild(row);
+        function dismiss(delay) {
+          window.setTimeout(() => {
+            row.classList.add('done');
+            window.setTimeout(() => row.remove(), 350);
+          }, delay);
         }
+        return {
+          set(frac) {
+            if (frac === null) {
+              fill.classList.add('indeterminate');
+              pct.textContent = '上传中…';
+            } else {
+              fill.classList.remove('indeterminate');
+              fill.style.width = Math.round(frac * 100) + '%';
+              pct.textContent = Math.round(frac * 100) + '%';
+            }
+          },
+          done() {
+            this.set(1);
+            dismiss(500);
+          },
+          fail() {
+            row.classList.add('failed');
+            pct.textContent = '失败';
+            dismiss(1600);
+          },
+        };
       }
-      function upEnd() {
-        upSet(1);
-        window.clearTimeout(upCloseTimer);
-        upCloseTimer = window.setTimeout(() => { if (upDialog.open) upDialog.close(); }, 400);
-      }
-      upDialog.querySelector('.up-close').addEventListener('click', () => {
-        upDismissed = true;
-        upDialog.close();
-      });
-      upDialog.addEventListener('cancel', () => { upDismissed = true; });
-      upDialog.addEventListener('click', (event) => {
-        if (event.target === upDialog) { upDismissed = true; upDialog.close(); }
-      });
 
       function uploadOne(file, onProgress) {
         return new Promise((resolve) => {
@@ -271,14 +267,15 @@ try {
             try { res = JSON.parse(xhr.responseText); } catch {}
             if (xhr.status === 200 && res && res.ok) {
               addResult(res.data.url, res.data.filename);
+              resolve(true);
             } else {
               showToast('上传失败：' + file.name + (res && res.error ? '（' + res.error + '）' : ''));
+              resolve(false);
             }
-            resolve();
           });
           xhr.addEventListener('error', () => {
             showToast('上传失败：' + file.name + '（网络错误）');
-            resolve();
+            resolve(false);
           });
           const form = new FormData();
           form.append('file', file);
