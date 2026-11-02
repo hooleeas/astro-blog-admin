@@ -495,8 +495,13 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
   </script>
 
   <style is:global>
-    /* 存储方式选择框：原生 select 在 macOS 上不吃上下内边距会显矮，显式给到与文本输入框等高 */
-    #settings-storage { height: 44px; padding-top: 0; padding-bottom: 0; }
+    /* 存储方式选择框：去掉原生外观（macOS 系统自绘按钮不认圆角、高度压不实），自绘下拉箭头，圆角与高度都与文本输入框一致 */
+    #settings-storage {
+      height: 42px; padding-top: 0; padding-bottom: 0; padding-right: 38px;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+    }
     .settings-dialog {
       width: min(620px, calc(100% - 32px));
       max-height: min(90dvh, 760px);
