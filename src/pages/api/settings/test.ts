@@ -6,6 +6,7 @@ import { createClient } from 'webdav/web';
 import { AwsClient } from 'aws4fetch';
 import { getWebdavConfig, normalizeR2Endpoint, normalizeR2Bucket } from '../../../lib/webdav-config';
 import { getR2Binding, R2_BINDING_NAME } from '../../../lib/image-store';
+import { getImageBlobStore } from '../../../lib/platform';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -34,6 +35,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (bound) {
         await bound.list({ limit: 1 });
         return json({ ok: true, data: { message: `连接成功，Cloudflare R2 已通过 Pages 绑定（${R2_BINDING_NAME}）接入` } });
+      }
+      // EdgeOne 上这一档由 Blob 承载：测 Blob 连通性，同样不需要密钥字段
+      const blob = await getImageBlobStore(locals);
+      if (blob) {
+        await blob.list('');
+        return json({ ok: true, data: { message: '连接成功，EdgeOne Blob 可用' } });
       }
       const b = body as any;
       const endpoint = normalizeR2Endpoint(typeof b.r2Endpoint === 'string' && b.r2Endpoint.trim() ? b.r2Endpoint : saved.r2Endpoint) || '';
