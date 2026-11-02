@@ -48,11 +48,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           <input class="input" id="settings-password" name="password" type="password" placeholder="未设置" />
           <span class="hint">留空则保留已保存的密码，不会清空</span>
         </label>
-        <div class="field">
+        <label class="field">
           <span class="flabel">上传目录</span>
-          <div class="static-note"><code class="mono">/img/</code></div>
-          <span class="hint">图片统一存放于 WebDAV 的 /img/ 目录</span>
-        </div>
+          <input class="input" name="dir" type="text" placeholder="img" />
+          <span class="hint">图片存放于 WebDAV 的该目录下，可填多级路径（如 photos/blog）；留空使用默认 img</span>
+        </label>
         <label class="field check-field">
           <span class="toggle-switch">
             <input type="checkbox" name="webp" role="switch" aria-label="上传时转换为 WebP" checked />
@@ -120,6 +120,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const urlInput = requiredElement<HTMLInputElement>(form, '[name="url"]');
       const usernameInput = requiredElement<HTMLInputElement>(form, '[name="username"]');
       const webpInput = requiredElement<HTMLInputElement>(form, '[name="webp"]');
+      const dirInput = requiredElement<HTMLInputElement>(form, '[name="dir"]');
       const closeButton = requiredElement<HTMLButtonElement>(dialog, '[data-close-settings]');
 
       function setSettingsMsg(text: string, ok: boolean) {
@@ -145,6 +146,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           urlInput.value = d.url || '';
           usernameInput.value = d.username || '';
           webpInput.checked = d.webp !== false;
+          dirInput.value = d.dir || '';
           passwordInput.placeholder = d.hasPassword ? '已设置（留空保留原密码）' : '未设置';
         }
       }).catch(() => setSettingsMsg('读取设置失败：网络错误', false));
@@ -157,6 +159,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           username: usernameInput.value.trim(),
           password: passwordInput.value,
           webp: webpInput.checked,
+          dir: dirInput.value.trim(),
         };
         try {
           const response = await fetch('/api/settings', {

@@ -3,7 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { createClient } from 'webdav/web';
 import { isImageFilename } from '../../../lib/image-assets';
-import { getWebdavConfig, IMG_DIR } from '../../../lib/webdav-config';
+import { getWebdavConfig, imageDir } from '../../../lib/webdav-config';
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status });
@@ -16,7 +16,7 @@ export const DELETE: APIRoute = async ({ locals, params }) => {
   try {
     const config = await getWebdavConfig(locals);
     const client = createClient(config.url, { username: config.username, password: config.password });
-    const remotePath = `/${IMG_DIR}/${filename}`;
+    const remotePath = `/${imageDir(config)}/${filename}`;
     if (!await client.exists(remotePath)) {
       return json({ ok: false, error: '图床中不存在这张图片' }, 404);
     }

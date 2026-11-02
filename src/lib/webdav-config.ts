@@ -20,8 +20,13 @@ export interface WebdavConfigPublic {
   webp: boolean;
 }
 
-/** 图床图片固定存放目录（用户要求：/img/文件名.webp） */
+/** 图床默认存放目录（设置页未填 dir 时使用） */
 export const IMG_DIR = 'img';
+
+/** 图床实际存放目录：设置页填了 dir 就用它，留空用默认 img */
+export function imageDir(cfg: WebdavConfig): string {
+  return cfg.dir || IMG_DIR;
+}
 
 export interface ConfigError {
   status: number;

@@ -1,5 +1,4 @@
 import { getEnv } from './env';
-import { IMG_DIR } from './webdav-config';
 
 const IMAGE_FILENAME_RE = /^[^/\\\u0000-\u001f\u007f]+\.(png|jpe?g|gif|webp|svg|avif)$/i;
 

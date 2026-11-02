@@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
 // 与 upload.ts 相同：用 'webdav/web' 自包含构建（原生 fetch），不要用默认入口。
 import { createClient } from 'webdav/web';
 import { isImageFilename } from '../../lib/image-assets';
-import { getWebdavConfig, IMG_DIR } from '../../lib/webdav-config';
+import { getWebdavConfig, imageDir } from '../../lib/webdav-config';
 
 /**
  * 图床图片回源：图片只存 WebDAV 一份，本路由按 /images/<文件名> 从 WebDAV 读出返回。
@@ -29,7 +29,7 @@ export const GET: APIRoute = async ({ locals, params }) => {
   try {
     const config = await getWebdavConfig(locals);
     const client = createClient(config.url, { username: config.username, password: config.password });
-    const data = await client.getFileContents(`/${IMG_DIR}/${filename}`);
+    const data = await client.getFileContents(`/${imageDir(config)}/${filename}`);
     const body = data instanceof ArrayBuffer ? data : new Uint8Array(data as unknown as ArrayLike<number>);
     const ext = (filename.split('.').pop() || '').toLowerCase();
     return new Response(body, {

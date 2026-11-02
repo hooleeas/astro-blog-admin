@@ -3,7 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { createClient } from 'webdav/web';
 import { getImageUrl, isImageFilename, isLocalImagePreview } from '../../../lib/image-assets';
-import { getWebdavConfig, IMG_DIR } from '../../../lib/webdav-config';
+import { getWebdavConfig, imageDir } from '../../../lib/webdav-config';
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status });
@@ -13,7 +13,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
   try {
     const config = await getWebdavConfig(locals);
     const client = createClient(config.url, { username: config.username, password: config.password });
-    const directory = `/${IMG_DIR}`;
+    const directory = `/${imageDir(config)}`;
     if (!await client.exists(directory)) return json({ ok: true, data: [] });
 
     const files = await client.getDirectoryContents(directory);

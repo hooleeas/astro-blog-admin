@@ -5,7 +5,7 @@ import type { APIRoute } from 'astro';
 // 'webdav/web' 是官方自包含 web 构建（原生 fetch，显式支持 WorkerGlobalScope），
 // 在 Cloudflare Pages Functions / workerd 里可直接运行。
 import { createClient } from 'webdav/web';
-import { getWebdavConfig, IMG_DIR } from '../../lib/webdav-config';
+import { getWebdavConfig, imageDir } from '../../lib/webdav-config';
 import { getImageUrl, isImageFilename } from '../../lib/image-assets';
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
@@ -68,9 +68,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const client = createClient(cfg.url, { username: cfg.username, password: cfg.password });
     const data = await file.arrayBuffer();
-    // 图片统一存放在 /img/ 目录（不存在则创建）
-    try { await (client as any).createDirectory(`/${IMG_DIR}`); } catch {}
-    const remotePath = `/${IMG_DIR}/${filename}`;
+    // 存放目录取设置页的 dir（留空用默认 img）；逐级创建以兼容多级目录
+    const dir = imageDir(cfg);
+    let prefix = '';
+    for (const seg of dir.split('/')) {
+      prefix += `/${seg}`;
+      try { await (client as any).createDirectory(prefix); } catch {}
+    }
+    const remotePath = `/${dir}/${filename}`;
     await client.putFileContents(remotePath, data, { overwrite: false });
 
     // 只存 WebDAV 这一份，不再往任何 GitHub 仓库发布副本
