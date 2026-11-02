@@ -287,13 +287,20 @@ const nav = [
 
       @media (max-width: 760px) {
         input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px !important; }
-        .topbar-inner { justify-content: flex-start; gap: 8px; }
+        .topbar-inner { justify-content: flex-start; gap: 8px; height: auto; }
         .topbar-controls {
           position: relative; left: auto; top: auto; transform: none;
-          display: flex; align-items: center; gap: 8px;
-          max-width: 100%; min-width: 0;
+          display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+          flex: 1 1 auto; max-width: 100%; min-width: 0;
         }
-        .topbar-actions { position: relative; top: auto; left: auto; flex-shrink: 0; }
+        .topbar-navigation { flex: 0 1 auto; min-width: 0; }
+        .topbar-actions {
+          position: relative; top: auto; left: auto;
+          flex: 1 1 100%; width: auto;
+          display: flex; align-items: center; gap: 8px;
+        }
+        .topbar-actions .btn { flex: 1 1 0; justify-content: center; }
+        .topbar-actions .note-delete-button { flex: 1 1 0; }
         .nav-capsule {
           flex: 0 1 auto; min-width: 0; width: fit-content; max-width: calc(100% - 48px);
         }
@@ -306,7 +313,7 @@ const nav = [
       }
 
       @media (max-width: 480px) {
-        .topbar-inner { height: 40px; min-height: 40px; }
+        .topbar-inner { height: auto; min-height: 40px; }
       }
 
       ::view-transition-group(root),
@@ -480,6 +487,8 @@ const nav = [
       .input:disabled { opacity: 0.6; background: color-mix(in srgb, var(--line) 30%, var(--surface)); }
       textarea.input { line-height: 1.65; resize: vertical; }
       input[type="date"].input { min-height: 50px; min-width: 0; max-width: 100%; }
+      input[type="date"].input::-webkit-date-and-time-value { min-width: 0; }
+      input[type="date"].input::-webkit-calendar-picker-indicator { margin: 0; padding: 0; }
       input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
 
       /* ============ 表单 ============ */
