@@ -341,6 +341,37 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         for (const k of subKeys) renderObjectCard(obj[k], [...pathArr, k]);
       }
 
+      function isColorValue(key, value) {
+        return /color/i.test(key) || /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(String(value ?? '').trim());
+      }
+      function toPickerHex(value) {
+        let t = String(value ?? '').trim();
+        if (/^#[0-9a-fA-F]{3}$/.test(t)) t = '#' + t.slice(1).split('').map((c) => c + c).join('');
+        return /^#[0-9a-fA-F]{6}$/.test(t) ? t.toLowerCase() : '#000000';
+      }
+      // 颜色控件：左边文本框填代码、右边颜色框点选，两边同步（用户定：可以填也可以选）
+      function makeColorControl(initial, onChange) {
+        const wrap = el('div', 'vv-color');
+        const text = el('input', 'input');
+        text.type = 'text';
+        text.value = initial ?? '';
+        text.spellcheck = false;
+        const picker = el('input', 'vv-color-picker');
+        picker.type = 'color';
+        picker.value = toPickerHex(initial);
+        picker.setAttribute('aria-label', '选择颜色');
+        text.addEventListener('input', () => {
+          onChange(text.value);
+          if (/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(text.value.trim())) picker.value = toPickerHex(text.value);
+        });
+        picker.addEventListener('input', () => {
+          text.value = picker.value;
+          onChange(picker.value);
+        });
+        wrap.append(text, picker);
+        return { wrap, text };
+      }
+
       function renderField(k, v, pathArr) {
         if (typeof v === 'boolean') return renderBool(k, v, pathArr);
         if (typeof v === 'number') return renderNumber(k, v, pathArr);
@@ -418,6 +449,13 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         wrap.appendChild(el('label', null, esc(labelFor(pathArr))));
         const s = v === null ? '' : String(v);
         const wasNull = v === null;
+        if (isColorValue(k, s)) {
+          const control = makeColorControl(s, (val) => {
+            setAt(pathArr, (wasNull && val === '') ? null : val);
+          });
+          wrap.appendChild(control.wrap);
+          return wrap;
+        }
         const input = (s.length > 120 || s.includes('\n'))
           ? el('textarea', 'input mono') : el('input', 'input');
         if (input.tagName === 'TEXTAREA') input.rows = 3;
@@ -568,7 +606,13 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         urlInput.required = true;
         urlInput.placeholder = 'https://example.com';
         urlLabel.appendChild(urlInput);
-        form.append(titleLabel, urlLabel);
+        const subtitleLabel = el('label');
+        subtitleLabel.appendChild(document.createTextNode('副标题（可选）'));
+        const subtitleInput = el('input', 'input');
+        subtitleInput.type = 'text';
+        subtitleInput.placeholder = '输入服务副标题';
+        subtitleLabel.appendChild(subtitleInput);
+        form.append(titleLabel, subtitleLabel, urlLabel);
         const actions = el('div', 'new-page-actions');
         const submit = el('button', 'btn');
         submit.type = 'submit';
@@ -582,6 +626,11 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           const item = blankLike(template);
           const titleLocales = isObj(template.title) ? Object.keys(template.title) : [...LANG_SET];
           item.title = Object.fromEntries(titleLocales.map((locale) => [locale, titleInput.value.trim()]));
+          const subtitleText = subtitleInput.value.trim();
+          if (subtitleText) {
+            const subtitleLocales = isObj(template.subtitle) && Object.keys(template.subtitle).length ? Object.keys(template.subtitle) : [...LANG_SET];
+            item.subtitle = Object.fromEntries(subtitleLocales.map((locale) => [locale, subtitleText]));
+          }
           item.url = urlInput.value.trim();
           items.push(item);
           pendingFocusPath = [...pathArr, items.length - 1];
@@ -616,6 +665,17 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         const titleInput = addInput('标题', 'text', '输入轮播图标题');
         const iconInput = addInput('图标地址', 'url', 'https://example.com/icon.png');
         const linkInput = addInput('链接', 'url', 'https://example.com');
+        const tplItem = getAt(pathArr).find((item) => isObj(item));
+        const addColorField = (labelText, initial) => {
+          const fieldLabel = el('label');
+          fieldLabel.appendChild(document.createTextNode(labelText));
+          const control = makeColorControl(initial, () => {});
+          fieldLabel.appendChild(control.wrap);
+          form.appendChild(fieldLabel);
+          return control;
+        };
+        const bgColor = addColorField('背景颜色', tplItem?.color ?? '#fff');
+        const labelColor = addColorField('文字颜色', tplItem?.labelColor ?? '#17191c');
         const actions = el('div', 'new-page-actions');
         const submit = el('button', 'btn');
         submit.type = 'submit';
@@ -628,8 +688,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           const template = items.find((item) => isObj(item));
           items.push({
             name: titleInput.value.trim(),
-            color: template?.color ?? '#fff',
-            labelColor: template?.labelColor ?? '#17191c',
+            color: bgColor.text.value.trim() || (template?.color ?? '#fff'),
+            labelColor: labelColor.text.value.trim() || (template?.labelColor ?? '#17191c'),
             icon: iconInput.value.trim(),
             href: linkInput.value.trim(),
           });
@@ -715,15 +775,31 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           const nameKey = ['name', 'title', 'key', 'label', 'text'].find((k) => typeof template[k] === 'string')
             ?? entries.find(([, v]) => typeof v === 'string')?.[0];
           for (const [k, v] of entries) {
+            if (typeof v === 'boolean') {
+              const fieldLabel = el('label');
+              fieldLabel.appendChild(document.createTextNode(labelFor([...pathArr, k])));
+              const sw = makeSwitch(v, labelFor([...pathArr, k]), () => {});
+              fieldLabel.appendChild(sw);
+              form.appendChild(fieldLabel);
+              inputs.push({ key: k, numeric: false, getValue: () => String(sw.querySelector('input')?.checked ?? false), bool: true });
+              continue;
+            }
             if (typeof v !== 'string' && typeof v !== 'number') continue;
             const fieldLabel = el('label');
             fieldLabel.appendChild(document.createTextNode(labelFor([...pathArr, k])));
+            if (typeof v === 'string' && isColorValue(k, v)) {
+              const control = makeColorControl(v, () => {});
+              fieldLabel.appendChild(control.wrap);
+              form.appendChild(fieldLabel);
+              inputs.push({ key: k, numeric: false, getValue: () => control.text.value });
+              continue;
+            }
             const input = el('input', 'input');
             input.type = typeof v === 'number' ? 'number' : 'text';
             if (k === nameKey || ['href', 'url', 'icon', 'link'].includes(k)) input.required = true;
             fieldLabel.appendChild(input);
             form.appendChild(fieldLabel);
-            inputs.push({ key: k, input, numeric: typeof v === 'number' });
+            inputs.push({ key: k, numeric: typeof v === 'number', getValue: () => input.value });
             if (k === nameKey) nameInput = input;
           }
           if (!inputs.length && hasLangMapField) {
@@ -755,7 +831,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           if (isObj(template)) {
             const item = blankLike(template);
             for (const entry of inputs) {
-              const raw = entry.input.value.trim();
+              if (entry.bool) { item[entry.key] = entry.getValue() === 'true'; continue; }
+              const raw = entry.getValue().trim();
               if (entry.numeric) item[entry.key] = raw === '' ? 0 : Number(raw);
               else if (raw !== '') item[entry.key] = raw;
             }
