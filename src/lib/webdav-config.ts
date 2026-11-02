@@ -1,6 +1,18 @@
 import { getEnv } from './env';
 
+export type ImageStorageKind = 'webdav' | 'r2';
+
 export interface WebdavConfig {
+  /** 图片存储方式：WebDAV 或 Cloudflare R2（S3 兼容接口） */
+  storage: ImageStorageKind;
+  /** Cloudflare R2 的 S3 端点，如 https://<账号ID>.r2.cloudflarestorage.com */
+  r2Endpoint: string;
+  /** Cloudflare R2 存储桶名称 */
+  r2Bucket: string;
+  /** Cloudflare R2 访问密钥 ID */
+  r2AccessKeyId: string;
+  /** Cloudflare R2 密钥 —— 只存 KV，绝不进代码仓库，绝不返回给前端 */
+  r2SecretAccessKey: string;
   url: string;
   username: string;
   /** 明文密码 —— 只存 KV，绝不进代码仓库，绝不返回给前端 */
@@ -15,6 +27,16 @@ export interface WebdavConfig {
 }
 
 export interface WebdavConfigPublic {
+  /** 图片存储方式 */
+  storage: ImageStorageKind;
+  /** Cloudflare R2 的 S3 端点 */
+  r2Endpoint: string;
+  /** Cloudflare R2 存储桶名称 */
+  r2Bucket: string;
+  /** Cloudflare R2 访问密钥 ID */
+  r2AccessKeyId: string;
+  /** 是否已设置 R2 密钥（只给布尔值，不回显原值） */
+  hasR2Secret: boolean;
   url: string;
   username: string;
   dir: string;
@@ -54,6 +76,23 @@ export function normalizeLinkPrefix(raw: unknown): string | null {
  * 规范化公开图床页标题：去掉首尾空白，最多 60 个字符，不含控制字符（含换行）；
  * 不合法返回 null（设置接口据此报错，读取配置时回退空字符串、页面用默认标题）。
  */
+/** 规范化 R2 的 S3 端点：必须 https:// 开头且是合法 URL，去掉尾部斜杠；不合法返回 null */
+export function normalizeR2Endpoint(raw: unknown): string | null {
+  const s = String(raw ?? '').trim().replace(/\/+$/, '');
+  if (!s) return '';
+  if (!/^https:\/\//i.test(s)) return null;
+  try { new URL(s); } catch { return null; }
+  return s;
+}
+
+/** 规范化 R2 存储桶名：不含 /、\、空白与控制字符，最长 63；不合法返回 null */
+export function normalizeR2Bucket(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  if (s.length > 63 || s.includes('/') || s.includes('\\') || /[\s\u0000-\u001f\u007f]/.test(s)) return null;
+  return s;
+}
+
 export function normalizePageTitle(raw: unknown): string | null {
   const s = String(raw ?? '').trim();
   if (s.length > 60) return null;
@@ -99,9 +138,22 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
   } catch {
     throw notConfigured();
   }
-  if (!parsed || typeof parsed.url !== 'string' || !parsed.url) throw notConfigured();
+  if (!parsed || typeof parsed !== 'object') throw notConfigured();
+  const storage: ImageStorageKind = parsed.storage === 'r2' ? 'r2' : 'webdav';
+  const r2Endpoint = normalizeR2Endpoint(parsed.r2Endpoint) ?? '';
+  const r2Bucket = normalizeR2Bucket(parsed.r2Bucket) ?? '';
+  const r2AccessKeyId = String(parsed.r2AccessKeyId || '').trim();
+  const r2SecretAccessKey = String(parsed.r2SecretAccessKey || '');
+  const url = typeof parsed.url === 'string' ? parsed.url.replace(/\/+$/, '') : '';
+  // 两种存储都未配置才视为未配置（兼容只填 R2 的保存）
+  if (!url && !(r2Endpoint && r2Bucket && r2AccessKeyId && r2SecretAccessKey)) throw notConfigured();
   return {
-    url: parsed.url.replace(/\/+$/, ''),
+    storage,
+    r2Endpoint,
+    r2Bucket,
+    r2AccessKeyId,
+    r2SecretAccessKey,
+    url,
     username: String(parsed.username || ''),
     password: String(parsed.password || ''),
     dir: String(parsed.dir || '').replace(/^\/+|\/+$/g, ''),
@@ -114,12 +166,17 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
 /** 写 WebDAV 配置到 KV。password 由调用方决定（空则调用方先填入旧值）。 */
 export async function saveWebdavConfig(
   locals: unknown,
-  cfg: { url: string; username: string; password: string; dir: string; webp: boolean; linkPrefix: string; pageTitle: string },
+  cfg: { storage: ImageStorageKind; r2Endpoint: string; r2Bucket: string; r2AccessKeyId: string; r2SecretAccessKey: string; url: string; username: string; password: string; dir: string; webp: boolean; linkPrefix: string; pageTitle: string },
 ): Promise<void> {
   const kv = getKV(locals);
   await kv.put(
     KV_KEY,
     JSON.stringify({
+      storage: cfg.storage,
+      r2Endpoint: cfg.r2Endpoint,
+      r2Bucket: cfg.r2Bucket,
+      r2AccessKeyId: cfg.r2AccessKeyId,
+      r2SecretAccessKey: cfg.r2SecretAccessKey,
       url: cfg.url,
       username: cfg.username,
       password: cfg.password,
@@ -135,6 +192,11 @@ export async function saveWebdavConfig(
 /** 去掉密码后的公开视图（给 GET /api/settings 用） */
 export function toPublic(cfg: WebdavConfig): WebdavConfigPublic {
   return {
+    storage: cfg.storage,
+    r2Endpoint: cfg.r2Endpoint,
+    r2Bucket: cfg.r2Bucket,
+    r2AccessKeyId: cfg.r2AccessKeyId,
+    hasR2Secret: cfg.r2SecretAccessKey.length > 0,
     url: cfg.url,
     username: cfg.username,
     dir: cfg.dir,

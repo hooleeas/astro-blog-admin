@@ -1,9 +1,9 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from 'webdav/web';
 import { getImageUrl, isImageFilename, isLocalImagePreview } from '../../../lib/image-assets';
-import { getWebdavConfig, imageDir } from '../../../lib/webdav-config';
+import { getWebdavConfig } from '../../../lib/webdav-config';
+import { storeListFiles } from '../../../lib/image-store';
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status });
@@ -12,17 +12,13 @@ function json(data: unknown, status = 200): Response {
 export const GET: APIRoute = async ({ locals, request }) => {
   try {
     const config = await getWebdavConfig(locals);
-    const client = createClient(config.url, { username: config.username, password: config.password });
-    const directory = `/${imageDir(config)}`;
-    if (!await client.exists(directory)) return json({ ok: true, data: [] });
-
-    const files = await client.getDirectoryContents(directory);
+    const files = await storeListFiles(config);
     const localPreview = isLocalImagePreview(locals, request);
     const images = files
-      .filter((file) => file.type === 'file' && isImageFilename(file.basename))
+      .filter((file) => isImageFilename(file.filename))
       .map((file) => ({
-        filename: file.basename,
-        url: getImageUrl(locals, file.basename, localPreview, request.url, config.linkPrefix),
+        filename: file.filename,
+        url: getImageUrl(locals, file.filename, localPreview, request.url, config.linkPrefix),
         size: file.size,
         lastmod: file.lastmod,
       }))

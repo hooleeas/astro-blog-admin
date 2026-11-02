@@ -28,12 +28,21 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
     <header class="settings-dialog-head">
       <div>
         <h2 id="settings-title">图床设置</h2>
-        <p>WebDAV 配置保存在服务器 KV 中，不会进入代码仓库。</p>
+        <p>图床配置保存在服务器 KV 中，不会进入代码仓库。</p>
       </div>
       <button class="settings-close" type="button" aria-label="关闭设置" data-close-settings>&times;</button>
     </header>
     <div class="settings-dialog-content">
       <form id="cfg-form" class="form" autocomplete="off">
+        <label class="field">
+          <span class="flabel">存储方式</span>
+          <select class="input" name="storage" id="settings-storage">
+            <option value="webdav">WebDAV</option>
+            <option value="r2">Cloudflare R2</option>
+          </select>
+          <span class="hint">图片实际存放在所选存储中；切换存储不会迁移已有图片，原存储里的图片切回去仍可访问</span>
+        </label>
+        <div id="webdav-fields">
         <label class="field">
           <span class="flabel">WebDAV 地址 <em style="color: var(--danger); font-style: normal;">*</em></span>
           <input class="input" name="url" type="url" required placeholder="https://openlist.example.com/dav" />
@@ -48,10 +57,31 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           <input class="input" id="settings-password" name="password" type="password" placeholder="未设置" />
           <span class="hint">留空则保留已保存的密码，不会清空</span>
         </label>
+        </div>
+        <div id="r2-fields" hidden>
+        <label class="field">
+          <span class="flabel">R2 端点 <em style="color: var(--danger); font-style: normal;">*</em></span>
+          <input class="input" name="r2Endpoint" type="url" placeholder="https://<账号ID>.r2.cloudflarestorage.com" />
+          <span class="hint">Cloudflare 面板 R2 页面里显示的 S3 端点（https:// 开头）</span>
+        </label>
+        <label class="field">
+          <span class="flabel">存储桶名称 <em style="color: var(--danger); font-style: normal;">*</em></span>
+          <input class="input" name="r2Bucket" type="text" placeholder="如 imghub" />
+        </label>
+        <label class="field">
+          <span class="flabel">访问密钥 ID <em style="color: var(--danger); font-style: normal;">*</em></span>
+          <input class="input" name="r2AccessKeyId" type="text" placeholder="R2 API 令牌的 Access Key ID" />
+        </label>
+        <label class="field">
+          <span class="flabel">密钥 <em style="color: var(--danger); font-style: normal;">*</em></span>
+          <input class="input" id="settings-r2-secret" name="r2SecretAccessKey" type="password" placeholder="未设置" />
+          <span class="hint">R2 API 令牌的 Secret Access Key；留空则保留已保存的密钥</span>
+        </label>
+        </div>
         <label class="field">
           <span class="flabel">上传目录</span>
           <input class="input" name="dir" type="text" placeholder="img" />
-          <span class="hint">图片存放于 WebDAV 的该目录下，可填多级路径（如 photos/blog）；留空使用默认 img</span>
+          <span class="hint">图片存放于该目录下（WebDAV 的目录 / R2 内的同名路径），可填多级路径（如 photos/blog）；留空使用默认 img</span>
         </label>
         <label class="field">
           <span class="flabel">对外链接前缀</span>
@@ -133,6 +163,21 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const dirInput = requiredElement<HTMLInputElement>(form, '[name="dir"]');
       const linkPrefixInput = requiredElement<HTMLInputElement>(form, '[name="linkPrefix"]');
       const pageTitleInput = requiredElement<HTMLInputElement>(form, '[name="pageTitle"]');
+      const storageSelect = requiredElement<HTMLSelectElement>(form, '[name="storage"]');
+      const webdavFields = requiredElement<HTMLElement>(document, '#webdav-fields');
+      const r2Fields = requiredElement<HTMLElement>(document, '#r2-fields');
+      const r2EndpointInput = requiredElement<HTMLInputElement>(form, '[name="r2Endpoint"]');
+      const r2BucketInput = requiredElement<HTMLInputElement>(form, '[name="r2Bucket"]');
+      const r2AccessKeyIdInput = requiredElement<HTMLInputElement>(form, '[name="r2AccessKeyId"]');
+      const r2SecretInput = requiredElement<HTMLInputElement>(document, '#settings-r2-secret');
+
+      function applyStorageVisibility() {
+        const isR2 = storageSelect.value === 'r2';
+        webdavFields.hidden = isR2;
+        r2Fields.hidden = !isR2;
+        urlInput.required = !isR2;
+      }
+      storageSelect.addEventListener('change', applyStorageVisibility);
       const closeButton = requiredElement<HTMLButtonElement>(dialog, '[data-close-settings]');
 
       function setSettingsMsg(text: string, ok: boolean) {
@@ -162,6 +207,12 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           linkPrefixInput.value = d.linkPrefix || '';
           pageTitleInput.value = d.pageTitle || '';
           passwordInput.placeholder = d.hasPassword ? '已设置（留空保留原密码）' : '未设置';
+          storageSelect.value = d.storage === 'r2' ? 'r2' : 'webdav';
+          r2EndpointInput.value = d.r2Endpoint || '';
+          r2BucketInput.value = d.r2Bucket || '';
+          r2AccessKeyIdInput.value = d.r2AccessKeyId || '';
+          r2SecretInput.placeholder = d.hasR2Secret ? '已设置（留空保留原密钥）' : '未设置';
+          applyStorageVisibility();
         }
       }).catch(() => setSettingsMsg('读取设置失败：网络错误', false));
 
@@ -169,6 +220,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         event.preventDefault();
         setSettingsMsg('保存中…', true);
         const body = {
+          storage: storageSelect.value,
+          r2Endpoint: r2EndpointInput.value.trim(),
+          r2Bucket: r2BucketInput.value.trim(),
+          r2AccessKeyId: r2AccessKeyIdInput.value.trim(),
+          r2SecretAccessKey: r2SecretInput.value,
           url: urlInput.value.trim(),
           username: usernameInput.value.trim(),
           password: passwordInput.value,
@@ -188,6 +244,8 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
             setSettingsMsg('已保存', true);
             passwordInput.value = '';
             passwordInput.placeholder = '已设置（留空保留原密码）';
+            r2SecretInput.value = '';
+            if (storageSelect.value === 'r2') r2SecretInput.placeholder = '已设置（留空保留原密钥）';
           } else {
             setSettingsMsg(result.error || '保存失败', false);
           }
@@ -204,6 +262,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
+              storage: storageSelect.value,
+              r2Endpoint: r2EndpointInput.value.trim(),
+              r2Bucket: r2BucketInput.value.trim(),
+              r2AccessKeyId: r2AccessKeyIdInput.value.trim(),
+              r2SecretAccessKey: r2SecretInput.value,
               url: urlInput.value.trim(),
               username: usernameInput.value.trim(),
               password: passwordInput.value,
@@ -212,6 +275,8 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           const result = await response.json();
           if (result.ok) {
             setSettingsMsg(result.data?.message || '连接成功', true);
+          } else if (storageSelect.value === 'r2') {
+            setSettingsMsg(result.error || '连接失败', false);
           } else if (response.status === 401) {
             setSettingsMsg('连接失败：WebDAV 拒绝了当前账号或密码（401），请核对 WebDAV 专用凭据。', false);
           } else if (response.status === 403) {

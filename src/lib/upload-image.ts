@@ -1,8 +1,8 @@
 // 注意：不要用默认入口 'webdav'（dist/node，依赖 node-fetch，在 Workers 上跑不起来）。
 // 'webdav/web' 是官方自包含 web 构建（原生 fetch，显式支持 WorkerGlobalScope），
 // 在 Cloudflare Pages Functions / workerd 里可直接运行。
-import { createClient } from 'webdav/web';
-import { getWebdavConfig, imageDir } from './webdav-config';
+import { getWebdavConfig } from './webdav-config';
+import { storeFileExists, storePutFile } from './image-store';
 import { getImageUrl, isImageFilename } from './image-assets';
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
@@ -56,18 +56,11 @@ export async function processImageUpload(locals: unknown, requestUrl: string, fi
   }
 
   const cfg = await getWebdavConfig(locals);
-  const client = createClient(cfg.url, { username: cfg.username, password: cfg.password });
   const data = await file.arrayBuffer();
-  // 存放目录取设置页的 dir（留空用默认 img）；逐级创建以兼容多级目录
-  const dir = imageDir(cfg);
-  let prefix = '';
-  for (const seg of dir.split('/')) {
-    prefix += `/${seg}`;
-    try { await (client as any).createDirectory(prefix); } catch {}
-  }
+  // 存放位置取设置页的 dir（留空用默认 img）；存储方式（WebDAV / Cloudflare R2）由存储层按设置分发
   // 重名自动改名：原名已被占用时在扩展名前加 _1、_2… 找空位，原文件不覆盖、不动
   const taken = async (name: string) => {
-    try { return await client.exists(`/${dir}/${name}`); } catch { return false; }
+    try { return await storeFileExists(cfg, name); } catch { return false; }
   };
   if (await taken(filename)) {
     const dot = filename.lastIndexOf('.');
@@ -81,8 +74,7 @@ export async function processImageUpload(locals: unknown, requestUrl: string, fi
     }
     filename = candidate;
   }
-  const remotePath = `/${dir}/${filename}`;
-  await client.putFileContents(remotePath, data, { overwrite: false });
+  await storePutFile(cfg, filename, data);
 
   // 只存 WebDAV 这一份，不再往任何 GitHub 仓库发布副本
   return { url: getImageUrl(locals, filename, false, requestUrl, cfg.linkPrefix), filename };

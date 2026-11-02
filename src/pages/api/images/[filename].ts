@@ -1,9 +1,9 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from 'webdav/web';
 import { isImageFilename } from '../../../lib/image-assets';
-import { getWebdavConfig, imageDir } from '../../../lib/webdav-config';
+import { getWebdavConfig } from '../../../lib/webdav-config';
+import { storeDeleteFile, storeFileExists } from '../../../lib/image-store';
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status });
@@ -15,16 +15,14 @@ export const DELETE: APIRoute = async ({ locals, params }) => {
 
   try {
     const config = await getWebdavConfig(locals);
-    const client = createClient(config.url, { username: config.username, password: config.password });
-    const remotePath = `/${imageDir(config)}/${filename}`;
-    if (!await client.exists(remotePath)) {
+    if (!await storeFileExists(config, filename)) {
       return json({ ok: false, error: '图床中不存在这张图片' }, 404);
     }
-    // 图片只存 WebDAV 一份，删除也只删这一份
-    await client.deleteFile(remotePath);
+    // 图片只存当前存储一份，删除也只删这一份
+    await storeDeleteFile(config, filename);
     return json({ ok: true, data: { filename } });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return json({ ok: false, error: `删除 WebDAV 图片失败：${message}` }, 502);
+    return json({ ok: false, error: `删除图片失败：${message}` }, 502);
   }
 };

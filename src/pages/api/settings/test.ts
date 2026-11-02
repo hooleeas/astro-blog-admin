@@ -3,7 +3,8 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 // 同 upload.ts：用 'webdav/web' 自包含构建，Workers 兼容
 import { createClient } from 'webdav/web';
-import { getWebdavConfig } from '../../../lib/webdav-config';
+import { AwsClient } from 'aws4fetch';
+import { getWebdavConfig, normalizeR2Endpoint, normalizeR2Bucket } from '../../../lib/webdav-config';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -23,6 +24,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
     } | null;
     if (!body || typeof body !== 'object') {
       return json({ ok: false, error: '请求体必须是 JSON' }, 400);
+    }
+
+    // 存储方式为 Cloudflare R2 时测 R2：表单值优先，密钥留空沿用已保存的
+    if ((body as any).storage === 'r2') {
+      const b = body as any;
+      const endpoint = normalizeR2Endpoint(typeof b.r2Endpoint === 'string' && b.r2Endpoint.trim() ? b.r2Endpoint : saved.r2Endpoint) || '';
+      const bucket = normalizeR2Bucket(typeof b.r2Bucket === 'string' && b.r2Bucket.trim() ? b.r2Bucket : saved.r2Bucket) || '';
+      const accessKeyId = typeof b.r2AccessKeyId === 'string' && b.r2AccessKeyId.trim() ? b.r2AccessKeyId.trim() : saved.r2AccessKeyId;
+      const secretAccessKey = typeof b.r2SecretAccessKey === 'string' && b.r2SecretAccessKey ? b.r2SecretAccessKey : saved.r2SecretAccessKey;
+      if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) {
+        return json({ ok: false, error: 'R2 配置不完整：端点、存储桶、访问密钥 ID、密钥都要填' }, 400);
+      }
+      const aws = new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' });
+      const res = await aws.fetch(`${endpoint}/${bucket}`, { method: 'HEAD' });
+      if (res.ok) {
+        return json({ ok: true, data: { message: '连接成功，Cloudflare R2 存储桶可用' } });
+      }
+      if (res.status === 404) {
+        return json({ ok: false, error: '连接失败：存储桶不存在（404），请核对桶名与端点' }, 404);
+      }
+      if (res.status === 403 || res.status === 401) {
+        return json({ ok: false, error: '连接失败：R2 拒绝访问，请核对访问密钥与权限（需要读写权限）' }, 403);
+      }
+      return json({ ok: false, error: `连接失败：R2 返回 ${res.status}` }, 502);
     }
 
     const url = typeof body.url === 'string' ? body.url.trim() : saved.url;
