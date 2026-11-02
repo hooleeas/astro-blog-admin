@@ -4,7 +4,7 @@ import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
   STATE_COOKIE,
-  signSession,
+  signSessionV2,
   timingSafeEqual,
 } from '../../../lib/session';
 
@@ -68,7 +68,12 @@ export const GET: APIRoute = async ({ request, cookies, locals }) => {
   if (!tokenRes.ok) {
     return Response.json({ ok: false, error: 'GitHub 换 token 失败' }, { status: 502 });
   }
-  const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string };
+  const tokenData = (await tokenRes.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    error?: string;
+  };
   const accessToken = tokenData.access_token || '';
   if (!accessToken) {
     return Response.json(
@@ -76,6 +81,9 @@ export const GET: APIRoute = async ({ request, cookies, locals }) => {
       { status: 502 }
     );
   }
+  // 应用开启 token 过期时 GitHub 会同时给 refresh_token 与 expires_in（秒）
+  const refreshToken = tokenData.refresh_token || '';
+  const accessExp = tokenData.expires_in ? Date.now() + tokenData.expires_in * 1000 : 0;
 
   // 查登录用户，必须是仓库主人
   const userRes = await fetch('https://api.github.com/user', {
@@ -95,8 +103,8 @@ export const GET: APIRoute = async ({ request, cookies, locals }) => {
     return Response.json({ ok: false, error: '该 GitHub 账号无管理权限' }, { status: 403 });
   }
 
-  // 签发会话（HMAC 密钥用 GITHUB_CLIENT_SECRET，载荷带 token）
-  const sessionValue = await signSession(env.GITHUB_CLIENT_SECRET, accessToken);
+  // 签发 v2 会话（HMAC 密钥用 GITHUB_CLIENT_SECRET，载荷带 access/refresh/过期时间）
+  const sessionValue = await signSessionV2(env.GITHUB_CLIENT_SECRET, accessToken, refreshToken, accessExp);
 
   const headers = new Headers();
   headers.set('Location', '/admin');

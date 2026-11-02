@@ -1,10 +1,14 @@
 /**
  * 会话 cookie 签发 / 校验（middleware、登录、退出共用）。
  *
- * Cookie 值格式：`v1.<ts>.<b64urlToken>.<hmacHex>`
- * hmac = HMAC-SHA256(GITHUB_CLIENT_SECRET, `v1.<ts>.<b64urlToken>`)，
- * 全程 Web Crypto（crypto.subtle），Workers 与 Node 通用。比较使用恒定时间比较，防时序攻击。
- * token 即 GitHub OAuth 登录拿到的 access_token，用于服务端调 GitHub API。
+ * Cookie 值格式：
+ * - v1（旧）：`v1.<ts>.<b64urlToken>.<hmacHex>`
+ * - v2：`v2.<ts>.<b64urlAccess>.<b64urlRefresh>.<accessExp>.<hmacHex>`
+ *   accessExp 为 access_token 的过期时间戳（毫秒，0 = 不过期/未知）；
+ *   refresh 为 OAuth 的 refresh_token（应用未开启 token 过期时为空字符串）。
+ * hmac = HMAC-SHA256(GITHUB_CLIENT_SECRET, 签名体)，全程 Web Crypto。
+ * token 即 GitHub OAuth 登录拿到的 access_token，用于服务端调 GitHub API；
+ * 开启 token 过期的 OAuth 应用 access_token 只有 8 小时，靠 refresh_token 续期。
  */
 
 const SESSION_TTL_MS = 7 * 24 * 3600 * 1000; // 7 天
@@ -61,6 +65,62 @@ export async function signSession(secret: string, token: string): Promise<string
   const body = `v1.${ts}.${b64urlEncode(token)}`;
   const mac = await hmacSha256Hex(secret, body);
   return `${body}.${mac}`;
+}
+
+export interface SessionPayload {
+  accessToken: string;
+  /** refresh_token（v1 会话或应用未开启过期时为空） */
+  refreshToken: string;
+  /** access_token 过期时间戳（毫秒）；0 = 不过期/未知 */
+  accessExp: number;
+  version: 1 | 2;
+}
+
+/** 签发 v2 会话 cookie（携带 access + refresh + 过期时间）。 */
+export async function signSessionV2(
+  secret: string,
+  accessToken: string,
+  refreshToken: string,
+  accessExp: number
+): Promise<string> {
+  const ts = String(Date.now());
+  const body = `v2.${ts}.${b64urlEncode(accessToken)}.${b64urlEncode(refreshToken)}.${accessExp}`;
+  const mac = await hmacSha256Hex(secret, body);
+  return `${body}.${mac}`;
+}
+
+/** 校验并解析会话 cookie（v1/v2 均可），合法返回完整载荷，否则 null。 */
+export async function getSession(
+  value: string | undefined,
+  secret: string | undefined
+): Promise<SessionPayload | null> {
+  if (!value || !secret) return null;
+  const parts = value.split('.');
+  const version = parts[0];
+  if (version !== 'v1' && version !== 'v2') return null;
+  if (version === 'v1' && parts.length !== 4) return null;
+  if (version === 'v2' && parts.length !== 6) return null;
+  const ts = parts[1];
+  const issuedAt = Number(ts);
+  if (!Number.isFinite(issuedAt) || issuedAt <= 0) return null;
+  if (Date.now() - issuedAt > SESSION_TTL_MS) return null; // 过期
+  if (Date.now() - issuedAt < -5 * 60 * 1000) return null; // 时钟漂移容差 5 分钟
+  const mac = parts[parts.length - 1];
+  const body = parts.slice(0, -1).join('.');
+  const expected = await hmacSha256Hex(secret, body);
+  if (!timingSafeEqual(mac, expected)) return null;
+  try {
+    const accessToken = b64urlDecode(parts[2]);
+    if (!accessToken) return null;
+    if (version === 'v1') {
+      return { accessToken, refreshToken: '', accessExp: 0, version: 1 };
+    }
+    const refreshToken = b64urlDecode(parts[3]);
+    const accessExp = Number(parts[4]) || 0;
+    return { accessToken, refreshToken, accessExp, version: 2 };
+  } catch {
+    return null;
+  }
 }
 
 /**
