@@ -67,10 +67,31 @@ export function resolveRuntimeEnv(locals: unknown): Record<string, any> {
   return env;
 }
 
-/** 是否 EdgeOne 运行时（构建与运行共用同一个 PLATFORM=edgeone 标记，控制台设置） */
+declare const __DEPLOY_PLATFORM__: string | undefined;
+
+/** 构建时烧进产物的平台标记（astro.config 的 vite define 注入）；未打包环境下不存在 */
+function bakedPlatform(): string | null {
+  try {
+    const v = typeof __DEPLOY_PLATFORM__ !== 'undefined' ? __DEPLOY_PLATFORM__ : null;
+    return typeof v === 'string' && v ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 是否 EdgeOne 运行时。平台在构建时已由 astro.config 自动识别并烧进产物，
+ * 这里优先读构建标记；没有标记时兜底推断：显式 PLATFORM 变量 >
+ * 有 CF 运行时（locals.runtime.env）即 CF > 无 ADMIN_KV 绑定的 Node 形态按 EdgeOne。
+ */
 export function isEdgeOne(locals: unknown): boolean {
   try {
-    return resolveRuntimeEnv(locals)?.PLATFORM === 'edgeone';
+    const baked = bakedPlatform();
+    if (baked) return baked === 'edgeone';
+    const env = resolveRuntimeEnv(locals);
+    if (env?.PLATFORM) return env.PLATFORM === 'edgeone';
+    if ((locals as any)?.runtime?.env) return false;
+    return getBinding(locals, 'ADMIN_KV') === null;
   } catch {
     return false;
   }
