@@ -6,6 +6,8 @@
     "@codemirror/language": "^6.13.1",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
+    "@edgeone/astro": "^1.1.5",
+    "@edgeone/pages-blob": "^0.0.18",
     "@lezer/highlight": "^1.2.5",
     "astro": "^5.15.9",
     "aws4fetch": "^1.0.20",

@@ -1,4 +1,5 @@
 import type { APIContext } from 'astro';
+import { resolveRuntimeEnv } from './platform';
 
 export interface RuntimeEnv {
   /** GitHub OAuth App 的 Client ID（登录用） */
@@ -15,12 +16,10 @@ export interface RuntimeEnv {
 }
 
 /**
- * 读取运行时环境变量。
+ * 读取运行时环境变量（实现收敛在 platform.ts 的平台适配层）：
  * Cloudflare Pages 上走 locals.runtime.env（@astrojs/cloudflare 注入），
- * 本地 `astro dev` 时走 process.env。
+ * EdgeOne Pages 上走 process.env（Node 云函数），本地开发同理。
  */
 export function getEnv(locals: APIContext['locals']): RuntimeEnv {
-  const r = (locals as any)?.runtime?.env;
-  if (r) return r as RuntimeEnv;
-  return (typeof process !== 'undefined' ? process.env : {}) as unknown as RuntimeEnv;
+  return resolveRuntimeEnv(locals) as RuntimeEnv;
 }

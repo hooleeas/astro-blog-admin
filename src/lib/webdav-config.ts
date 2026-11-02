@@ -1,4 +1,4 @@
-import { getEnv } from './env';
+import { getKVStore, isEdgeOne, type KvLike } from './platform';
 
 export type ImageStorageKind = 'webdav' | 'r2';
 
@@ -111,17 +111,13 @@ function notConfigured(): ConfigError {
   return { status: 500, message: '未配置 WebDAV，请先到设置页填写' };
 }
 
-/** 取 KV binding；Pages 后台未绑定或本地开发缺失时抛友好错误 */
-function getKV(locals: unknown): {
-  get(key: string): Promise<string | null>;
-  put(key: string, value: string): Promise<void>;
-} {
-  const env = getEnv(locals as any);
-  const kv = env?.ADMIN_KV;
+/** 取 KV 存储（平台适配层）；未绑定或不可用时抛友好错误 */
+async function getKV(locals: unknown): Promise<KvLike> {
+  const kv = await getKVStore(locals);
   if (!kv) {
     throw {
       status: 500,
-      message: 'KV 未绑定（ADMIN_KV 不可用）：请在 Pages 项目设置里绑定 KV 命名空间，或在本地开发时配置',
+      message: 'KV 未绑定（ADMIN_KV 不可用）：Cloudflare Pages 请给项目绑定 KV 命名空间（变量名 ADMIN_KV），或在本地开发时配置；EdgeOne Pages 走 Blob 存储、无需绑定',
     } as ConfigError;
   }
   return kv;
@@ -129,7 +125,7 @@ function getKV(locals: unknown): {
 
 /** 从 KV 读 WebDAV 配置；未配置时抛 {status:500, message}（调用方转成 {ok:false,error}） */
 export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
-  const kv = getKV(locals);
+  const kv = await getKV(locals);
   const raw = await kv.get(KV_KEY);
   if (!raw) throw notConfigured();
   let parsed: any;
@@ -145,8 +141,9 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
   const r2AccessKeyId = String(parsed.r2AccessKeyId || '').trim();
   const r2SecretAccessKey = String(parsed.r2SecretAccessKey || '');
   const url = typeof parsed.url === 'string' ? parsed.url.replace(/\/+$/, '') : '';
-  // 两种存储都未配置才视为未配置（兼容只填 R2 的保存）
-  if (!url && !(r2Endpoint && r2Bucket && r2AccessKeyId && r2SecretAccessKey)) throw notConfigured();
+  // 两种存储都未配置才视为未配置（兼容只填 R2 的保存）；
+  // EdgeOne 上「R2」档走 Blob 对象存储、不需要端点与密钥（见 platform.ts），同样视为已配置
+  if (!url && !(r2Endpoint && r2Bucket && r2AccessKeyId && r2SecretAccessKey) && !(storage === 'r2' && isEdgeOne(locals))) throw notConfigured();
   return {
     storage,
     r2Endpoint,
@@ -168,7 +165,7 @@ export async function saveWebdavConfig(
   locals: unknown,
   cfg: { storage: ImageStorageKind; r2Endpoint: string; r2Bucket: string; r2AccessKeyId: string; r2SecretAccessKey: string; url: string; username: string; password: string; dir: string; webp: boolean; linkPrefix: string; pageTitle: string },
 ): Promise<void> {
-  const kv = getKV(locals);
+  const kv = await getKV(locals);
   await kv.put(
     KV_KEY,
     JSON.stringify({

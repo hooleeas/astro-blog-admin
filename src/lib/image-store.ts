@@ -1,9 +1,10 @@
 // 图片存储层：按设置里的存储方式（WebDAV / Cloudflare R2）统一提供存取接口。
 // WebDAV 实现沿用原有逻辑；R2 走 S3 兼容接口（aws4fetch 签名，原生 fetch，Workers 可用）。
+// EdgeOne 运行时（platform 层判定）：「R2」这一档改走 EdgeOne Blob 对象存储，不用 S3 密钥。
 // 注意：不要用默认入口 'webdav'（依赖 node-fetch），'webdav/web' 是官方自包含 web 构建。
 import { createClient } from 'webdav/web';
 import { AwsClient } from 'aws4fetch';
-import { getEnv } from './env';
+import { getBinding, getImageBlobStore } from './platform';
 import { imageDir, type WebdavConfig } from './webdav-config';
 
 /** Pages 项目里 R2 存储桶的绑定变量名（在 Pages 设置 → 函数 → R2 存储桶绑定里添加） */
@@ -22,11 +23,13 @@ interface R2BucketLike {
   }>;
 }
 
-/** 取 Pages 绑定里的 R2 存储桶；没绑或形状不对返回 null */
+/**
+ * 取平台绑定里的 R2 存储桶（Cloudflare Pages 的 IMGS_R2 绑定；EdgeOne 无此绑定，
+ * 返回 null 后各存储操作自动走 S3 兼容接口）；没绑或形状不对返回 null
+ */
 export function getR2Binding(locals: unknown): R2BucketLike | null {
   try {
-    const env = getEnv(locals as any);
-    const bucket = (env as any)?.[R2_BINDING_NAME];
+    const bucket = getBinding(locals, R2_BINDING_NAME);
     if (bucket && typeof bucket.put === 'function' && typeof bucket.get === 'function') {
       return bucket as R2BucketLike;
     }
@@ -133,6 +136,8 @@ export async function storeFileExists(locals: unknown, cfg: WebdavConfig, filena
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
     if (bucket) return (await bucket.head(r2Key(cfg, filename))) !== null;
+    const blob = await getImageBlobStore(locals);
+    if (blob) return blob.exists(r2Key(cfg, filename));
     const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename), { method: 'HEAD' });
     return res.ok;
   }
@@ -145,6 +150,11 @@ export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename:
     const bucket = getR2Binding(locals);
     if (bucket) {
       await bucket.put(r2Key(cfg, filename), data, { httpMetadata: { contentType: imageContentType(filename) } });
+      return;
+    }
+    const blob = await getImageBlobStore(locals);
+    if (blob) {
+      await blob.put(r2Key(cfg, filename), data);
       return;
     }
     const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename), {
@@ -167,6 +177,12 @@ export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename:
       const obj = await bucket.get(r2Key(cfg, filename));
       if (!obj) fail(404, '图片不存在');
       return new Uint8Array(await obj.arrayBuffer());
+    }
+    const blob = await getImageBlobStore(locals);
+    if (blob) {
+      const data = await blob.get(r2Key(cfg, filename));
+      if (!data) fail(404, '图片不存在');
+      return new Uint8Array(data);
     }
     const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename));
     if (!res.ok) await r2Error(res, '读取');
@@ -197,6 +213,18 @@ export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promis
         }
         if (!res.truncated || !res.cursor) break;
         cursor = res.cursor;
+      }
+      return out;
+    }
+    const blob = await getImageBlobStore(locals);
+    if (blob) {
+      const prefix = `${imageDir(cfg)}/`;
+      const items = await blob.list(prefix);
+      const out: StoredImage[] = [];
+      for (const it of items) {
+        const name = it.key.slice(prefix.length);
+        if (!name || name.includes('/')) continue;
+        out.push({ filename: name, size: it.size, lastmod: it.lastmod });
       }
       return out;
     }
@@ -238,6 +266,11 @@ export async function storeDeleteFile(locals: unknown, cfg: WebdavConfig, filena
     const bucket = getR2Binding(locals);
     if (bucket) {
       await bucket.delete(r2Key(cfg, filename));
+      return;
+    }
+    const blob = await getImageBlobStore(locals);
+    if (blob) {
+      await blob.delete(r2Key(cfg, filename));
       return;
     }
     const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename), { method: 'DELETE' });

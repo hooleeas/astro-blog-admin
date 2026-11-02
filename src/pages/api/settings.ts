@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { getWebdavConfig, saveWebdavConfig, toPublic, normalizeLinkPrefix, DEFAULT_LINK_PREFIX, normalizePageTitle, normalizeR2Endpoint, normalizeR2Bucket } from '../../lib/webdav-config';
 import { getR2Binding } from '../../lib/image-store';
+import { isEdgeOne } from '../../lib/platform';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -23,7 +24,7 @@ function err(e: unknown): Response {
 export const GET: APIRoute = async ({ locals }) => {
   try {
     const cfg = await getWebdavConfig(locals);
-    return json({ ok: true, data: { ...toPublic(cfg), hasR2Binding: getR2Binding(locals) !== null } });
+    return json({ ok: true, data: { ...toPublic(cfg), hasR2Binding: getR2Binding(locals) !== null, hasBlobBackend: isEdgeOne(locals) } });
   } catch (e) {
     return err(e);
   }
@@ -91,8 +92,9 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       : (oldCfg?.r2AccessKeyId ?? '');
     let r2SecretAccessKey = String(body.r2SecretAccessKey ?? '');
     if (!r2SecretAccessKey) r2SecretAccessKey = oldCfg?.r2SecretAccessKey ?? '';
-    // 已通过 Pages 绑定 R2 时，下面的端点与密钥都不必填（绑定优先，运行时直接走绑定）
-    if (storage === 'r2' && getR2Binding(locals) === null) {
+    // 已通过 Pages 绑定 R2 时，下面的端点与密钥都不必填（绑定优先，运行时直接走绑定）；
+    // EdgeOne 上「R2」档走 Blob 对象存储，端点与密钥同样免填
+    if (storage === 'r2' && getR2Binding(locals) === null && !isEdgeOne(locals)) {
       if (!r2Endpoint) return json({ ok: false, error: 'R2 端点必填（或先在 Pages 设置里绑定 R2 存储桶，变量名 IMGS_R2）' }, 400);
       if (!r2Bucket) return json({ ok: false, error: 'R2 存储桶名必填' }, 400);
       if (!r2AccessKeyId) return json({ ok: false, error: 'R2 访问密钥 ID 必填' }, 400);
