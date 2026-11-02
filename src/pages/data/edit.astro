@@ -449,20 +449,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         wrap.appendChild(el('label', null, esc(labelFor(pathArr))));
         const s = v === null ? '' : String(v);
         const wasNull = v === null;
-        // 图片地址字段：预览图放在子标题（label）上方，输入时实时更新
-        const previewImg = el('img', 'vv-img-preview');
-        previewImg.alt = '图片预览';
-        previewImg.hidden = true;
-        previewImg.addEventListener('error', () => { previewImg.hidden = true; });
-        wrap.insertBefore(previewImg, wrap.firstChild);
-        const imageKeyHint = /image|img|icon|avatar|cover|logo|favicon|photo|picture|banner|poster|thumb/i.test(k);
-        const looksLikeImage = (val) => /\.(png|jpe?g|webp|gif|svg|avif|ico)(\?.*)?$/i.test(val.trim()) || /^\/images\//.test(val.trim());
-        const syncPreview = (val) => {
-          const u = (val || '').trim();
-          if (u && (imageKeyHint || looksLikeImage(u))) { previewImg.src = u; previewImg.hidden = false; }
-          else { previewImg.hidden = true; previewImg.removeAttribute('src'); }
-        };
-        syncPreview(s);
         if (isColorValue(k, s)) {
           const control = makeColorControl(s, (val) => {
             setAt(pathArr, (wasNull && val === '') ? null : val);
@@ -479,7 +465,27 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         input.addEventListener('input', () => {
           setAt(pathArr, (wasNull && input.value === '') ? null : input.value);
         });
-        input.addEventListener('input', () => syncPreview(input.value));
+        wrap.appendChild(input);
+        return wrap;
+      }
+
+      // 多语言字段（标题/副标题/名称这类 {zh-Hans, en, …}）：给一个输入框，显示简中优先的值，
+      // 修改后同步写入该字段的全部语言（与新增弹窗的口径一致）；字段还不存在时按全部语言新建
+      function renderLangText(k, v, pathArr) {
+        const wrap = el('div', 'vv-field');
+        wrap.appendChild(el('label', null, esc(labelFor(pathArr))));
+        const locales = Object.keys(v);
+        const current = v['zh-Hans'] ?? v['en'] ?? locales.map((l) => v[l]).find((x) => typeof x === 'string' && x) ?? '';
+        const input = el('input', 'input');
+        input.type = 'text';
+        input.value = current;
+        input.spellcheck = false;
+        input.addEventListener('input', () => {
+          let map = getAt(pathArr);
+          if (!isObj(map)) { setAt(pathArr, {}); map = getAt(pathArr); }
+          const keys = Object.keys(map).length ? Object.keys(map) : [...LANG_SET];
+          for (const locale of keys) map[locale] = input.value;
+        });
         wrap.appendChild(input);
         return wrap;
       }
@@ -649,7 +655,11 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           const body = el('div', `vv-item-body${containsNewArrayItem ? '' : ' hidden'}`);
           let anyField = false;
           for (const [k, v] of Object.entries(item)) {
-            if (isLangMap(v)) { skippedLang++; continue; }
+            if (isLangMap(v)) {
+              body.appendChild(renderLangText(k, v, [...itemPath, k]));
+              anyField = true;
+              continue;
+            }
             if (isObj(v)) {
               if (hasRenderable(v)) {
                 const sub = el('div', 'vv-subobj');
@@ -664,6 +674,11 @@ const settingTitle = settingTitles[name] ?? '页面设置';
               continue;
             }
             body.appendChild(renderField(k, v, [...itemPath, k]));
+            anyField = true;
+          }
+          // 公益服务条目即使还没有副标题，也补一个空输入框，填了即按全部语言建
+          if (name === 'services' && pathArr.join('.') === 'items' && !('subtitle' in item)) {
+            body.appendChild(renderLangText('subtitle', {}, [...itemPath, 'subtitle']));
             anyField = true;
           }
           if (!anyField) body.appendChild(el('p', 'hint', '该项无可编辑字段。'));
@@ -703,18 +718,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           input.value = item === null ? '' : String(item);
           input.spellcheck = false;
           input.addEventListener('input', () => setAt(itemPath, input.value));
-          const thumb = el('img', 'vv-prim-thumb');
-          thumb.alt = '图片预览';
-          thumb.hidden = true;
-          thumb.addEventListener('error', () => { thumb.hidden = true; });
-          const syncThumb = () => {
-            const u = input.value.trim();
-            if (/\.(png|jpe?g|webp|gif|svg|avif|ico)(\?.*)?$/i.test(u) || /^\/images\//.test(u)) { thumb.src = u; thumb.hidden = false; }
-            else { thumb.hidden = true; thumb.removeAttribute('src'); }
-          };
-          input.addEventListener('input', syncThumb);
-          syncThumb();
-          row.appendChild(thumb);
           row.appendChild(input);
         }
         row.appendChild(delBtn('删除'));
@@ -792,34 +795,19 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         addDialogTitle.textContent = '新增 Apple 轮播图';
         addDialogDescription.textContent = '填写标题、图标地址和链接。';
         const form = el('form', 'new-page-fields');
-        const addInput = (labelText, type, placeholder, imagePreview = false) => {
+        const addInput = (labelText, type, placeholder) => {
           const label = el('label');
-          let previewImg = null;
-          if (imagePreview) {
-            previewImg = el('img', 'vv-img-preview');
-            previewImg.alt = '图片预览';
-            previewImg.hidden = true;
-            previewImg.addEventListener('error', () => { previewImg.hidden = true; });
-            label.appendChild(previewImg);
-          }
           label.appendChild(document.createTextNode(labelText));
           const input = el('input', 'input');
           input.type = type;
           input.required = true;
           input.placeholder = placeholder;
-          if (previewImg) {
-            input.addEventListener('input', () => {
-              const u = input.value.trim();
-              if (u) { previewImg.src = u; previewImg.hidden = false; }
-              else { previewImg.hidden = true; previewImg.removeAttribute('src'); }
-            });
-          }
           label.appendChild(input);
           form.appendChild(label);
           return input;
         };
         const titleInput = addInput('标题', 'text', '输入轮播图标题');
-        const iconInput = addInput('图标地址', 'url', 'https://example.com/icon.png', true);
+        const iconInput = addInput('图标地址', 'url', 'https://example.com/icon.png');
         const linkInput = addInput('链接', 'url', 'https://example.com');
         const tplItem = getAt(pathArr).find((item) => isObj(item));
         const addColorField = (labelText, initial) => {
@@ -1087,8 +1075,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           const res = await putContent(JSON.stringify(working, null, 2));
           if (!res.ok) throw new Error(res.error || '未知错误');
           await refreshAfterSave();
-          saveStatusEl.textContent = '';
-          (window as any).showAdminToast?.('已保存');
+          saveStatusEl.textContent = '已保存 ✓';
+          window.setTimeout(() => { saveStatusEl.textContent = ''; }, 2000);
         } catch (error) {
           saveStatusEl.textContent = '保存失败';
           alert('保存失败：' + (error instanceof Error ? error.message : String(error)));
