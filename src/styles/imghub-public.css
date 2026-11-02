@@ -57,7 +57,7 @@ body {
   border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px;
   transition: border-color 0.2s ease, background-color 0.3s ease;
 }
-.result-card img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex-shrink: 0; }
+.result-card img { width: 88px; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); flex-shrink: 0; }
 .result-card .info {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
   gap: 2px 12px; flex: 1; min-width: 0;
@@ -83,7 +83,7 @@ body {
 @media (max-width: 640px) {
   .dropzone { padding: 48px 16px; }
   .result-card { gap: 8px; padding: 8px; }
-  .result-card img { width: 48px; height: 48px; }
+  .result-card img { width: 76px; height: auto; }
   .result-card .info { grid-template-columns: minmax(0, 1fr); }
   .result-card .btns { grid-column: 1; grid-row: 3; justify-content: flex-start; }
 }
