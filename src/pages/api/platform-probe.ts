@@ -25,37 +25,31 @@ export async function GET({ locals }: { locals: unknown }) {
     out.envKeys = 'ERR ' + String(e);
   }
   out.adminKvBinding = getBinding(locals, 'ADMIN_KV') ? 'object' : null;
-  try {
-    const mod: any = await import('@edgeone/pages-blob');
-    out.blobExports = mod ? Object.keys(mod) : null;
-    try {
-      const store = mod.getStore({ name: 'admin-config', consistency: 'strong' });
-      out.storeCreated = !!store;
-      try {
-        await store.set('__probe__', 'ok');
-        out.blobSet = 'ok';
-      } catch (e) {
-        out.blobSet = 'ERR ' + (e as Error)?.message;
-      }
-      try {
-        out.blobGet = await store.get('__probe__', { type: 'text', consistency: 'strong' });
-      } catch (e) {
-        out.blobGet = 'ERR ' + (e as Error)?.message;
-      }
-      try {
-        await store.delete('__probe__');
-      } catch {}
-    } catch (e) {
-      out.storeCreated = 'ERR ' + (e as Error)?.message;
-    }
-  } catch (e) {
-    out.blobExports = 'IMPORT ERR ' + (e as Error)?.message;
-  }
+  // 经平台层实测（这才是应用真正走的路径；探针文件自身的直接 import 会被页面打包内联，不作数）
   try {
     const kv = await getKVStore(locals);
     out.kvStore = kv ? 'object' : null;
+    if (kv) {
+      await kv.put('__probe__', 'ok');
+      out.kvGet = await kv.get('__probe__');
+      await kv.delete?.('__probe__');
+    }
   } catch (e) {
     out.kvStore = 'ERR ' + (e as Error)?.message;
+  }
+  try {
+    const { getImageBlobStore } = await import('../../lib/platform');
+    const img = await getImageBlobStore(locals);
+    out.imageStore = img ? 'object' : null;
+    if (img) {
+      const data = new TextEncoder().encode('probe').buffer as ArrayBuffer;
+      await img.put('__probe__.txt', data);
+      const back = await img.get('__probe__.txt');
+      out.imageRoundtrip = back ? new TextDecoder().decode(back) : null;
+      await img.delete('__probe__.txt');
+    }
+  } catch (e) {
+    out.imageStore = 'ERR ' + (e as Error)?.message;
   }
   // 文件系统取证：部署流水线是否把 SDK 里的凭证占位符替换掉了（只报布尔/长度，绝不回值）
   try {

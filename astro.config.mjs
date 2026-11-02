@@ -28,9 +28,15 @@ export default defineConfig({
     define: {
       __DEPLOY_PLATFORM__: JSON.stringify(platform),
     },
+    // EdgeOne：pages-blob 必须外置——部署流水线会把 node_modules 里 SDK 的凭证占位符
+    // 替换为真实凭证，打包内联的副本拿不到替换，运行时会报缺 deployCredential。
+    ...(platform === 'edgeone' ? { ssr: { external: ['@edgeone/pages-blob'] } } : {}),
     build: {
       // 页面脚本超过此大小才内联；调低让页面设置等小脚本也有独立文件（站点设置内嵌加载靠脚本文件定位）
       assetsInlineLimit: 1024,
+      ...(platform === 'edgeone'
+        ? { rollupOptions: { external: ['@edgeone/pages-blob'] } }
+        : {}),
     },
   },
 });
