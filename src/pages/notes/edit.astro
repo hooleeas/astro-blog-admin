@@ -50,8 +50,10 @@ const valid = NOTE_FILE_RE.test(file);
     </div>
   )}
 
-  <script data-astro-rerun>
-    (() => {
+  <script>
+    // 普通脚本 + astro:page-load 时重新初始化（data-astro-rerun 在现行构建下不再执行，随记编辑器因此打开是空白，弃用）
+    const bootNoteEditor = () => {
+      if (window.location.pathname !== '/notes/edit') return;
       const app = document.getElementById('app');
       if (!app || app.dataset.initialized === 'true') return;
       app.dataset.initialized = 'true';
@@ -188,6 +190,8 @@ const valid = NOTE_FILE_RE.test(file);
       });
 
       void load();
-    })();
+    };
+    bootNoteEditor();
+    document.addEventListener('astro:page-load', bootNoteEditor);
   </script>
 </AdminLayout>
