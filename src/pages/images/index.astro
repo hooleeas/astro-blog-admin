@@ -268,7 +268,8 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
           });
           const result = await response.json();
           if (result.ok) {
-            setSettingsMsg('已保存', true);
+            setSettingsMsg('', true);
+            showToast('已保存');
             passwordInput.value = '';
             passwordInput.placeholder = '已设置（留空保留原密码）';
             r2SecretInput.value = '';

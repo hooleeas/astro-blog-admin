@@ -562,7 +562,8 @@ const key = Astro.url.searchParams.get('key') ?? '';
           version.sha = res.data.sha;
           version.frontmatter = collectFrontmatter();
           version.body = bodyEditor.state.doc.toString();
-          saveStatusEl.textContent = '已保存 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
+          saveStatusEl.textContent = '';
+          (window as any).showAdminToast?.('已保存');
           renderTabs();
         } catch (error) {
           alert('保存失败：' + errorMessage(error));

@@ -98,10 +98,10 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
               alert('保存失败：' + res.error);
               return;
             }
-            editorStatus.textContent = '已保存 ✓';
+            editorStatus.textContent = '';
+            (window as any).showAdminToast?.('已保存');
             const cur = await (await fetch('/api/pages/' + encodeURIComponent(pageSlug))).json();
             if (cur.ok) sha = cur.data.sha;
-            setTimeout(() => { editorStatus.textContent = ''; }, 2000);
           } catch (error) {
             editorStatus.textContent = '保存失败：' + (error instanceof Error ? error.message : String(error));
             console.error('保存页面源码失败', error);

@@ -652,6 +652,10 @@ const nav = [
       .vv-field:last-child { border-bottom: none; }
       .vv-field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
       .vv-field .input { width: 100%; }
+      .vv-img-preview { display: block; max-width: 100%; max-height: 160px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 10px; object-fit: contain; }
+      .vv-img-preview[hidden] { display: none; }
+      .vv-prim-thumb { width: 40px; height: 40px; flex: none; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; }
+      .vv-prim-thumb[hidden] { display: none; }
       .vv-array-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; }
       .vv-array-head > span { font-size: 13px; font-weight: 600; }
       .vv-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; padding: 12px; }
@@ -1028,6 +1032,26 @@ const nav = [
       };
 
       const root = document.documentElement;
+
+      // 全局提示弹窗（与图床「链接已复制」同款 toast）：保存成功等反馈统一走它
+      let adminToastTimer: number | undefined;
+      const adminToastEl = document.getElementById('admin-toast');
+      (window as unknown as { showAdminToast?: (msg: string) => void }).showAdminToast = (msg: string) => {
+        if (!adminToastEl) return;
+        adminToastEl.textContent = msg;
+        if (typeof adminToastEl.showPopover === 'function') {
+          if (adminToastEl.matches(':popover-open')) adminToastEl.hidePopover();
+          adminToastEl.showPopover();
+        }
+        adminToastEl.classList.add('show');
+        window.clearTimeout(adminToastTimer);
+        adminToastTimer = window.setTimeout(() => {
+          adminToastEl.classList.remove('show');
+          window.setTimeout(() => {
+            if (!adminToastEl.classList.contains('show') && typeof adminToastEl.hidePopover === 'function' && adminToastEl.matches(':popover-open')) adminToastEl.hidePopover();
+          }, 300);
+        }, 2200);
+      };
 
       // 主题切换（机制与博客前台一致）
       let adminThemeTimeout: number | undefined;
@@ -1550,6 +1574,7 @@ const nav = [
       }
 
     </script>
+    <div id="admin-toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
   </body>
 </html>
 

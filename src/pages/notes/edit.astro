@@ -176,11 +176,11 @@ const valid = NOTE_FILE_RE.test(file);
             fileNameEl.textContent = file;
             history.replaceState(history.state, '', `/notes/edit?file=${encodeURIComponent(file)}`);
           }
-          statusEl.textContent = '已保存 ✓';
+          statusEl.textContent = '';
+          (window as any).showAdminToast?.('已保存');
           const currentResponse = await fetch('/api/notes/' + encodeURIComponent(file));
           const current = await currentResponse.json();
           if (currentResponse.ok && current.ok) sha = current.data.sha;
-          setTimeout(() => { statusEl.textContent = ''; }, 2000);
         } catch (error) {
           statusEl.textContent = `保存失败：${error instanceof Error ? error.message : String(error)}`;
         } finally {
