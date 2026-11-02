@@ -184,7 +184,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           copyButton.textContent = '复制链接';
           copyButton.addEventListener('click', async () => {
             try {
-              await navigator.clipboard.writeText(image.url);
+              await navigator.clipboard.writeText(new URL(image.url, window.location.origin).href);
               showToast('链接已复制');
             } catch (error) {
               status.textContent = `复制失败：${error instanceof Error ? error.message : String(error)}`;
