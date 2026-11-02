@@ -276,6 +276,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
 
       // ---- 表单渲染（递归） ----
       function renderVisual() {
+        const prevScrollY = window.scrollY; // 重渲染后恢复滚动位置，删除等操作不跳回顶部（用户定）
         visualEl.innerHTML = '';
         addTargets = [];
         skippedLang = 0;
@@ -317,6 +318,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           (newItem.querySelector('input, select, textarea') ?? newItem.querySelector('button'))?.focus();
           newItem.removeAttribute('data-new-array-item');
           pendingFocusPath = null;
+        } else if (prevScrollY > 0) {
+          window.scrollTo(0, prevScrollY);
         }
         return true;
       }
@@ -392,8 +395,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
             valueField.appendChild(valueInput);
             const del = el('button', 'btn glass-button btn-sm danger', '删除');
             del.type = 'button';
-            del.addEventListener('click', () => {
-              if (!confirm('确定删除这一项筛选吗？')) return;
+            del.addEventListener('click', async () => {
+              if (!(await window.adminConfirm?.('确定删除这一项筛选吗？', { title: '删除筛选' }))) return;
               list.splice(idx, 1);
               saveButton.disabled = !renderVisual();
             });
@@ -721,8 +724,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         const del = el('button', 'btn glass-button danger');
         del.type = 'button';
         del.textContent = '删除这一项';
-        del.addEventListener('click', () => {
-          if (!confirm('确定删除这一项吗？')) return;
+        del.addEventListener('click', async () => {
+          if (!(await window.adminConfirm?.('确定删除这一项吗？', { title: '删除这一项' }))) return;
           items.splice(index, 1);
           addDialog.close();
           saveButton.disabled = !renderVisual();
@@ -761,8 +764,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           const b = el('button', 'btn glass-button btn-sm danger');
           b.type = 'button';
           b.textContent = label;
-          b.addEventListener('click', () => {
-            if (!confirm('确定删除这一项吗？')) return;
+          b.addEventListener('click', async () => {
+            if (!(await window.adminConfirm?.('确定删除这一项吗？', { title: '删除这一项' }))) return;
             getAt(pathArr).splice(i, 1);
             saveButton.disabled = !renderVisual();
           });

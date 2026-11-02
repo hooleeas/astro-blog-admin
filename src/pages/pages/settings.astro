@@ -131,22 +131,23 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
         listEl.querySelectorAll<HTMLButtonElement>('[data-del]').forEach((btn) => {
           btn.addEventListener('click', async () => {
             const slug = btn.getAttribute('data-del');
-            if (!slug || !confirm(`确定删除页面 /${slug}？\n\n删除后该页面访问会 404，且操作不可撤销。`)) return;
+            if (!slug || !(await (window as any).adminConfirm?.(`确定删除页面 /${slug}？\n\n删除后该页面访问会 404，且操作不可撤销。`, { title: '删除页面' }))) return;
             try {
               const cur = await api('/api/pages/' + encodeURIComponent(slug));
-              if (!cur.ok) { alert('删除失败：' + cur.error); return; }
+              if (!cur.ok) { (window as any).adminToast?.('删除失败：' + cur.error, true); return; }
               const del = await api('/api/pages/' + encodeURIComponent(slug), {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sha: cur.data.sha }),
               });
-              if (!del.ok) alert('删除失败：' + del.error);
+              if (!del.ok) (window as any).adminToast?.('删除失败：' + del.error, true);
               else {
-                if (del.data && del.data.warning) alert(del.data.warning);
+                (window as any).adminToast?.('已删除');
+                if (del.data && del.data.warning) (window as any).adminToast?.(del.data.warning, true);
                 await load();
               }
             } catch (error) {
-              alert('删除失败：' + (error instanceof Error ? error.message : String(error)));
+              (window as any).adminToast?.('删除失败：' + (error instanceof Error ? error.message : String(error)), true);
             }
           });
         });
@@ -159,14 +160,14 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
       const slug = (document.getElementById('new-slug') as HTMLInputElement).value.trim();
       const title = (document.getElementById('new-title') as HTMLInputElement).value.trim();
       const subtitle = (document.getElementById('new-subtitle') as HTMLInputElement).value.trim();
-      if (!slug || !title) { alert('slug 与标题不能为空'); return; }
+      if (!slug || !title) { (window as any).adminToast?.('slug 与标题不能为空', true); return; }
       try {
         const res = await api('/api/pages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug, title, subtitle }),
         });
-        if (!res.ok) { alert('新建失败：' + res.error); return; }
+        if (!res.ok) { (window as any).adminToast?.('新建失败：' + res.error, true); return; }
         newPageDialog?.close();
         const href = '/pages/edit?slug=' + encodeURIComponent(res.data.slug) + (embeddedMode ? '&embedded=1' : '');
         if (embeddedMode) {
@@ -175,7 +176,7 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
           location.href = href;
         }
       } catch (error) {
-        alert('新建失败：' + (error instanceof Error ? error.message : String(error)));
+        (window as any).adminToast?.('新建失败：' + (error instanceof Error ? error.message : String(error)), true);
       }
     });
 

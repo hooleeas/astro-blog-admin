@@ -165,7 +165,7 @@ const valid = NOTE_FILE_RE.test(file);
       });
 
       deleteButton.addEventListener('click', async () => {
-        if (!sha || !confirm(`确定删除随记 ${file}？此操作不可撤销。`)) return;
+        if (!sha || !(await (window as any).adminConfirm?.(`确定删除随记 ${file}？此操作不可撤销。`, { title: '删除随记' }))) return;
         statusEl.textContent = '删除中…';
         deleteButton.setAttribute('disabled', '');
         try {

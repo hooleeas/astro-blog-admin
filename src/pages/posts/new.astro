@@ -31,7 +31,7 @@ export const prerender = false;
 
     async function create() {
       const title = input.value.trim();
-      if (!title) { alert('请输入文章标题'); return; }
+      if (!title) { (window as any).adminToast?.('请输入文章标题', true); return; }
       btn.disabled = true;
       statusEl.textContent = '创建中…';
       try {

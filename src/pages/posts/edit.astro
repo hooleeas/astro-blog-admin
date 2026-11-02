@@ -563,19 +563,26 @@ const key = Astro.url.searchParams.get('key') ?? '';
         const lang = activeLang;
         const version = lang ? versions[lang] : undefined;
         if (!lang || !version) return;
-        if (!confirm(`确定删除「${LANG_LABELS[lang]}」语言版本吗？\n文件 ${version.slug}.md 将被删除，此操作不可撤销。`)) return;
+        if (!(await (window as any).adminConfirm?.(`确定删除「${LANG_LABELS[lang]}」语言版本吗？\n文件 ${version.slug}.md 将被删除，此操作不可撤销。`, { title: '删除语言版本' }))) return;
         const res = await api<unknown>(
           '/api/posts/' + encodeURIComponent(key) + '/' + encodeURIComponent(lang),
           { method: 'DELETE' },
         );
-        if (!res.ok) { alert('删除失败：' + res.error); return; }
-        location.reload();
+        if (!res.ok) { (window as any).adminToast?.('删除失败：' + res.error, true); return; }
+        // 就地更新：删掉本地版本、切到剩余版本并重渲染页签与面板，不刷新页面（用户定）
+        delete versions[lang];
+        (window as any).adminToast?.('已删除');
+        if (Object.keys(versions).length === 0) { location.href = '/posts'; return; }
+        const next = LANGS.find((l) => versions[l]);
+        if (next) activeLang = next;
+        renderTabs();
+        renderPanel();
       }
 
       async function deleteAll(): Promise<void> {
-        if (!confirm(`确定删除整篇文章吗？\n将同时删除全部 ${Object.keys(versions).length} 个语言版本的文件，此操作不可撤销。`)) return;
+        if (!(await (window as any).adminConfirm?.(`确定删除整篇文章吗？\n将同时删除全部 ${Object.keys(versions).length} 个语言版本的文件，此操作不可撤销。`, { title: '删除整篇文章' }))) return;
         const res = await api<unknown>('/api/posts/' + encodeURIComponent(key), { method: 'DELETE' });
-        if (!res.ok) { alert('删除失败：' + res.error); return; }
+        if (!res.ok) { (window as any).adminToast?.('删除失败：' + res.error, true); return; }
         location.href = '/posts';
       }
 

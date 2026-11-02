@@ -64,16 +64,16 @@ export const prerender = false;
       listEl.querySelectorAll('[data-del]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const file = btn.getAttribute('data-del');
-          if (!confirm(`确定删除随记 ${file}？此操作不可撤销。`)) return;
+          if (!(await (window as any).adminConfirm?.(`确定删除随记 ${file}？此操作不可撤销。`, { title: '删除随记' }))) return;
           const cur = await api('/api/notes/' + encodeURIComponent(file));
-          if (!cur.ok) { alert('删除失败：' + cur.error); return; }
+          if (!cur.ok) { (window as any).adminToast?.('删除失败：' + cur.error, true); return; }
           const del = await api('/api/notes/' + encodeURIComponent(file), {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sha: cur.data.sha }),
           });
-          if (!del.ok) alert('删除失败：' + del.error);
-          else load();
+          if (!del.ok) (window as any).adminToast?.('删除失败：' + del.error, true);
+          else { (window as any).adminToast?.('已删除'); load(); }
         });
       });
     }

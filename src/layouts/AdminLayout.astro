@@ -863,6 +863,21 @@ const nav = [
       .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
       .toast[popover] { inset: auto; bottom: 28px; left: 50%; margin: 0; border: none; overflow: visible; }
       .toast.error { background: var(--danger); color: #fff; }
+      .admin-confirm {
+        width: min(420px, calc(100% - 32px));
+        margin: auto;
+        padding: 24px;
+        color: var(--text);
+        background: color-mix(in srgb, var(--surface) 92%, transparent);
+        -webkit-backdrop-filter: blur(14px) saturate(180%);
+        backdrop-filter: blur(14px) saturate(180%);
+        border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+        border-radius: 20px;
+      }
+      .admin-confirm::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px); }
+      .admin-confirm h2 { margin: 0 0 10px; font-size: 17px; }
+      .admin-confirm p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; }
+      .admin-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 
       /* ============ 移动端 ============ */
       @media (max-width: 640px) {
@@ -1020,6 +1035,14 @@ const nav = [
       <slot />
     </main>
     <div id="admin-toast" class="toast" popover="manual" role="status"></div>
+    <dialog id="admin-confirm" class="admin-confirm" aria-labelledby="admin-confirm-title">
+      <h2 id="admin-confirm-title">请确认</h2>
+      <p id="admin-confirm-message"></p>
+      <div class="admin-confirm-actions">
+        <button class="btn btn-ghost" type="button" data-confirm-cancel>取消</button>
+        <button class="btn btn-danger" type="button" data-confirm-ok>删除</button>
+      </div>
+    </dialog>
     <script>
       type NavigationIndicatorPosition = {
         x: number;
@@ -1050,6 +1073,40 @@ const nav = [
             if (toast.matches(':popover-open')) toast.hidePopover();
           } catch { /* 已关闭则忽略 */ }
         }, isError ? 4200 : 2400);
+      };
+
+      // 全站站内确认弹窗（替代系统 confirm）：返回 Promise<boolean>，点遮罩/ESC/取消都算取消（用户定）
+      (window as unknown as { adminConfirm: (message: string, options?: { title?: string; okLabel?: string }) => Promise<boolean> }).adminConfirm = (message: string, options?: { title?: string; okLabel?: string }) => {
+        return new Promise<boolean>((resolve) => {
+          const dialog = document.getElementById('admin-confirm') as HTMLDialogElement | null;
+          if (!dialog) { resolve(false); return; }
+          const titleEl = dialog.querySelector<HTMLElement>('#admin-confirm-title');
+          const messageEl = dialog.querySelector<HTMLElement>('#admin-confirm-message');
+          const okBtn = dialog.querySelector<HTMLButtonElement>('[data-confirm-ok]');
+          const cancelBtn = dialog.querySelector<HTMLButtonElement>('[data-confirm-cancel]');
+          if (titleEl) titleEl.textContent = options?.title ?? '请确认';
+          if (messageEl) messageEl.textContent = message;
+          if (okBtn) okBtn.textContent = options?.okLabel ?? '删除';
+          let settled = false;
+          const settle = (value: boolean) => {
+            if (settled) return;
+            settled = true;
+            okBtn?.removeEventListener('click', onOk);
+            cancelBtn?.removeEventListener('click', onCancel);
+            dialog.removeEventListener('click', onBackdrop);
+            dialog.removeEventListener('close', onClose);
+            resolve(value);
+          };
+          const onOk = () => { settle(true); dialog.close(); };
+          const onCancel = () => { settle(false); dialog.close(); };
+          const onBackdrop = (event: MouseEvent) => { if (event.target === dialog) { settle(false); dialog.close(); } };
+          const onClose = () => settle(false);
+          okBtn?.addEventListener('click', onOk);
+          cancelBtn?.addEventListener('click', onCancel);
+          dialog.addEventListener('click', onBackdrop);
+          dialog.addEventListener('close', onClose);
+          dialog.showModal();
+        });
       };
 
       // 主题切换（机制与博客前台一致）

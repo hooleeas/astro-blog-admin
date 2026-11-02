@@ -80,10 +80,10 @@ export const prerender = false;
           const key = btn.getAttribute('data-del');
           const count = btn.getAttribute('data-count');
           const title = btn.getAttribute('data-title');
-          if (!confirm(`确定删除文章「${title}」吗？\n将同时删除该文章全部 ${count} 个语言版本的文件，此操作不可撤销。`)) return;
+          if (!(await (window as any).adminConfirm?.(`确定删除文章「${title}」吗？\n将同时删除该文章全部 ${count} 个语言版本的文件，此操作不可撤销。`, { title: '删除文章' }))) return;
           const del = await api('/api/posts/' + encodeURIComponent(key), { method: 'DELETE' });
-          if (!del.ok) alert('删除失败：' + del.error);
-          else load();
+          if (!del.ok) (window as any).adminToast?.('删除失败：' + del.error, true);
+          else { (window as any).adminToast?.('已删除'); load(); }
         });
       });
     }

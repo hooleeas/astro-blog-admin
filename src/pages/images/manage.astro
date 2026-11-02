@@ -223,7 +223,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           deleteButton.type = 'button';
           deleteButton.textContent = '删除';
           deleteButton.addEventListener('click', async () => {
-            if (!confirm(`确定删除图片“${image.filename}”吗？此操作无法撤销。`)) return;
+            if (!(await (window as any).adminConfirm?.(`确定删除图片“${image.filename}”吗？此操作无法撤销。`, { title: '删除图片' }))) return;
             deleteButton.disabled = true;
             status.textContent = `正在删除：${image.filename}`;
             status.classList.remove('error');
@@ -273,7 +273,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       batchDeleteBtn.addEventListener('click', async () => {
         const targets = images.filter((image) => selected.has(image.filename));
         if (!targets.length) return;
-        if (!confirm(`确定删除选中的 ${targets.length} 张图片吗？此操作无法撤销。`)) return;
+        if (!(await (window as any).adminConfirm?.(`确定删除选中的 ${targets.length} 张图片吗？此操作无法撤销。`, { title: '批量删除图片' }))) return;
         batchDeleteBtn.disabled = true;
         let ok = 0;
         let failed = 0;
