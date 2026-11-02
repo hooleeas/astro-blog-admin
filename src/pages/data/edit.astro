@@ -329,6 +329,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         if (typeof af.thisMonth !== 'boolean') af.thisMonth = true;
         if (typeof af.popular !== 'boolean') af.popular = true;
         if (!Array.isArray(af.categories)) af.categories = [];
+        if (!Array.isArray(af.tags)) af.tags = [];
         return af;
       }
 
@@ -363,47 +364,53 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         };
         body.appendChild(builtinRow(translations.thisMonth ?? '本月发布', 'thisMonth'));
         body.appendChild(builtinRow(translations.popular ?? '热门文章', 'popular'));
-        af.categories.forEach((item, idx) => {
-          if (!isObj(item)) return;
-          if (!isObj(item.label)) item.label = {};
-          if (!isObj(item.category)) item.category = {};
-          const row = el('div', 'vv-filter-row');
-          const labelField = el('div');
-          labelField.appendChild(el('label', null, '显示名'));
-          const labelInput = el('input', 'input');
-          labelInput.type = 'text';
-          labelInput.placeholder = '如：使用指南';
-          labelInput.value = item.label[filtersLang] ?? '';
-          labelInput.spellcheck = false;
-          labelInput.addEventListener('input', () => { item.label[filtersLang] = labelInput.value; });
-          labelField.appendChild(labelInput);
-          const catField = el('div');
-          catField.appendChild(el('label', null, '文章分类'));
-          const catInput = el('input', 'input');
-          catInput.type = 'text';
-          catInput.placeholder = '填文章的分类值';
-          catInput.value = item.category[filtersLang] ?? '';
-          catInput.spellcheck = false;
-          catInput.addEventListener('input', () => { item.category[filtersLang] = catInput.value; });
-          catField.appendChild(catInput);
-          const del = el('button', 'btn glass-button btn-sm danger', '删除');
-          del.type = 'button';
-          del.addEventListener('click', () => {
-            if (!confirm('确定删除这个分类筛选吗？')) return;
-            af.categories.splice(idx, 1);
+        // 分类与标签两组筛选共用同一行编辑形态：显示名 + 对应值（都按当前语言存）
+        const buildFilterGroup = (title, list, valueKey, valueLabel, valuePlaceholder, addLabel) => {
+          body.appendChild(el('div', 'vv-subobj-title', title));
+          list.forEach((item, idx) => {
+            if (!isObj(item)) return;
+            if (!isObj(item.label)) item.label = {};
+            if (!isObj(item[valueKey])) item[valueKey] = {};
+            const row = el('div', 'vv-filter-row');
+            const labelField = el('div');
+            labelField.appendChild(el('label', null, '显示名'));
+            const labelInput = el('input', 'input');
+            labelInput.type = 'text';
+            labelInput.placeholder = '筛选栏里看到的文字';
+            labelInput.value = item.label[filtersLang] ?? '';
+            labelInput.spellcheck = false;
+            labelInput.addEventListener('input', () => { item.label[filtersLang] = labelInput.value; });
+            labelField.appendChild(labelInput);
+            const valueField = el('div');
+            valueField.appendChild(el('label', null, valueLabel));
+            const valueInput = el('input', 'input');
+            valueInput.type = 'text';
+            valueInput.placeholder = valuePlaceholder;
+            valueInput.value = item[valueKey][filtersLang] ?? '';
+            valueInput.spellcheck = false;
+            valueInput.addEventListener('input', () => { item[valueKey][filtersLang] = valueInput.value; });
+            valueField.appendChild(valueInput);
+            const del = el('button', 'btn glass-button btn-sm danger', '删除');
+            del.type = 'button';
+            del.addEventListener('click', () => {
+              if (!confirm('确定删除这一项筛选吗？')) return;
+              list.splice(idx, 1);
+              saveButton.disabled = !renderVisual();
+            });
+            row.append(labelField, valueField, del);
+            body.appendChild(row);
+          });
+          const addBtn = el('button', 'btn glass-button btn-sm', addLabel);
+          addBtn.type = 'button';
+          addBtn.addEventListener('click', () => {
+            list.push({ label: {}, [valueKey]: {} });
             saveButton.disabled = !renderVisual();
           });
-          row.append(labelField, catField, del);
-          body.appendChild(row);
-        });
-        const addBtn = el('button', 'btn glass-button btn-sm', '新增分类');
-        addBtn.type = 'button';
-        addBtn.addEventListener('click', () => {
-          af.categories.push({ label: {}, category: {} });
-          saveButton.disabled = !renderVisual();
-        });
-        body.appendChild(addBtn);
-        body.appendChild(el('p', 'hint', '「本月发布」「热门文章」是内置筛选，只能开关、不能删除。分类筛选按上方选中的语言分别填写：显示名是筛选栏里看到的文字，文章分类要和文章的分类值一字不差。'));
+          body.appendChild(addBtn);
+        };
+        buildFilterGroup('分类筛选', af.categories, 'category', '文章分类', '填文章的分类值', '新增分类');
+        buildFilterGroup('标签筛选', af.tags, 'tag', '文章标签', '填文章的标签值', '新增标签');
+        body.appendChild(el('p', 'hint', '「本月发布」「热门文章」是内置筛选，只能开关、不能删除。分类与标签筛选按上方选中的语言分别填写：显示名是筛选栏里看到的文字，分类/标签值要和文章里的值一字不差。'));
         card.appendChild(body);
         return card;
       }
