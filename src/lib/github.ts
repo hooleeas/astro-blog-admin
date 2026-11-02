@@ -29,10 +29,10 @@ function repoConfig(locals: unknown): RepoConfig {
   if (!token) throw new GithubError(401, '未登录或会话已失效');
   const repo = (env.GITHUB_REPO || '').trim();
   if (!repo) {
-    throw new GithubError(500, '未配置环境变量 GITHUB_REPO：请到 Cloudflare Pages 项目（astro-blog-admin）的 设置 → 环境变量（生产）中添加 GITHUB_REPO，值填内容仓库的「用户名/仓库名」，保存后重新部署一次');
+    throw new GithubError(500, '未配置环境变量 GITHUB_REPO：请到 Cloudflare Pages 项目的 设置 → 环境变量（生产）中添加 GITHUB_REPO，值填内容仓库的「用户名/仓库名」，保存后重新部署一次');
   }
   if (!/^[^/\s]+\/[^/\s]+$/.test(repo)) {
-    throw new GithubError(500, `环境变量 GITHUB_REPO 格式不对：「${repo}」应为「用户名/仓库名」，如 hooleeas/astro-blog`);
+    throw new GithubError(500, `环境变量 GITHUB_REPO 格式不对：「${repo}」应为「用户名/仓库名」格式`);
   }
   return {
     repo,
@@ -53,61 +53,6 @@ export function b64encodeBytes(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
   return btoa(binary);
-}
-
-/** 发布二进制文件到 GitHub Pages 仓库。 */
-export async function putPagesAsset(
-  locals: unknown,
-  path: string,
-  content: Uint8Array,
-  message: string,
-): Promise<void> {
-  const env = getEnv(locals as any);
-  const token = (locals as any)?.githubToken as string | undefined;
-  if (!token) throw new GithubError(401, '未登录或会话已失效');
-
-  const repo = env.GITHUB_PAGES_REPO || 'hooleeas/hooleeas.github.io';
-  const branch = env.GITHUB_PAGES_BRANCH || 'main';
-  const response = await fetch(`${API_BASE}/repos/${repo}/contents/${encodePath(path)}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'astro-blog-admin',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      message,
-      content: b64encodeBytes(content),
-      branch,
-    }),
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new GithubError(response.status, `发布图片到 GitHub Pages 失败（${response.status}）：${text.slice(0, 300)}`);
-  }
-}
-
-/** Delete a published GitHub Pages asset. Missing files are already considered deleted. */
-export async function deletePagesAsset(
-  locals: unknown,
-  path: string,
-  message: string,
-): Promise<void> {
-  const env = getEnv(locals as any);
-  const branch = env.GITHUB_PAGES_BRANCH || 'main';
-  let file: any;
-  try {
-    file = await gh(locals, `/contents/${encodePath(path)}?ref=${encodeURIComponent(branch)}`);
-  } catch (error) {
-    if (error instanceof GithubError && error.status === 404) return;
-    throw error;
-  }
-  if (Array.isArray(file) || typeof file?.sha !== 'string') {
-    throw new GithubError(404, `找不到待删除的图片：${path}`);
-  }
-  await gh(locals, `/contents/${encodePath(path)}`, 'DELETE', { message, sha: file.sha, branch });
 }
 
 /** base64 解码 */

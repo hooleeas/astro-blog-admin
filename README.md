@@ -1,6 +1,6 @@
 # astro-blog-admin
 
-[astro-blog](https://github.com/hooleeas/astro-blog) 的管理后台，用于管理文章、随记、页面、站点设置和图床。
+Astro 博客内容仓库的管理后台，用于管理文章、随记、页面、站点设置和图床。内容仓库不写死在代码里，必须通过环境变量 `GITHUB_REPO` 指定（见下表）。
 
 - 框架：Astro 5，SSR
 - 云端部署：Cloudflare Pages（`@astrojs/cloudflare` adapter）
@@ -50,11 +50,9 @@ npm run dev -- --host 127.0.0.1 --port 4323
 |---|---|
 | `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID；云端登录必填，本地预览不需要 |
 | `GITHUB_CLIENT_SECRET` | OAuth Client Secret，同时用于会话签名；云端必填 |
-| `GITHUB_OWNER` | 唯一允许登录的 GitHub 用户名，默认 `hooleeas` |
-| `GITHUB_REPO` | 博客内容仓库，默认 `hooleeas/astro-blog` |
+| `GITHUB_OWNER` | 唯一允许登录的 GitHub 用户名；**必填**，无默认值，未设置时任何人都无法登录 |
+| `GITHUB_REPO` | 博客内容仓库，格式为「用户名/仓库名」；**必填**，无默认值 |
 | `GITHUB_BRANCH` | 博客仓库分支，默认 `main` |
-| `GITHUB_PAGES_REPO` | 图片发布目标仓库，默认 `hooleeas/hooleeas.github.io` |
-| `GITHUB_PAGES_BRANCH` | 图片发布目标分支，默认 `main` |
 | `ADMIN_LOCAL_PREVIEW` | 本地免登录及本地文件预览开关；本地测试设为 `true`，不要在云端启用 |
 | `LOCAL_SITE_URL` | 本地博客站点地址，默认 `http://127.0.0.1:4323` |
 | `ADMIN_KV` | Cloudflare KV 命名空间绑定；必需，用于保存 WebDAV 配置。项目绑定名为 `ADMIN_KV` |

@@ -5,12 +5,10 @@ export interface RuntimeEnv {
   GITHUB_CLIENT_ID?: string;
   /** GitHub OAuth App 的 Client Secret（登录换 token + 会话签名密钥） */
   GITHUB_CLIENT_SECRET?: string;
-  /** 允许登录的 GitHub 用户名，默认 hooleeas */
+  /** 允许登录的 GitHub 用户名（必填，无默认值，未配置时无法登录） */
   GITHUB_OWNER?: string;
   GITHUB_REPO?: string;
   GITHUB_BRANCH?: string;
-  GITHUB_PAGES_REPO?: string;
-  GITHUB_PAGES_BRANCH?: string;
   LOCAL_SITE_URL?: string;
   ADMIN_LOCAL_PREVIEW?: string;
   ADMIN_KV?: any;

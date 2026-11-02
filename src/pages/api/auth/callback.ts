@@ -98,7 +98,10 @@ export const GET: APIRoute = async ({ request, cookies, locals }) => {
     return Response.json({ ok: false, error: `GitHub 取用户信息失败（${userRes.status}）` }, { status: 502 });
   }
   const userData = (await userRes.json()) as { login?: string };
-  const owner = env.GITHUB_OWNER || 'hooleeas';
+  const owner = (env.GITHUB_OWNER || '').trim();
+  if (!owner) {
+    return Response.json({ ok: false, error: '未配置环境变量 GITHUB_OWNER：请在 Cloudflare Pages 项目的 设置 → 环境变量（生产）中填写唯一允许登录的 GitHub 用户名，保存后重新部署一次' }, { status: 500 });
+  }
   if (userData.login !== owner) {
     return Response.json({ ok: false, error: '该 GitHub 账号无管理权限' }, { status: 403 });
   }
