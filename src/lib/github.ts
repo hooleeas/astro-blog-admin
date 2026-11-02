@@ -111,6 +111,14 @@ export async function getFile(locals: unknown, path: string): Promise<RepoFile> 
   return { sha: data.sha as string, path: (data.path as string) || path, content: b64decode(data.content) };
 }
 
+/** 取文件的临时下载地址（图片预览用）；不是文件时返回 null，不存在时由 gh 抛错。 */
+export async function getFileDownloadUrl(locals: unknown, path: string): Promise<string | null> {
+  const { branch } = repoConfig(locals);
+  const data = await gh(locals, `/contents/${encodePath(path)}?ref=${encodeURIComponent(branch)}`);
+  if (!data || Array.isArray(data) || data.type !== 'file') return null;
+  return typeof data.download_url === 'string' ? data.download_url : null;
+}
+
 /** 写文件（sha 缺省=新建，传 sha=更新）。返回新 sha。 */
 export async function putFile(
   locals: unknown,
@@ -197,7 +205,7 @@ export async function moveFile(
   const current = await getFile(locals, oldPath);
   if (current.sha !== expectedSha) throw new GithubError(409, '文件已被其他操作修改，请重新加载后再保存');
   if ((await listTree(locals)).includes(newPath)) {
-    throw new GithubError(409, '目标文件名已存在，请修改文件名或处理同名文件');
+    throw new GithubError(409, '目标文件名已存在，请修改日期或处理同名随记');
   }
 
   const blob = await gh(locals, '/git/blobs', 'POST', { content: b64encode(content), encoding: 'base64' });
