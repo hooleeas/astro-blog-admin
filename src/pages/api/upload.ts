@@ -92,7 +92,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    return json({ ok: true, data: { url: getImageUrl(locals, filename, localPreview), filename } });
+    return json({ ok: true, data: { url: getImageUrl(locals, filename, localPreview, request.url), filename } });
   } catch (e: any) {
     if (e && typeof e.status === 'number' && e.message) {
       return json({ ok: false, error: e.message }, e.status);

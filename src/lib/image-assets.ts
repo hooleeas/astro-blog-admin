@@ -14,11 +14,16 @@ export function isLocalImagePreview(locals: unknown, request: Request): boolean 
     (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]');
 }
 
-export function getImageUrl(locals: unknown, filename: string, localPreview: boolean): string {
+export function getImageUrl(locals: unknown, filename: string, localPreview: boolean, requestUrl?: string): string {
   const env = getEnv(locals as any);
   const imagePath = `${IMG_DIR}/${encodeURIComponent(filename)}`;
   if (localPreview) {
-    const siteUrl = new URL(env.LOCAL_SITE_URL || 'http://127.0.0.1:4323');
+    if (env.LOCAL_SITE_URL) {
+      return new URL(imagePath, new URL(env.LOCAL_SITE_URL)).toString();
+    }
+    // 未显式配置博客地址时，跟随访问者实际使用的域名（博客本地端口 4323）
+    const req = new URL(requestUrl || 'http://127.0.0.1:4323');
+    const siteUrl = new URL(`${req.protocol}//${req.hostname}:4323`);
     return new URL(imagePath, siteUrl).toString();
   }
 
