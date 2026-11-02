@@ -66,6 +66,11 @@ try {
 
     <div id="upload-progress" class="upload-progress" aria-live="polite"></div>
 
+    <dialog id="lightbox" class="lightbox" aria-label="图片预览">
+      <button class="lightbox-close" type="button" aria-label="关闭预览">&times;</button>
+      <img class="lightbox-img" alt="图片预览" />
+    </dialog>
+
     <div id="toast" class="toast" popover="manual"></div>
 
     <script>
@@ -283,6 +288,16 @@ try {
         });
       }
 
+      // 灯箱：点结果卡片的预览图放大查看，点任意处关闭
+      const lightbox = document.querySelector('#lightbox');
+      const lightboxImg = lightbox.querySelector('.lightbox-img');
+      function openLightbox(src) {
+        lightboxImg.src = src;
+        if (!lightbox.open) lightbox.showModal();
+      }
+      lightbox.addEventListener('click', () => lightbox.close());
+      lightbox.querySelector('.lightbox-close').addEventListener('click', () => lightbox.close());
+
       function buildCard(url, filename) {
         const card = document.createElement('div');
         card.className = 'result-card';
@@ -296,6 +311,7 @@ try {
         img.src = url;
         img.alt = filename;
         img.loading = 'lazy';
+        img.addEventListener('click', () => openLightbox(url));
 
         const info = document.createElement('div');
         info.className = 'info';

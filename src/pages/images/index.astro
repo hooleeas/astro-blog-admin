@@ -122,6 +122,11 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
 
   <div id="upload-progress" class="upload-progress" aria-live="polite"></div>
 
+  <dialog id="lightbox" class="lightbox" aria-label="图片预览">
+    <button class="lightbox-close" type="button" aria-label="关闭预览">&times;</button>
+    <img class="lightbox-img" alt="图片预览" />
+  </dialog>
+
   <div id="toast" class="toast" popover="manual"></div>
 
   <script>
@@ -511,6 +516,16 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       });
     }
 
+    /* 灯箱：点结果卡片的预览图放大查看，点任意处关闭 */
+    const lightbox = requiredElement<HTMLDialogElement>(document, '#lightbox');
+    const lightboxImg = requiredElement<HTMLImageElement>(document, '.lightbox-img');
+    function openLightbox(src: string) {
+      lightboxImg.src = src;
+      if (!lightbox.open) lightbox.showModal();
+    }
+    lightbox.addEventListener('click', () => lightbox.close());
+    requiredElement<HTMLButtonElement>(document, '.lightbox-close').addEventListener('click', () => lightbox.close());
+
     function addResult(url: string, filename: string) {
       const card = document.createElement('div');
       card.className = 'result-card';
@@ -524,6 +539,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       img.src = url;
       img.alt = filename;
       img.loading = 'lazy';
+      img.addEventListener('click', () => openLightbox(url));
 
       const info = document.createElement('div');
       info.className = 'info';
@@ -645,6 +661,42 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
     .up-row-fill.indeterminate { width: 40%; transition: none; animation: up-slide 1.1s ease-in-out infinite alternate; }
     .up-row.failed .up-row-fill { background: var(--danger); }
     @keyframes up-slide { from { margin-left: 0; } to { margin-left: 60%; } }
+    .result-card img { cursor: zoom-in; }
+    .lightbox {
+      padding: 0;
+      border: none;
+      background: transparent;
+      max-width: 100vw;
+      max-height: 100dvh;
+    }
+    .lightbox::backdrop { background: rgba(0, 0, 0, 0.82); backdrop-filter: blur(4px); }
+    .lightbox-img {
+      display: block;
+      max-width: min(94vw, 1400px);
+      max-height: 92dvh;
+      object-fit: contain;
+      border-radius: 12px;
+    }
+    .lightbox-close {
+      position: fixed;
+      top: 16px; right: 16px;
+      display: grid;
+      width: 36px; height: 36px;
+      place-items: center;
+      padding: 0;
+      color: #f1f3f5;
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      -webkit-backdrop-filter: blur(12px) saturate(180%);
+      backdrop-filter: blur(12px) saturate(180%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 4px 14px rgba(0, 0, 0, 0.10);
+      border-radius: 50%;
+      font-size: 25px;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 1;
+    }
+    .lightbox-close:hover { background: rgba(255, 255, 255, 0.18); }
     .settings-inline-open {
       padding: 0;
       color: inherit;

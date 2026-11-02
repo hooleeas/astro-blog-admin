@@ -30,6 +30,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
     <div id="image-manager-toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
   </main>
 
+  <dialog id="lightbox" class="lightbox" aria-label="图片预览">
+    <button class="lightbox-close" type="button" aria-label="关闭预览">&times;</button>
+    <img class="lightbox-img" alt="图片预览" />
+  </dialog>
+
   <style is:global>
     .image-manager { width: min(1120px, calc(100% - 32px)); margin: 20px auto 48px; }
     .image-manager .manager-heading { display: flex; align-items: center; gap: 24px; margin-bottom: 20px; }
@@ -61,6 +66,17 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
     .image-manager .image-select { position: absolute; top: 10px; left: 10px; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--surface) 78%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); cursor: pointer; }
     .image-manager .image-select input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
     .image-manager .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    .image-manager .image-preview img { cursor: zoom-in; }
+    .lightbox { padding: 0; border: none; background: transparent; max-width: 100vw; max-height: 100dvh; }
+    .lightbox::backdrop { background: rgba(0, 0, 0, 0.82); backdrop-filter: blur(4px); }
+    .lightbox-img { display: block; max-width: min(94vw, 1400px); max-height: 92dvh; object-fit: contain; border-radius: 12px; }
+    .lightbox-close {
+      position: fixed; top: 16px; right: 16px; display: grid; width: 36px; height: 36px; place-items: center; padding: 0;
+      color: #f1f3f5; background: rgba(255, 255, 255, 0.10); border: 1px solid rgba(255, 255, 255, 0.22);
+      -webkit-backdrop-filter: blur(12px) saturate(180%); backdrop-filter: blur(12px) saturate(180%);
+      border-radius: 50%; font-size: 25px; line-height: 1; cursor: pointer; z-index: 1;
+    }
+    .lightbox-close:hover { background: rgba(255, 255, 255, 0.18); }
     @media (max-width: 560px) {
       .image-manager .manager-heading { flex-wrap: wrap; gap: 12px; }
       .image-manager .manager-heading > div { flex: 1 1 100%; }
@@ -89,6 +105,16 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const selectAll = app.querySelector<HTMLInputElement>('#select-all')!;
       const selectedCount = app.querySelector<HTMLElement>('#selected-count')!;
       const batchDeleteBtn = app.querySelector<HTMLButtonElement>('#batch-delete')!;
+
+      // 灯箱：点卡片预览图放大查看，点任意处关闭
+      const lightbox = document.querySelector<HTMLDialogElement>('#lightbox')!;
+      const lightboxImg = lightbox.querySelector<HTMLImageElement>('.lightbox-img')!;
+      function openLightbox(src: string) {
+        lightboxImg.src = src;
+        if (!lightbox.open) lightbox.showModal();
+      }
+      lightbox.addEventListener('click', () => lightbox.close());
+      lightbox.querySelector('.lightbox-close')!.addEventListener('click', () => lightbox.close());
       const selected = new Set<string>();
       let images: ManagedImage[] = [];
       let appliedQuery = '';
@@ -159,6 +185,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           img.src = image.url;
           img.alt = image.filename;
           img.loading = 'lazy';
+          img.addEventListener('click', () => openLightbox(image.url));
           img.addEventListener('error', () => {
             const fallback = document.createElement('span');
             fallback.className = 'broken';
