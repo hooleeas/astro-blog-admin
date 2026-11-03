@@ -1,21 +1,15 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getWebdavConfig } from '../../lib/webdav-config';
-import { serveImage } from '../../lib/serve-image';
+import { serveImageByPath } from '../../lib/serve-image';
 
 /**
- * 自定义前缀的图床图片回源：/<前缀>/<文件名>。
- * 前缀以图床设置里的 linkPrefix 为准，不匹配一律 404（默认前缀 images 由 /images/[filename] 处理）。
+ * 按对外连接路径回源：/<路径>/<文件名>。
+ * 路径可被多个存储渠道共用（见「存储」管理页）：依次在占用该路径的启用渠道里
+ * 找持有文件的渠道出图，切换当前存储不影响链接；没有渠道占用该路径一律 404
+ * （默认路径 images 由 /images/[filename] 处理，含旧链接兼容）。
  */
 export const GET: APIRoute = async ({ locals, params }) => {
-  try {
-    const config = await getWebdavConfig(locals);
-    if (!params.prefix || params.prefix !== config.linkPrefix) {
-      return new Response('Not found', { status: 404 });
-    }
-  } catch {
-    return new Response('Not found', { status: 404 });
-  }
-  return serveImage(locals, params.filename ?? '');
+  const res = await serveImageByPath(locals, params.prefix ?? '', params.filename ?? '');
+  return res ?? new Response('Not found', { status: 404 });
 };

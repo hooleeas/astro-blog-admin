@@ -1112,6 +1112,9 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
               <a class="btn btn-sm glass-button" id="open-image-manager" href="/images/manage" hidden={Astro.url.pathname !== '/images'}>
                 管理
               </a>
+              <a class="btn btn-sm glass-button" id="open-image-storage" href="/images/storage" hidden={Astro.url.pathname !== '/images'}>
+                存储
+              </a>
               <button class="btn btn-sm glass-button" id="open-image-settings" type="button" hidden={Astro.url.pathname !== '/images'}>
                 设置
               </button>
@@ -1741,6 +1744,7 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
           const newPostLink = document.querySelector<HTMLAnchorElement>('#new-post-link');
           const newNoteLink = document.querySelector<HTMLAnchorElement>('#new-note-link');
           const imageManagerLink = document.querySelector<HTMLAnchorElement>('#open-image-manager');
+          const imageStorageLink = document.querySelector<HTMLAnchorElement>('#open-image-storage');
           const imageSettingsButton = document.querySelector<HTMLButtonElement>('#open-image-settings');
           const imageManagerRefreshButton = document.querySelector<HTMLButtonElement>('#refresh-image-manager');
           const postSaveButton = document.querySelector<HTMLButtonElement>('#post-save-btn');
@@ -1754,6 +1758,7 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
           if (newPostLink) newPostLink.hidden = pathname !== '/posts';
           if (newNoteLink) newNoteLink.hidden = pathname !== '/notes';
           if (imageManagerLink) imageManagerLink.hidden = pathname !== '/images';
+          if (imageStorageLink) imageStorageLink.hidden = pathname !== '/images';
           if (imageSettingsButton) imageSettingsButton.hidden = pathname !== '/images';
           if (imageManagerRefreshButton) imageManagerRefreshButton.hidden = pathname !== '/images/manage';
           const isPostEditor = pathname === '/posts/edit';

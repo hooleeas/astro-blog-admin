@@ -4,8 +4,13 @@
 // 注意：不要用默认入口 'webdav'（依赖 node-fetch），'webdav/web' 是官方自包含 web 构建。
 import { createClient } from 'webdav/web';
 import { AwsClient } from 'aws4fetch';
-import { getBinding, getImageBlobStore, getKVStore } from './platform';
+import { getBinding, getImageBlobStore } from './platform';
 import { imageDir, type WebdavConfig } from './webdav-config';
+import {
+  registryListByChannel,
+  registryUpsert,
+  registryRemove,
+} from './image-registry';
 
 /** Pages 项目里 R2 存储桶的绑定变量名（在 Pages 设置 → 函数 → R2 存储桶绑定里添加） */
 export const R2_BINDING_NAME = 'IMGS_R2';
@@ -72,6 +77,11 @@ function requireR2(cfg: WebdavConfig): void {
     fail(500, `未检测到 Pages 绑定（${R2_BINDING_NAME}），也没有填写完整的 R2 密钥：请二选一——在 Pages 设置里绑定 R2 存储桶（变量名 ${R2_BINDING_NAME}），或在图床设置页填写 R2 端点与密钥`);
   }
 }
+function requireS3(cfg: WebdavConfig): void {
+  if (!cfg.s3Endpoint || !cfg.s3Bucket || !cfg.s3AccessKeyId || !cfg.s3SecretAccessKey) {
+    fail(500, 'S3 渠道参数不完整：请先到「存储」页填写端点、存储桶与密钥');
+  }
+}
 
 function r2Key(cfg: WebdavConfig, filename: string): string {
   return `${imageDir(cfg)}/${filename}`;
@@ -93,32 +103,74 @@ async function webdavEnsureDir(cfg: WebdavConfig): Promise<void> {
   }
 }
 
-/* ---------------- Cloudflare R2（S3 兼容） ---------------- */
+/* ---------------- S3 兼容存储（R2 密钥模式与 S3 渠道共用） ---------------- */
 
-function r2Client(cfg: WebdavConfig): AwsClient {
+interface S3Params {
+  endpoint: string;
+  bucket: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  /** 报错文案里的存储名（Cloudflare R2 / S3） */
+  label: string;
+}
+
+function r2S3Params(cfg: WebdavConfig): S3Params {
   requireR2(cfg);
-  return new AwsClient({
+  return {
+    endpoint: cfg.r2Endpoint,
+    bucket: cfg.r2Bucket,
+    region: 'auto',
     accessKeyId: cfg.r2AccessKeyId,
     secretAccessKey: cfg.r2SecretAccessKey,
+    label: 'Cloudflare R2',
+  };
+}
+
+function s3Params(cfg: WebdavConfig): S3Params {
+  requireS3(cfg);
+  return {
+    endpoint: cfg.s3Endpoint,
+    bucket: cfg.s3Bucket,
+    region: cfg.s3Region || 'auto',
+    accessKeyId: cfg.s3AccessKeyId,
+    secretAccessKey: cfg.s3SecretAccessKey,
+    label: 'S3',
+  };
+}
+
+function s3Client(p: S3Params): AwsClient {
+  return new AwsClient({
+    accessKeyId: p.accessKeyId,
+    secretAccessKey: p.secretAccessKey,
     service: 's3',
-    region: 'auto',
+    region: p.region,
   });
 }
 
-function r2ObjectUrl(cfg: WebdavConfig, filename: string): string {
+function s3ObjectUrl(p: S3Params, cfg: WebdavConfig, filename: string): string {
   const key = `${imageDir(cfg)}/${filename}`;
   const encodedKey = key.split('/').map((seg) => encodeURIComponent(seg)).join('/');
-  return `${cfg.r2Endpoint}/${cfg.r2Bucket}/${encodedKey}`;
+  return `${p.endpoint}/${p.bucket}/${encodedKey}`;
 }
 
-async function r2Error(res: Response, action: string): Promise<never> {
+async function s3Error(res: Response, action: string, label: string): Promise<never> {
   let detail = '';
   try {
     const text = await res.text();
     const code = text.match(/<Code>([^<]+)<\/Code>/)?.[1];
     detail = code ? `：${code}` : '';
   } catch {}
-  fail(502, `Cloudflare R2 ${action}失败（${res.status}）${detail}`);
+  fail(502, `${label} ${action}失败（${res.status}）${detail}`);
+}
+
+/** 测试 S3 渠道连通性：签一个列桶请求（只列 1 条），通了即参数可用 */
+export async function testS3Connection(p: {
+  endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string;
+}): Promise<void> {
+  const params: S3Params = { ...p, label: 'S3' };
+  const res = await s3Client(params).fetch(`${p.endpoint}/${p.bucket}?list-type=2&max-keys=1`);
+  if (!res.ok) await s3Error(res, '连接测试', 'S3');
 }
 
 function xmlUnescape(s: string): string {
@@ -132,9 +184,10 @@ function xmlUnescape(s: string): string {
 
 /* ---------------- Telegram 渠道 ----------------
  * 图片以「文件」（sendDocument）形式发进指定频道/群，避免按照片发送被 Telegram 压缩。
- * Telegram 没有列目录接口：文件名 → file_id / message_id 的清单自存在配置存储（tg:index），
- * 列表/查重/删除都查这份清单；读取时先 getFile 换取下载路径再拉原文件（路径现取现用）。
- * 图片对外仍走本站 /<前缀>/<文件名> 路由由服务器中转，机器人令牌不出现在任何链接里。
+ * Telegram 没有列目录接口：文件名 → file_id / message_id 存图片登记表
+ * （该渠道名下的记录，见 image-registry.ts），列表/查重/删除都查登记表；
+ * 读取时先 getFile 换取下载路径再拉原文件（路径现取现用）。
+ * 图片对外仍走本站 /<路径>/<文件名> 路由由服务器中转，机器人令牌不出现在任何链接里。
  */
 
 interface TgIndexItem {
@@ -146,7 +199,10 @@ interface TgIndexItem {
   lastmod: string;
 }
 
-const TG_INDEX_KEY = 'tg:index';
+/** 登记表里该 Telegram 渠道的键：优先渠道 ID，旧单配置形态回退到会话维度 */
+function tgRegKey(cfg: WebdavConfig): string {
+  return cfg.channelId ?? `tg:${cfg.tgChatId}`;
+}
 
 function requireTg(cfg: WebdavConfig): void {
   if (!cfg.tgEnabled) fail(500, 'Telegram 渠道未启用，请先到图床设置页启用该渠道');
@@ -173,27 +229,36 @@ async function tgApi(cfg: WebdavConfig, method: string, body?: unknown, isForm =
   return data.result;
 }
 
-async function tgLoadIndex(locals: unknown): Promise<TgIndexItem[]> {
-  const kv = await getKVStore(locals);
-  if (!kv) fail(500, '配置存储不可用（KV 未绑定）：无法读取 Telegram 图片清单');
-  const raw = await kv!.get(TG_INDEX_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (it): it is TgIndexItem =>
-        it && typeof it.filename === 'string' && typeof it.fileId === 'string' && typeof it.messageId === 'number',
-    );
-  } catch {
-    return [];
-  }
+async function tgLoadIndex(locals: unknown, cfg: WebdavConfig): Promise<TgIndexItem[]> {
+  const records = await registryListByChannel(locals, tgRegKey(cfg));
+  return records
+    .filter((it) => typeof it.tgFileId === 'string' && typeof it.tgMessageId === 'number')
+    .map((it) => ({
+      filename: it.filename,
+      fileId: it.tgFileId as string,
+      messageId: it.tgMessageId as number,
+      size: it.size,
+      lastmod: it.lastmod,
+    }));
 }
 
-async function tgSaveIndex(locals: unknown, items: TgIndexItem[]): Promise<void> {
-  const kv = await getKVStore(locals);
-  if (!kv) fail(500, '配置存储不可用（KV 未绑定）：无法保存 Telegram 图片清单');
-  await kv!.put(TG_INDEX_KEY, JSON.stringify(items));
+async function tgSaveIndex(locals: unknown, cfg: WebdavConfig, items: TgIndexItem[]): Promise<void> {
+  const key = tgRegKey(cfg);
+  const current = await registryListByChannel(locals, key);
+  const keep = new Set(items.map((it) => it.filename));
+  for (const rec of current) {
+    if (!keep.has(rec.filename)) await registryRemove(locals, key, rec.filename);
+  }
+  for (const it of items) {
+    await registryUpsert(locals, {
+      filename: it.filename,
+      channelId: key,
+      size: it.size,
+      lastmod: it.lastmod,
+      tgFileId: it.fileId,
+      tgMessageId: it.messageId,
+    });
+  }
 }
 
 /** 测试 Telegram 渠道连通性：验令牌、验会话可达、验机器人在会话内的身份（频道须为管理员） */
@@ -225,25 +290,49 @@ export async function testTelegramConnection(
 
 /* ---------------- 统一接口 ---------------- */
 
+/** 登记表里该配置所属渠道的键（channelToConfig/旧配置读取都会带 channelId，此处仅兜底） */
+function regChannelId(cfg: WebdavConfig): string {
+  return cfg.channelId ?? `legacy-${cfg.storage}`;
+}
+
 export async function storeFileExists(locals: unknown, cfg: WebdavConfig, filename: string): Promise<boolean> {
   if (cfg.storage === 'tg') {
     requireTg(cfg);
-    const index = await tgLoadIndex(locals);
+    const index = await tgLoadIndex(locals, cfg);
     return index.some((it) => it.filename === filename);
+  }
+  if (cfg.storage === 's3') {
+    const p = s3Params(cfg);
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), { method: 'HEAD' });
+    return res.ok;
   }
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
     if (bucket) return (await bucket.head(r2Key(cfg, filename))) !== null;
     const blob = await getImageBlobStore(locals);
     if (blob) return blob.exists(r2Key(cfg, filename));
-    const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename), { method: 'HEAD' });
+    const p = r2S3Params(cfg);
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), { method: 'HEAD' });
     return res.ok;
   }
   const client = webdavClient(cfg);
   return client.exists(`/${imageDir(cfg)}/${filename}`);
 }
 
+/** 存图并登记：非 Telegram 渠道存成功后在图片登记表记一条（Telegram 的登记即其清单，分支内已维护） */
 export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename: string, data: ArrayBuffer): Promise<void> {
+  await storePutFileRaw(locals, cfg, filename, data);
+  if (cfg.storage !== 'tg') {
+    await registryUpsert(locals, {
+      filename,
+      channelId: regChannelId(cfg),
+      size: data.byteLength,
+      lastmod: new Date().toISOString(),
+    });
+  }
+}
+
+async function storePutFileRaw(locals: unknown, cfg: WebdavConfig, filename: string, data: ArrayBuffer): Promise<void> {
   if (cfg.storage === 'tg') {
     requireTg(cfg);
     const form = new FormData();
@@ -255,7 +344,7 @@ export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename:
     if (!doc?.file_id || typeof message?.message_id !== 'number') {
       fail(502, 'Telegram sendDocument 失败：返回数据不完整');
     }
-    const index = await tgLoadIndex(locals);
+    const index = await tgLoadIndex(locals, cfg);
     const existing = index.findIndex((it) => it.filename === filename);
     const item: TgIndexItem = {
       filename,
@@ -272,7 +361,17 @@ export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename:
     } else {
       index.push(item);
     }
-    await tgSaveIndex(locals, index);
+    await tgSaveIndex(locals, cfg, index);
+    return;
+  }
+  if (cfg.storage === 's3') {
+    const p = s3Params(cfg);
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), {
+      method: 'PUT',
+      body: data,
+      headers: { 'content-type': imageContentType(filename) },
+    });
+    if (!res.ok) await s3Error(res, '上传', p.label);
     return;
   }
   if (cfg.storage === 'r2') {
@@ -286,12 +385,13 @@ export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename:
       await blob.put(r2Key(cfg, filename), data);
       return;
     }
-    const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename), {
+    const p = r2S3Params(cfg);
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), {
       method: 'PUT',
       body: data,
       headers: { 'content-type': imageContentType(filename) },
     });
-    if (!res.ok) await r2Error(res, '上传');
+    if (!res.ok) await s3Error(res, '上传', p.label);
     return;
   }
   await webdavEnsureDir(cfg);
@@ -302,7 +402,7 @@ export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename:
 export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename: string): Promise<Uint8Array> {
   if (cfg.storage === 'tg') {
     requireTg(cfg);
-    const index = await tgLoadIndex(locals);
+    const index = await tgLoadIndex(locals, cfg);
     const item = index.find((it) => it.filename === filename);
     if (!item) fail(404, '图片不存在');
     const file = await tgApi(cfg, 'getFile', { file_id: item!.fileId });
@@ -315,6 +415,12 @@ export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename:
     }
     if (!res!.ok) fail(502, `Telegram 文件下载失败（${res!.status}）`);
     return new Uint8Array(await res!.arrayBuffer());
+  }
+  if (cfg.storage === 's3') {
+    const p = s3Params(cfg);
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename));
+    if (!res.ok) await s3Error(res, '读取', p.label);
+    return new Uint8Array(await res.arrayBuffer());
   }
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
@@ -329,8 +435,9 @@ export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename:
       if (!data) fail(404, '图片不存在');
       return new Uint8Array(data);
     }
-    const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename));
-    if (!res.ok) await r2Error(res, '读取');
+    const p = r2S3Params(cfg);
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename));
+    if (!res.ok) await s3Error(res, '读取', p.label);
     return new Uint8Array(await res.arrayBuffer());
   }
   const client = webdavClient(cfg);
@@ -338,11 +445,40 @@ export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename:
   return data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data as unknown as ArrayLike<number>);
 }
 
+/** S3 协议列目录（R2 密钥模式与 S3 渠道共用）：ListObjects V2 + XML 解析 */
+async function s3ListFiles(p: S3Params, cfg: WebdavConfig): Promise<StoredImage[]> {
+  const prefix = `${imageDir(cfg)}/`;
+  const url = `${p.endpoint}/${p.bucket}?list-type=2&encoding-type=url&prefix=${encodeURIComponent(prefix)}`;
+  const res = await s3Client(p).fetch(url);
+  if (!res.ok) await s3Error(res, '读取列表', p.label);
+  const xml = await res.text();
+  const out: StoredImage[] = [];
+  for (const block of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+    const inner = block[1];
+    const rawKey = inner.match(/<Key>([\s\S]*?)<\/Key>/)?.[1];
+    if (!rawKey) continue;
+    let key = xmlUnescape(rawKey);
+    try { key = decodeURIComponent(key); } catch {}
+    if (!key.startsWith(prefix)) continue;
+    const name = key.slice(prefix.length);
+    if (!name || name.includes('/')) continue;
+    out.push({
+      filename: name,
+      size: Number(inner.match(/<Size>(\d+)<\/Size>/)?.[1] || 0),
+      lastmod: inner.match(/<LastModified>([^<]+)<\/LastModified>/)?.[1] || '',
+    });
+  }
+  return out;
+}
+
 export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promise<StoredImage[]> {
   if (cfg.storage === 'tg') {
     requireTg(cfg);
-    const index = await tgLoadIndex(locals);
+    const index = await tgLoadIndex(locals, cfg);
     return index.map((it) => ({ filename: it.filename, size: it.size, lastmod: it.lastmod }));
+  }
+  if (cfg.storage === 's3') {
+    return s3ListFiles(s3Params(cfg), cfg);
   }
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
@@ -378,29 +514,7 @@ export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promis
       }
       return out;
     }
-    requireR2(cfg);
-    const prefix = `${imageDir(cfg)}/`;
-    const url = `${cfg.r2Endpoint}/${cfg.r2Bucket}?list-type=2&encoding-type=url&prefix=${encodeURIComponent(prefix)}`;
-    const res = await r2Client(cfg).fetch(url);
-    if (!res.ok) await r2Error(res, '读取列表');
-    const xml = await res.text();
-    const out: StoredImage[] = [];
-    for (const block of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
-      const inner = block[1];
-      const rawKey = inner.match(/<Key>([\s\S]*?)<\/Key>/)?.[1];
-      if (!rawKey) continue;
-      let key = xmlUnescape(rawKey);
-      try { key = decodeURIComponent(key); } catch {}
-      if (!key.startsWith(prefix)) continue;
-      const name = key.slice(prefix.length);
-      if (!name || name.includes('/')) continue;
-      out.push({
-        filename: name,
-        size: Number(inner.match(/<Size>(\d+)<\/Size>/)?.[1] || 0),
-        lastmod: inner.match(/<LastModified>([^<]+)<\/LastModified>/)?.[1] || '',
-      });
-    }
-    return out;
+    return s3ListFiles(r2S3Params(cfg), cfg);
   }
   const client = webdavClient(cfg);
   const directory = `/${imageDir(cfg)}`;
@@ -411,17 +525,31 @@ export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promis
     .map((file) => ({ filename: file.basename, size: file.size, lastmod: file.lastmod }));
 }
 
+/** 删图并销登记：非 Telegram 渠道删成功后移除登记表记录（Telegram 的登记即其清单，分支内已维护） */
 export async function storeDeleteFile(locals: unknown, cfg: WebdavConfig, filename: string): Promise<void> {
+  await storeDeleteFileRaw(locals, cfg, filename);
+  if (cfg.storage !== 'tg') {
+    await registryRemove(locals, regChannelId(cfg), filename);
+  }
+}
+
+async function storeDeleteFileRaw(locals: unknown, cfg: WebdavConfig, filename: string): Promise<void> {
   if (cfg.storage === 'tg') {
     requireTg(cfg);
-    const index = await tgLoadIndex(locals);
+    const index = await tgLoadIndex(locals, cfg);
     const at = index.findIndex((it) => it.filename === filename);
     if (at >= 0) {
       const [item] = index.splice(at, 1);
       // 频道里的原消息尽力删除（消息可能已被手动删掉，失败不拦清单移除）
       await tgApi(cfg, 'deleteMessage', { chat_id: cfg.tgChatId, message_id: item.messageId }).catch(() => {});
-      await tgSaveIndex(locals, index);
+      await tgSaveIndex(locals, cfg, index);
     }
+    return;
+  }
+  if (cfg.storage === 's3') {
+    const p = s3Params(cfg);
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) await s3Error(res, '删除', p.label);
     return;
   }
   if (cfg.storage === 'r2') {
@@ -435,8 +563,9 @@ export async function storeDeleteFile(locals: unknown, cfg: WebdavConfig, filena
       await blob.delete(r2Key(cfg, filename));
       return;
     }
-    const res = await r2Client(cfg).fetch(r2ObjectUrl(cfg, filename), { method: 'DELETE' });
-    if (!res.ok && res.status !== 204) await r2Error(res, '删除');
+    const p = r2S3Params(cfg);
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) await s3Error(res, '删除', p.label);
     return;
   }
   const client = webdavClient(cfg);

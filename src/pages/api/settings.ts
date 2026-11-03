@@ -1,7 +1,15 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getWebdavConfig, saveWebdavConfig, toPublic, normalizeLinkPrefix, DEFAULT_LINK_PREFIX, normalizePageTitle, normalizeR2Endpoint, normalizeR2Bucket, normalizeTgChannelName, normalizeTgChatId, DEFAULT_TG_CHANNEL_NAME } from '../../lib/webdav-config';
+import {
+  getChannelsState,
+  saveChannelsState,
+  getActiveChannel,
+  channelToPublic,
+  readImghubLevel,
+  saveImghubLevel,
+  normalizePageTitle,
+} from '../../lib/webdav-config';
 import { getR2Binding } from '../../lib/image-store';
 import { isEdgeOne } from '../../lib/platform';
 
@@ -20,172 +28,66 @@ function err(e: unknown): Response {
   return json({ ok: false, error: `操作失败：${(e as Error)?.message || String(e)}` }, 500);
 }
 
-/** 返回图床配置 —— 密码与 R2 密钥永不返回，只给 hasPassword / hasR2Secret；另带 hasR2Binding（Pages 是否已绑定 R2） */
+/**
+ * 图床设置读取：只负责「选用哪个存储渠道」与图床自身选项（webp、公开页标题）。
+ * 各渠道的参数（地址、密钥、对外连接路径等）在「存储」管理页维护，这里不返回任何密钥。
+ */
 export const GET: APIRoute = async ({ locals }) => {
   try {
-    const cfg = await getWebdavConfig(locals);
-    return json({ ok: true, data: { ...toPublic(cfg), hasR2Binding: getR2Binding(locals) !== null, hasBlobBackend: isEdgeOne(locals) } });
+    const found = await getActiveChannel(locals);
+    const level = await readImghubLevel(locals);
+    return json({
+      ok: true,
+      data: {
+        channels: found ? found.state.channels.map(channelToPublic) : [],
+        activeChannelId: found?.active.id ?? '',
+        webp: level.webp,
+        pageTitle: level.pageTitle,
+        hasR2Binding: getR2Binding(locals) !== null,
+        hasBlobBackend: isEdgeOne(locals),
+      },
+    });
   } catch (e) {
     return err(e);
   }
 };
 
-/** 保存 WebDAV 配置。password 为空则保留 KV 里旧密码（不清空）。 */
+/** 保存图床设置：切换当前渠道 / webp 开关 / 公开页标题。存储参数不在这里保存。 */
 export const PUT: APIRoute = async ({ request, locals }) => {
   try {
     const body = (await request.json().catch(() => null)) as {
-      url?: unknown;
-      username?: unknown;
-      password?: unknown;
-      dir?: unknown;
-      linkPrefix?: unknown;
-      pageTitle?: unknown;
+      activeChannelId?: unknown;
       webp?: unknown;
-      storage?: unknown;
-      r2Endpoint?: unknown;
-      r2Bucket?: unknown;
-      r2AccessKeyId?: unknown;
-      r2SecretAccessKey?: unknown;
-      tgChannelName?: unknown;
-      tgEnabled?: unknown;
-      tgBotToken?: unknown;
-      tgChatId?: unknown;
+      pageTitle?: unknown;
     } | null;
     if (!body || typeof body !== 'object') {
       return json({ ok: false, error: '请求体必须是 JSON' }, 400);
     }
 
-    const oldCfg = await getWebdavConfig(locals).catch(() => null);
-
-    // 存储方式：未传则保留已保存值
-    const storage = body.storage === 'r2' || body.storage === 'webdav' || body.storage === 'tg'
-      ? body.storage
-      : (oldCfg?.storage ?? 'webdav');
-
-    const url = String(body.url ?? oldCfg?.url ?? '').trim();
-    if (storage === 'webdav') {
-      if (!url) {
-        return json({ ok: false, error: 'WebDAV 地址必填' }, 400);
+    if (body.activeChannelId !== undefined) {
+      const state = await getChannelsState(locals);
+      if (!state || !state.channels.length) {
+        return json({ ok: false, error: '尚未添加任何存储渠道，请先到「存储」页添加' }, 400);
       }
-      if (!/^https?:\/\//i.test(url)) {
-        return json({ ok: false, error: 'WebDAV 地址必须以 http:// 或 https:// 开头' }, 400);
-      }
-    } else if (url && !/^https?:\/\//i.test(url)) {
-      return json({ ok: false, error: 'WebDAV 地址必须以 http:// 或 https:// 开头' }, 400);
+      const target = state.channels.find((ch) => ch.id === String(body.activeChannelId));
+      if (!target) return json({ ok: false, error: '所选存储渠道不存在' }, 400);
+      if (!target.enabled) return json({ ok: false, error: '所选存储渠道已停用，请先在「存储」页启用' }, 400);
+      state.activeId = target.id;
+      await saveChannelsState(locals, state);
     }
 
-    // Cloudflare R2 字段：未传保留旧值；密钥留空保留旧密钥（同 WebDAV 密码）
-    let r2Endpoint = oldCfg?.r2Endpoint ?? '';
-    if (body.r2Endpoint !== undefined) {
-      const normalized = normalizeR2Endpoint(body.r2Endpoint);
-      if (normalized === null) {
-        return json({ ok: false, error: 'R2 端点不合法：必须以 https:// 开头，如 https://<账号ID>.r2.cloudflarestorage.com' }, 400);
-      }
-      r2Endpoint = normalized;
-    }
-    let r2Bucket = oldCfg?.r2Bucket ?? '';
-    if (body.r2Bucket !== undefined) {
-      const normalized = normalizeR2Bucket(body.r2Bucket);
-      if (normalized === null) {
-        return json({ ok: false, error: 'R2 存储桶名不合法：不能包含 /、空格，最长 63 个字符' }, 400);
-      }
-      r2Bucket = normalized;
-    }
-    const r2AccessKeyId = body.r2AccessKeyId !== undefined
-      ? String(body.r2AccessKeyId || '').trim()
-      : (oldCfg?.r2AccessKeyId ?? '');
-    let r2SecretAccessKey = String(body.r2SecretAccessKey ?? '');
-    if (!r2SecretAccessKey) r2SecretAccessKey = oldCfg?.r2SecretAccessKey ?? '';
-    // 已通过 Pages 绑定 R2 时，下面的端点与密钥都不必填（绑定优先，运行时直接走绑定）；
-    // EdgeOne 上「R2」档走 Blob 对象存储，端点与密钥同样免填
-    if (storage === 'r2' && getR2Binding(locals) === null && !isEdgeOne(locals)) {
-      if (!r2Endpoint) return json({ ok: false, error: 'R2 端点必填（或先在 Pages 设置里绑定 R2 存储桶，变量名 IMGS_R2）' }, 400);
-      if (!r2Bucket) return json({ ok: false, error: 'R2 存储桶名必填' }, 400);
-      if (!r2AccessKeyId) return json({ ok: false, error: 'R2 访问密钥 ID 必填' }, 400);
-      if (!r2SecretAccessKey) return json({ ok: false, error: 'R2 密钥必填' }, 400);
-    }
-
-    // Telegram 渠道字段：未传保留旧值；令牌与 Chat ID 留空保留已保存值（同密码/密钥的处理）
-    let tgChannelName = oldCfg?.tgChannelName ?? DEFAULT_TG_CHANNEL_NAME;
-    if (body.tgChannelName !== undefined) {
-      const normalized = normalizeTgChannelName(body.tgChannelName);
-      if (normalized === null) {
-        return json({ ok: false, error: '渠道名称不合法：最长 30 个字符，不能包含控制字符' }, 400);
-      }
-      tgChannelName = normalized;
-    }
-    const tgEnabled = body.tgEnabled === undefined ? (oldCfg?.tgEnabled ?? true) : body.tgEnabled !== false;
-    let tgBotToken = String(body.tgBotToken ?? '');
-    if (!tgBotToken) tgBotToken = oldCfg?.tgBotToken ?? '';
-    let tgChatId = oldCfg?.tgChatId ?? '';
-    if (body.tgChatId !== undefined && String(body.tgChatId ?? '').trim() !== '') {
-      const normalized = normalizeTgChatId(body.tgChatId);
-      if (normalized === null) {
-        return json({ ok: false, error: 'Chat ID 不合法：应为数字 ID（频道通常是 -100 开头）或 @频道用户名' }, 400);
-      }
-      tgChatId = normalized;
-    }
-    if (storage === 'tg') {
-      if (!tgBotToken) return json({ ok: false, error: 'Bot Token 必填' }, 400);
-      if (!tgChatId) return json({ ok: false, error: 'Chat ID 必填' }, 400);
-    }
-
-    const dir = String(body.dir || '').trim().replace(/^\/+|\/+$/g, '');
-    if (dir.includes('..')) {
-      return json({ ok: false, error: '目录不能包含 ..' }, 400);
-    }
-
-    // 对外链接前缀：未传则保留已保存值（同密码的处理方式）
-    let linkPrefix: string;
-    if (body.linkPrefix === undefined) {
-      linkPrefix = oldCfg?.linkPrefix ?? DEFAULT_LINK_PREFIX;
-    } else {
-      const normalized = normalizeLinkPrefix(body.linkPrefix);
-      if (normalized === null) {
-        return json({ ok: false, error: '链接前缀不合法：只能是单级路径（不含 / 和空格），如 images' }, 400);
-      }
-      if (['api', 'posts', 'notes', 'pages', 'data', 'settings', 'login', 'admin'].includes(normalized)) {
-        return json({ ok: false, error: '该前缀与后台路径冲突，请换一个' }, 400);
-      }
-      linkPrefix = normalized;
-    }
-
-    // 公开页标题：未传则保留已保存值
-    let pageTitle: string;
-    if (body.pageTitle === undefined) {
-      pageTitle = oldCfg?.pageTitle ?? '';
-    } else {
+    const patch: { webp?: boolean; pageTitle?: string } = {};
+    if (body.webp !== undefined) patch.webp = body.webp !== false;
+    if (body.pageTitle !== undefined) {
       const normalized = normalizePageTitle(body.pageTitle);
       if (normalized === null) {
         return json({ ok: false, error: '公开页标题不合法：最多 60 个字符，不能包含换行' }, 400);
       }
-      pageTitle = normalized;
+      patch.pageTitle = normalized;
     }
-
-    // 密码为空 → 保留 KV 里旧密码
-    let password = String(body.password ?? '');
-    if (!password) {
-      password = oldCfg?.password || '';
+    if (patch.webp !== undefined || patch.pageTitle !== undefined) {
+      await saveImghubLevel(locals, patch);
     }
-
-    await saveWebdavConfig(locals, {
-      storage,
-      r2Endpoint,
-      r2Bucket,
-      r2AccessKeyId,
-      r2SecretAccessKey,
-      url: url.replace(/\/+$/, ''),
-      username: String(body.username || '').trim(),
-      password,
-      dir,
-      tgChannelName,
-      tgEnabled,
-      tgBotToken,
-      tgChatId,
-      webp: body.webp !== false,
-      linkPrefix,
-      pageTitle,
-    });
     return json({ ok: true });
   } catch (e) {
     return err(e);

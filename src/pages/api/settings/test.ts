@@ -3,9 +3,8 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 // 同 upload.ts：用 'webdav/web' 自包含构建，Workers 兼容
 import { createClient } from 'webdav/web';
-import { AwsClient } from 'aws4fetch';
-import { getWebdavConfig, normalizeR2Endpoint, normalizeR2Bucket, normalizeTgChatId } from '../../../lib/webdav-config';
-import { getR2Binding, R2_BINDING_NAME, testTelegramConnection } from '../../../lib/image-store';
+import { getWebdavConfig, getChannelById, channelToConfig, readImghubLevel, normalizeS3Endpoint, normalizeS3Region, normalizeTgChatId, type WebdavConfig } from '../../../lib/webdav-config';
+import { getR2Binding, R2_BINDING_NAME, testTelegramConnection, testS3Connection } from '../../../lib/image-store';
 import { getImageBlobStore } from '../../../lib/platform';
 
 function json(data: unknown, status = 200): Response {
@@ -18,7 +17,6 @@ function json(data: unknown, status = 200): Response {
 /** 用表单中的地址和账号测试 WebDAV；密码留空时沿用已保存密码。 */
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const saved = await getWebdavConfig(locals);
     const body = await request.json().catch(() => null) as {
       url?: unknown;
       username?: unknown;
@@ -28,44 +26,56 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ ok: false, error: '请求体必须是 JSON' }, 400);
     }
 
-    // 存储方式为 Cloudflare R2 时测 R2：表单值优先，密钥留空沿用已保存的
-    if ((body as any).storage === 'r2') {
-      // 已绑 Pages 变量时直接测绑定连通性，不需要任何密钥字段
+    // 留空字段的沿用来源：带 channelId 时取该渠道已保存的参数（存储管理页编辑测试）；
+    // 否则取当前有效配置；完全未配置时用空值兜底（新建第一个渠道时表单值即全部）
+    const emptySaved = {
+      url: '', username: '', password: '',
+      r2Endpoint: '', r2Bucket: '', r2AccessKeyId: '', r2SecretAccessKey: '',
+      s3Endpoint: '', s3Bucket: '', s3Region: 'auto', s3AccessKeyId: '', s3SecretAccessKey: '',
+      tgBotToken: '', tgChatId: '',
+    } as WebdavConfig;
+    let saved: WebdavConfig = emptySaved;
+    const channelId = String((body as any).channelId ?? '');
+    const channel = channelId ? await getChannelById(locals, channelId).catch(() => null) : null;
+    if (channel) {
+      saved = channelToConfig(channel, await readImghubLevel(locals));
+    } else {
+      saved = await getWebdavConfig(locals).catch(() => emptySaved);
+    }
+    const testKind = (body as any).storage ?? channel?.kind;
+
+    // R2 渠道只走平台绑定：测绑定/Blob 连通性，不涉及任何密钥字段
+    if (testKind === 'r2') {
       const bound = getR2Binding(locals);
       if (bound) {
         await bound.list({ limit: 1 });
         return json({ ok: true, data: { message: `连接成功，Cloudflare R2 已通过 Pages 绑定（${R2_BINDING_NAME}）接入` } });
       }
-      // EdgeOne 上这一档由 Blob 承载：测 Blob 连通性，同样不需要密钥字段
       const blob = await getImageBlobStore(locals);
       if (blob) {
         await blob.list('');
         return json({ ok: true, data: { message: '连接成功，EdgeOne Blob 可用' } });
       }
+      return json({ ok: false, error: `连接失败：未检测到 Pages 绑定（${R2_BINDING_NAME}），R2 渠道不可用；如需用端点+密钥连接，请使用 S3 渠道` }, 400);
+    }
+
+    // S3 渠道：表单值优先，密钥留空沿用已保存的；签一个列桶请求验参数
+    if (testKind === 's3') {
       const b = body as any;
-      const endpoint = normalizeR2Endpoint(typeof b.r2Endpoint === 'string' && b.r2Endpoint.trim() ? b.r2Endpoint : saved.r2Endpoint) || '';
-      const bucket = normalizeR2Bucket(typeof b.r2Bucket === 'string' && b.r2Bucket.trim() ? b.r2Bucket : saved.r2Bucket) || '';
-      const accessKeyId = typeof b.r2AccessKeyId === 'string' && b.r2AccessKeyId.trim() ? b.r2AccessKeyId.trim() : saved.r2AccessKeyId;
-      const secretAccessKey = typeof b.r2SecretAccessKey === 'string' && b.r2SecretAccessKey ? b.r2SecretAccessKey : saved.r2SecretAccessKey;
+      const endpoint = normalizeS3Endpoint(typeof b.s3Endpoint === 'string' && b.s3Endpoint.trim() ? b.s3Endpoint : saved.s3Endpoint) || '';
+      const bucket = typeof b.s3Bucket === 'string' && b.s3Bucket.trim() ? b.s3Bucket.trim() : saved.s3Bucket;
+      const region = normalizeS3Region(typeof b.s3Region === 'string' && b.s3Region.trim() ? b.s3Region : saved.s3Region) || 'auto';
+      const accessKeyId = typeof b.s3AccessKeyId === 'string' && b.s3AccessKeyId.trim() ? b.s3AccessKeyId.trim() : saved.s3AccessKeyId;
+      const secretAccessKey = typeof b.s3SecretAccessKey === 'string' && b.s3SecretAccessKey ? b.s3SecretAccessKey : saved.s3SecretAccessKey;
       if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) {
-        return json({ ok: false, error: 'R2 配置不完整：端点、存储桶、访问密钥 ID、密钥都要填' }, 400);
+        return json({ ok: false, error: 'S3 配置不完整：端点、存储桶、访问密钥 ID、密钥都要填' }, 400);
       }
-      const aws = new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' });
-      const res = await aws.fetch(`${endpoint}/${bucket}`, { method: 'HEAD' });
-      if (res.ok) {
-        return json({ ok: true, data: { message: '连接成功，Cloudflare R2 存储桶可用' } });
-      }
-      if (res.status === 404) {
-        return json({ ok: false, error: '连接失败：存储桶不存在（404），请核对桶名与端点' }, 404);
-      }
-      if (res.status === 403 || res.status === 401) {
-        return json({ ok: false, error: '连接失败：R2 拒绝访问，请核对访问密钥与权限（需要读写权限）' }, 403);
-      }
-      return json({ ok: false, error: `连接失败：R2 返回 ${res.status}` }, 502);
+      await testS3Connection({ endpoint, bucket, region, accessKeyId, secretAccessKey });
+      return json({ ok: true, data: { message: '连接成功，S3 存储桶可用' } });
     }
 
     // 存储方式为 Telegram 时测 TG 渠道：表单值优先，令牌与 Chat ID 留空沿用已保存的
-    if ((body as any).storage === 'tg') {
+    if (testKind === 'tg') {
       const b = body as any;
       const botToken = typeof b.tgBotToken === 'string' && b.tgBotToken.trim() ? b.tgBotToken.trim() : saved.tgBotToken;
       const rawChatId = typeof b.tgChatId === 'string' && b.tgChatId.trim() ? b.tgChatId : saved.tgChatId;

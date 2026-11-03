@@ -33,7 +33,7 @@ export interface ImageBlobLike {
 }
 
 /** 可能以「绑定」形式出现的变量名（除普通字符串环境变量外） */
-const BINDING_NAMES = ['ADMIN_KV', 'IMGS_R2'];
+const BINDING_NAMES = ['ADMIN_KV', 'IMGS_R2', 'ADMIN_D1'];
 
 /**
  * EdgeOne KV 的 key 只允许数字、字母及下划线（官方文档），
@@ -206,6 +206,103 @@ export async function getKVStore(locals: unknown): Promise<KvLike | null> {
     return blob ?? boundKv;
   }
   return boundKv;
+}
+
+/* ---------------- D1（元数据可选后端，仅 Cloudflare） ----------------
+ * KV 免费额度较紧：绑了 D1 数据库（变量名 ADMIN_D1）时，应用账本
+ * （配置、渠道、图片登记表）改存 D1——meta 表存键值账本、images 表存登记表，
+ * 表在首次使用时自动建好。没有 D1 绑定时一切照旧走 KV。
+ * EdgeOne 没有 D1，账本继续走 Blob，不受影响。
+ */
+
+/** D1 数据库绑定的最小结构（Cloudflare D1Database 接口子集） */
+export interface D1Like {
+  prepare(sql: string): {
+    bind(...values: unknown[]): {
+      run(): Promise<unknown>;
+      first<T = Record<string, unknown>>(): Promise<T | null>;
+      all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
+    };
+    run(): Promise<unknown>;
+    first<T = Record<string, unknown>>(): Promise<T | null>;
+    all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
+  };
+}
+
+/** 取 D1 绑定（变量名 ADMIN_D1）；没绑或形状不对返回 null */
+export function getD1Binding(locals: unknown): D1Like | null {
+  try {
+    const db = getBinding(locals, 'ADMIN_D1');
+    if (db && typeof db.prepare === 'function') return db as D1Like;
+  } catch {}
+  return null;
+}
+
+let d1MetaReady: Promise<void> | null = null;
+
+function ensureD1MetaTable(db: D1Like): Promise<void> {
+  if (!d1MetaReady) {
+    d1MetaReady = db
+      .prepare('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+      .run()
+      .then(() => undefined)
+      .catch(() => {
+        d1MetaReady = null;
+      });
+  }
+  return d1MetaReady;
+}
+
+/** D1 键值存储：与 KvLike 同形；D1 里没有的 key 首次读时从 KV 懒拷贝一份（平滑迁移） */
+function d1MetaStore(db: D1Like, kvFallback: KvLike | null): KvLike {
+  return {
+    async get(key: string) {
+      await ensureD1MetaTable(db);
+      const row = await db
+        .prepare('SELECT value FROM meta WHERE key = ?')
+        .bind(key)
+        .first<{ value: string }>();
+      if (row && typeof row.value === 'string') return row.value;
+      if (kvFallback) {
+        const legacy = await kvFallback.get(key).catch(() => null);
+        if (legacy !== null) {
+          await db
+            .prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)')
+            .bind(key, legacy)
+            .run()
+            .catch(() => {});
+          return legacy;
+        }
+      }
+      return null;
+    },
+    async put(key: string, value: string) {
+      await ensureD1MetaTable(db);
+      await db
+        .prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)')
+        .bind(key, value)
+        .run();
+    },
+    async delete(key: string) {
+      await ensureD1MetaTable(db);
+      await db.prepare('DELETE FROM meta WHERE key = ?').bind(key).run();
+    },
+  };
+}
+
+/**
+ * 取应用账本存储（配置/渠道等键值数据），按优先级：
+ * - EdgeOne：同 getKVStore（Blob）；
+ * - Cloudflare：绑了 D1（ADMIN_D1）时用 D1（KV 数据懒迁移），否则 KV。
+ */
+export async function getMetaStore(locals: unknown): Promise<KvLike | null> {
+  if (isEdgeOne(locals)) return getKVStore(locals);
+  const db = getD1Binding(locals);
+  if (db) {
+    const kv = await getKVStore(locals).catch(() => null);
+    return d1MetaStore(db, kv);
+  }
+  return getKVStore(locals);
 }
 
 /* ---------------- 图片对象存储（EdgeOne Blob） ---------------- */

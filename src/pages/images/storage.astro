@@ -1,0 +1,535 @@
+---
+export const prerender = false;
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { isEdgeOne } from '../../lib/platform';
+
+// 存储方式第二档的显示名按平台走：CF 上是 Cloudflare R2，EO 上实际由 EdgeOne Blob 承载
+const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflare R2';
+// 配置的实际存放处：CF 是 KV 或 D1，EO 是 Blob
+const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 KV / D1';
+---
+
+<AdminLayout title="存储" active="images">
+  <main class="storage-page">
+    <div class="storage-heading">
+      <div>
+        <h1 class="page-title">存储</h1>
+        <p class="hint">管理图床的存储渠道（参数保存在{configStoreLabel}中，不会进入代码仓库）。图床设置里只选择使用哪个渠道；切换渠道不影响已有图片链接。</p>
+      </div>
+      <button class="btn" id="new-channel" type="button">新建存储</button>
+    </div>
+
+    <p id="channel-status" class="channel-status" role="status" aria-live="polite">正在加载存储渠道…</p>
+    <div id="channel-list" class="channel-list"></div>
+  </main>
+
+  <dialog class="channel-dialog" id="channel-dialog" aria-labelledby="channel-dialog-title">
+    <header class="channel-dialog-head">
+      <div>
+        <h2 id="channel-dialog-title">新建存储</h2>
+        <p id="channel-dialog-sub">填写该存储渠道的参数。</p>
+      </div>
+      <button class="channel-close" type="button" aria-label="关闭" data-close-channel>&times;</button>
+    </header>
+    <div class="channel-dialog-content">
+      <form id="channel-form" class="form" autocomplete="off">
+        <label class="field">
+          <span class="flabel">渠道名称 <em style="color: var(--danger); font-style: normal;">*</em></span>
+          <input class="input" name="chName" type="text" maxlength="30" placeholder="如 TG" />
+          <span class="hint">给这个存储渠道起个名字，仅用于区分</span>
+        </label>
+        <label class="field">
+          <span class="flabel">存储类型</span>
+          <select class="input" name="chKind" id="channel-kind">
+            <option value="webdav">WebDAV</option>
+            <option value="r2">{objectStorageLabel}</option>
+            <option value="s3">S3</option>
+            <option value="tg">Telegram</option>
+          </select>
+          <span class="hint" id="kind-locked-hint" hidden>已创建的渠道不能更换存储类型，如需更换请新建渠道</span>
+        </label>
+        <label class="field check-field">
+          <span class="toggle-switch">
+            <input type="checkbox" name="chEnabled" role="switch" aria-label="启用渠道" checked />
+            <span class="toggle-switch-track"></span>
+            <span class="toggle-switch-thumb"></span>
+          </span>
+          <span>
+            <span class="flabel">启用渠道</span>
+            <span class="hint">关闭后该渠道停用：不能被选为当前存储，其对外路径也不再出图</span>
+          </span>
+        </label>
+        <label class="field">
+          <span class="flabel">对外连接路径 <em style="color: var(--danger); font-style: normal;">*</em></span>
+          <input class="input" name="chPath" type="text" placeholder="images" />
+          <span class="hint">图片链接形如 /路径/文件名（如 /images/IMG_2032.webp）；可与其他渠道共用同一路径，共用时切换存储不影响链接</span>
+        </label>
+        <label class="field">
+          <span class="flabel">上传目录</span>
+          <input class="input" name="chDir" type="text" placeholder="img" />
+          <span class="hint">图片存放于该渠道的该目录下，可填多级路径（如 photos/blog）；留空使用默认 img</span>
+        </label>
+
+        <div id="ch-webdav-fields">
+          <label class="field">
+            <span class="flabel">WebDAV 地址 <em style="color: var(--danger); font-style: normal;">*</em></span>
+            <input class="input" name="chUrl" type="url" placeholder="https://openlist.example.com/dav" />
+            <span class="hint">以 http:// 或 https:// 开头，如 OpenList 的 WebDAV 地址</span>
+          </label>
+          <label class="field">
+            <span class="flabel">用户名</span>
+            <input class="input" name="chUsername" type="text" placeholder="WebDAV 账号" />
+          </label>
+          <label class="field">
+            <span class="flabel">密码</span>
+            <input class="input" id="ch-password" name="chPassword" type="password" placeholder="未设置" />
+            <span class="hint">留空则保留已保存的密码，不会清空</span>
+          </label>
+        </div>
+
+        <div id="ch-r2-fields" hidden>
+          <p class="hint" id="ch-r2-mode-hint" style="margin: 0;"></p>
+        </div>
+
+        <div id="ch-s3-fields" hidden>
+          <label class="field">
+            <span class="flabel">S3 端点 <em style="color: var(--danger); font-style: normal;">*</em></span>
+            <input class="input" name="chS3Endpoint" type="url" placeholder="https://<账号ID>.r2.cloudflarestorage.com" />
+            <span class="hint">S3 兼容存储的接口地址；连 Cloudflare R2 就填 R2 的 S3 端点（https:// 开头）</span>
+          </label>
+          <label class="field">
+            <span class="flabel">存储桶名称 <em style="color: var(--danger); font-style: normal;">*</em></span>
+            <input class="input" name="chS3Bucket" type="text" placeholder="如 imghub" />
+          </label>
+          <label class="field">
+            <span class="flabel">区域</span>
+            <input class="input" name="chS3Region" type="text" placeholder="auto" />
+            <span class="hint">R2 填 auto；AWS S3 填桶所在区域，如 us-east-1；留空使用 auto</span>
+          </label>
+          <label class="field">
+            <span class="flabel">访问密钥 ID <em style="color: var(--danger); font-style: normal;">*</em></span>
+            <input class="input" name="chS3AccessKeyId" type="text" placeholder="API 令牌的 Access Key ID" />
+          </label>
+          <label class="field">
+            <span class="flabel">密钥 <em style="color: var(--danger); font-style: normal;">*</em></span>
+            <input class="input" id="ch-s3-secret" name="chS3Secret" type="password" placeholder="未设置" />
+            <span class="hint">API 令牌的 Secret Access Key；留空则保留已保存的密钥</span>
+          </label>
+        </div>
+
+        <div id="ch-tg-fields" hidden>
+          <label class="field">
+            <span class="flabel">Bot Token <em style="color: var(--danger); font-style: normal;">*</em></span>
+            <input class="input" id="ch-tg-token" name="chTgToken" type="password" placeholder="未设置" />
+            <span class="hint">向 @BotFather 申请机器人得到的令牌；留空则保留已保存的令牌</span>
+          </label>
+          <label class="field">
+            <span class="flabel">Chat ID <em style="color: var(--danger); font-style: normal;">*</em></span>
+            <input class="input" id="ch-tg-chat" name="chTgChat" type="password" placeholder="未设置" />
+            <span class="hint">图片存放的频道/群 ID（频道通常是 -100 开头的数字）；机器人需已加入并被设为管理员；留空则保留已保存的值</span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn">保存</button>
+          <button type="button" id="ch-test" class="btn btn-ghost">测试连接</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <style is:global>
+    .storage-page { width: min(1120px, calc(100% - 32px)); margin: 20px auto 48px; }
+    .storage-page .storage-heading { display: flex; align-items: flex-start; gap: 24px; margin-bottom: 20px; }
+    .storage-page .storage-heading .page-title { margin: 0; }
+    .storage-page .storage-heading .hint { margin: 6px 0 0; max-width: 720px; }
+    .storage-page .storage-heading .btn { flex: 0 0 auto; margin-left: auto; }
+    .storage-page .channel-status { color: var(--muted); margin: 0; }
+    .storage-page .channel-status.error { color: var(--danger); }
+    .storage-page .channel-list { display: grid; gap: 14px; margin-top: 16px; }
+    .storage-page .channel-card { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .storage-page .channel-card.disabled { opacity: 0.62; }
+    .storage-page .channel-main { min-width: 0; flex: 1; }
+    .storage-page .channel-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .storage-page .channel-name { font-size: 15px; font-weight: 700; }
+    .storage-page .channel-badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--muted); }
+    .storage-page .channel-badge.active { background: var(--accent); color: #fff; }
+    .storage-page .channel-meta { margin: 5px 0 0; color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .storage-page .channel-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+    .storage-page .channel-actions .btn { min-height: 34px; padding: 6px 12px; font-size: 12.5px; }
+    .storage-page .delete-channel { color: var(--danger); }
+    .channel-dialog {
+      width: min(620px, calc(100% - 32px));
+      max-height: min(90dvh, 760px);
+      padding: 0;
+      overflow: auto;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+    }
+    .channel-dialog::backdrop { background: rgba(0, 0, 0, 0.48); backdrop-filter: blur(4px); }
+    .channel-dialog-head {
+      position: sticky; top: 0; z-index: 1;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+      padding: 22px 24px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .channel-dialog-head h2 { margin: 0; font-size: 20px; }
+    .channel-dialog-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .channel-dialog-content { padding: 18px 24px 24px; }
+    .channel-dialog-content .form > div { display: grid; gap: 16px; }
+    /* 存储类型选择框与文本输入框同高同圆角（去掉 macOS 原生自绘外观，自绘下拉箭头） */
+    #channel-kind {
+      height: 42px; padding-top: 0; padding-bottom: 0; padding-right: 38px;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+    }
+    .channel-close {
+      display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; padding: 0;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--text) 6%, transparent);
+      border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+      border-radius: 50%; font-size: 25px; line-height: 1; cursor: pointer;
+    }
+    .channel-close:hover { color: var(--text); }
+    @media (max-width: 640px) {
+      .storage-page .channel-card { flex-wrap: wrap; }
+      .storage-page .channel-actions { width: 100%; }
+      .storage-page .channel-actions .btn { flex: 1; }
+      .channel-dialog-head { padding: 18px 18px 12px; }
+      .channel-dialog-content { padding: 16px 18px 20px; }
+    }
+  </style>
+
+  <script>
+    interface ChannelPublic {
+      id: string;
+      name: string;
+      kind: 'webdav' | 'r2' | 's3' | 'tg';
+      enabled: boolean;
+      path: string;
+      dir: string;
+      url: string;
+      username: string;
+      hasPassword: boolean;
+      s3Endpoint: string;
+      s3Bucket: string;
+      s3Region: string;
+      s3AccessKeyId: string;
+      hasS3Secret: boolean;
+      hasTgBotToken: boolean;
+      hasTgChatId: boolean;
+    }
+
+    function initializeStoragePage() {
+      const page = document.querySelector<HTMLElement>('.storage-page');
+      if (!page || page.dataset.initialized) return;
+      page.dataset.initialized = 'true';
+
+      const list = page.querySelector<HTMLElement>('#channel-list')!;
+      const status = page.querySelector<HTMLElement>('#channel-status')!;
+      const newBtn = page.querySelector<HTMLButtonElement>('#new-channel')!;
+      const dialog = document.querySelector<HTMLDialogElement>('#channel-dialog')!;
+      const dialogTitle = dialog.querySelector<HTMLElement>('#channel-dialog-title')!;
+      const form = dialog.querySelector<HTMLFormElement>('#channel-form')!;
+      const testBtn = dialog.querySelector<HTMLButtonElement>('#ch-test')!;
+
+      const nameInput = form.querySelector<HTMLInputElement>('[name="chName"]')!;
+      const kindSelect = form.querySelector<HTMLSelectElement>('[name="chKind"]')!;
+      const kindLockedHint = dialog.querySelector<HTMLElement>('#kind-locked-hint')!;
+      const enabledInput = form.querySelector<HTMLInputElement>('[name="chEnabled"]')!;
+      const pathInput = form.querySelector<HTMLInputElement>('[name="chPath"]')!;
+      const dirInput = form.querySelector<HTMLInputElement>('[name="chDir"]')!;
+      const webdavFields = dialog.querySelector<HTMLElement>('#ch-webdav-fields')!;
+      const urlInput = form.querySelector<HTMLInputElement>('[name="chUrl"]')!;
+      const usernameInput = form.querySelector<HTMLInputElement>('[name="chUsername"]')!;
+      const passwordInput = dialog.querySelector<HTMLInputElement>('#ch-password')!;
+      const r2Fields = dialog.querySelector<HTMLElement>('#ch-r2-fields')!;
+      const r2ModeHint = dialog.querySelector<HTMLElement>('#ch-r2-mode-hint')!;
+      const s3Fields = dialog.querySelector<HTMLElement>('#ch-s3-fields')!;
+      const s3EndpointInput = form.querySelector<HTMLInputElement>('[name="chS3Endpoint"]')!;
+      const s3BucketInput = form.querySelector<HTMLInputElement>('[name="chS3Bucket"]')!;
+      const s3RegionInput = form.querySelector<HTMLInputElement>('[name="chS3Region"]')!;
+      const s3AccessKeyIdInput = form.querySelector<HTMLInputElement>('[name="chS3AccessKeyId"]')!;
+      const s3SecretInput = dialog.querySelector<HTMLInputElement>('#ch-s3-secret')!;
+      const tgFields = dialog.querySelector<HTMLElement>('#ch-tg-fields')!;
+      const tgTokenInput = dialog.querySelector<HTMLInputElement>('#ch-tg-token')!;
+      const tgChatInput = dialog.querySelector<HTMLInputElement>('#ch-tg-chat')!;
+
+      let channels: ChannelPublic[] = [];
+      let activeId = '';
+      let r2Bound = false;
+      let blobBackend = false;
+      let editingId = '';
+
+      const KIND_LABELS: Record<string, string> = {
+        webdav: 'WebDAV',
+        tg: 'Telegram',
+        s3: 'S3',
+        r2: (document.querySelector('#channel-kind option[value="r2"]') as HTMLOptionElement)?.textContent || 'R2',
+      };
+
+      function toast(text: string, isError = false) {
+        (window as any).adminToast?.(text, isError);
+      }
+
+      function applyKindVisibility() {
+        const kind = kindSelect.value;
+        webdavFields.hidden = kind !== 'webdav';
+        r2Fields.hidden = kind !== 'r2';
+        s3Fields.hidden = kind !== 's3';
+        tgFields.hidden = kind !== 'tg';
+        urlInput.required = kind === 'webdav';
+      }
+      kindSelect.addEventListener('change', applyKindVisibility);
+
+      function channelSummary(ch: ChannelPublic): string {
+        const parts = [`/${ch.path}`, ch.dir ? `目录 ${ch.dir}` : '目录 img'];
+        if (ch.kind === 'webdav') parts.push(ch.url || '未填写地址');
+        else if (ch.kind === 'r2') parts.push(r2Bound ? 'Pages 绑定 IMGS_R2' : 'EdgeOne Blob');
+        else if (ch.kind === 's3') parts.push(ch.s3Bucket || '未填写存储桶');
+        else parts.push(ch.hasTgBotToken && ch.hasTgChatId ? '机器人与频道已配置' : '尚未配置完整');
+        return parts.join(' · ');
+      }
+
+      function render() {
+        list.replaceChildren();
+        if (channels.length === 0) {
+          status.textContent = '还没有存储渠道，点右上角「新建存储」添加。';
+          status.classList.remove('error');
+          return;
+        }
+        status.textContent = '';
+        for (const ch of channels) {
+          const card = document.createElement('article');
+          card.className = `channel-card${ch.enabled ? '' : ' disabled'}`;
+          const main = document.createElement('div');
+          main.className = 'channel-main';
+          const nameRow = document.createElement('div');
+          nameRow.className = 'channel-name-row';
+          const name = document.createElement('span');
+          name.className = 'channel-name';
+          name.textContent = ch.name;
+          const kindBadge = document.createElement('span');
+          kindBadge.className = 'channel-badge';
+          kindBadge.textContent = KIND_LABELS[ch.kind] || ch.kind;
+          nameRow.append(name, kindBadge);
+          if (ch.id === activeId) {
+            const activeBadge = document.createElement('span');
+            activeBadge.className = 'channel-badge active';
+            activeBadge.textContent = '使用中';
+            nameRow.appendChild(activeBadge);
+          } else if (!ch.enabled) {
+            const offBadge = document.createElement('span');
+            offBadge.className = 'channel-badge';
+            offBadge.textContent = '已停用';
+            nameRow.appendChild(offBadge);
+          }
+          const meta = document.createElement('p');
+          meta.className = 'channel-meta';
+          meta.textContent = channelSummary(ch);
+          meta.title = meta.textContent;
+          main.append(nameRow, meta);
+
+          const actions = document.createElement('div');
+          actions.className = 'channel-actions';
+          if (ch.id !== activeId && ch.enabled) {
+            const useBtn = document.createElement('button');
+            useBtn.className = 'btn btn-ghost';
+            useBtn.type = 'button';
+            useBtn.textContent = '设为当前';
+            useBtn.addEventListener('click', async () => {
+              useBtn.disabled = true;
+              try {
+                const response = await fetch('/api/settings', {
+                  method: 'PUT',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ activeChannelId: ch.id }),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+                toast(`已切换当前存储为「${ch.name}」`);
+                await loadChannels();
+              } catch (error) {
+                toast(`切换失败：${error instanceof Error ? error.message : String(error)}`, true);
+                useBtn.disabled = false;
+              }
+            });
+            actions.appendChild(useBtn);
+          }
+          const editBtn = document.createElement('button');
+          editBtn.className = 'btn btn-ghost';
+          editBtn.type = 'button';
+          editBtn.textContent = '编辑';
+          editBtn.addEventListener('click', () => openEditor(ch));
+          actions.appendChild(editBtn);
+          if (ch.id !== activeId) {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-ghost delete-channel';
+            deleteBtn.type = 'button';
+            deleteBtn.textContent = '删除';
+            deleteBtn.addEventListener('click', async () => {
+              if (!(await (window as any).adminConfirm?.(`确定删除存储渠道「${ch.name}」吗？渠道里的图片文件不会被删，但将无法再通过图床访问。`, { title: '删除存储渠道' }))) return;
+              deleteBtn.disabled = true;
+              try {
+                const response = await fetch('/api/storage-channels', {
+                  method: 'DELETE',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ id: ch.id }),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+                toast('存储渠道已删除');
+                await loadChannels();
+              } catch (error) {
+                toast(`删除失败：${error instanceof Error ? error.message : String(error)}`, true);
+                deleteBtn.disabled = false;
+              }
+            });
+            actions.appendChild(deleteBtn);
+          }
+          card.append(main, actions);
+          list.appendChild(card);
+        }
+      }
+
+      async function loadChannels() {
+        try {
+          const response = await fetch('/api/storage-channels');
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+          channels = result.data.channels;
+          activeId = result.data.activeId;
+          r2Bound = !!result.data.hasR2Binding;
+          blobBackend = !!result.data.hasBlobBackend;
+          render();
+        } catch (error) {
+          status.textContent = '';
+          toast(`加载失败：${error instanceof Error ? error.message : String(error)}`, true);
+        }
+      }
+
+      function fillR2ModeHint() {
+        // R2 渠道只走平台绑定：CF 是 IMGS_R2 绑定、EO 是 Blob，没有参数可填
+        r2ModeHint.textContent = r2Bound
+          ? '该渠道通过 Pages 绑定 IMGS_R2 直连 Cloudflare R2，无需填写任何参数。'
+          : '该渠道的图片由 EdgeOne Blob 存储，无需填写任何参数。';
+      }
+
+      function openEditor(ch: ChannelPublic | null) {
+        editingId = ch?.id ?? '';
+        dialogTitle.textContent = ch ? `编辑存储 · ${ch.name}` : '新建存储';
+        kindSelect.disabled = !!ch;
+        kindLockedHint.hidden = !ch;
+        // R2/Blob 只有绑定存在时才可选（编辑已有 R2 渠道时不受影响，类型本就锁定）
+        const r2Option = kindSelect.querySelector<HTMLOptionElement>('option[value="r2"]')!;
+        r2Option.hidden = !ch && !r2Bound && !blobBackend;
+        nameInput.value = ch?.name ?? '';
+        kindSelect.value = ch?.kind ?? 'webdav';
+        enabledInput.checked = ch ? ch.enabled : true;
+        pathInput.value = ch?.path ?? 'images';
+        dirInput.value = ch?.dir ?? '';
+        urlInput.value = ch?.url ?? '';
+        usernameInput.value = ch?.username ?? '';
+        passwordInput.value = '';
+        passwordInput.placeholder = ch?.hasPassword ? '已设置（留空保留原密码）' : '未设置';
+        s3EndpointInput.value = ch?.s3Endpoint ?? '';
+        s3BucketInput.value = ch?.s3Bucket ?? '';
+        s3RegionInput.value = ch?.s3Region ?? '';
+        s3AccessKeyIdInput.value = ch?.s3AccessKeyId ?? '';
+        s3SecretInput.value = '';
+        s3SecretInput.placeholder = ch?.hasS3Secret ? '已设置（留空保留原密钥）' : '未设置';
+        tgTokenInput.value = '';
+        tgTokenInput.placeholder = ch?.hasTgBotToken ? '已设置（留空保留原令牌）' : '未设置';
+        tgChatInput.value = '';
+        tgChatInput.placeholder = ch?.hasTgChatId ? '已设置（留空保留原值）' : '未设置';
+        fillR2ModeHint();
+        applyKindVisibility();
+        if (!dialog.open) dialog.showModal();
+      }
+
+      newBtn.addEventListener('click', () => openEditor(null));
+      dialog.querySelector('[data-close-channel]')!.addEventListener('click', () => dialog.close());
+      dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) dialog.close();
+      });
+
+      function collectBody(): Record<string, unknown> {
+        return {
+          name: nameInput.value.trim(),
+          kind: kindSelect.value,
+          enabled: enabledInput.checked,
+          path: pathInput.value.trim(),
+          dir: dirInput.value.trim(),
+          url: urlInput.value.trim(),
+          username: usernameInput.value.trim(),
+          password: passwordInput.value,
+          s3Endpoint: s3EndpointInput.value.trim(),
+          s3Bucket: s3BucketInput.value.trim(),
+          s3Region: s3RegionInput.value.trim(),
+          s3AccessKeyId: s3AccessKeyIdInput.value.trim(),
+          s3SecretAccessKey: s3SecretInput.value,
+          tgBotToken: tgTokenInput.value,
+          tgChatId: tgChatInput.value.trim(),
+        };
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const body = collectBody();
+        if (editingId) body.id = editingId;
+        try {
+          const response = await fetch('/api/storage-channels', {
+            method: editingId ? 'PUT' : 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+          dialog.close();
+          toast('保存成功');
+          await loadChannels();
+        } catch (error) {
+          toast(`保存失败：${error instanceof Error ? error.message : String(error)}`, true);
+        }
+      });
+
+      testBtn.addEventListener('click', async () => {
+        testBtn.disabled = true;
+        try {
+          const body = collectBody();
+          body.storage = kindSelect.value;
+          if (editingId) body.channelId = editingId;
+          const response = await fetch('/api/settings/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const result = await response.json();
+          if (result.ok) {
+            toast(result.data?.message || '连接成功');
+          } else if (kindSelect.value === 'webdav' && response.status === 401) {
+            toast('连接失败：WebDAV 拒绝了当前账号或密码（401），请核对 WebDAV 专用凭据。', true);
+          } else if (kindSelect.value === 'webdav' && response.status === 403) {
+            toast('连接失败：账号无权访问该 WebDAV 地址（403），请检查账号权限和服务路径。', true);
+          } else {
+            toast(result.error || '连接失败', true);
+          }
+        } catch {
+          toast('连接失败：网络错误', true);
+        } finally {
+          testBtn.disabled = false;
+        }
+      });
+
+      void loadChannels();
+    }
+
+    document.addEventListener('astro:page-load', initializeStoragePage);
+    initializeStoragePage();
+  </script>
+</AdminLayout>

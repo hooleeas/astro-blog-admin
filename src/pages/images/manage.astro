@@ -1,17 +1,21 @@
 ---
 export const prerender = false;
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import { isEdgeOne } from '../../lib/platform';
+
+// 存储方式第二档的显示名按平台走：CF 上是 Cloudflare R2，EO 上实际由 EdgeOne Blob 承载
+const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflare R2';
 ---
 
 <AdminLayout title="图片管理" active="images">
-  <main class="image-manager">
+  <main class="image-manager" data-r2-label={objectStorageLabel}>
     <div class="manager-heading">
       <div>
         <div class="manager-title-row">
           <h1 class="page-title">图片管理</h1>
           <span id="image-count" class="hint" aria-live="polite"></span>
         </div>
-        <p class="hint">管理图床中已上传的图片。删除会从当前存储中永久移除，无法恢复。</p>
+        <p class="hint">管理图床中已上传的图片（全部存储渠道，按渠道分组）。删除会从图片所在渠道中永久移除，无法恢复。</p>
       </div>
       <label class="search-label">
         <span class="sr-only">搜索图片</span>
@@ -32,6 +36,33 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
   <dialog id="lightbox" class="lightbox" aria-label="图片预览">
     <button class="lightbox-close" type="button" aria-label="关闭预览">&times;</button>
     <img class="lightbox-img" alt="图片预览" />
+  </dialog>
+
+  <dialog id="image-edit-dialog" class="image-edit-dialog" aria-labelledby="image-edit-title">
+    <header class="image-edit-head">
+      <div>
+        <h2 id="image-edit-title">编辑图片</h2>
+        <p id="image-edit-sub"></p>
+      </div>
+      <button class="image-edit-close" type="button" aria-label="关闭" data-close-image-edit>&times;</button>
+    </header>
+    <div class="image-edit-content">
+      <form id="image-edit-form" class="form" autocomplete="off">
+        <label class="field">
+          <span class="flabel">文件名</span>
+          <input class="input" id="image-edit-name" type="text" />
+          <span class="hint">只能改文件名，不能改扩展名（如 .webp）</span>
+        </label>
+        <label class="field">
+          <span class="flabel">存储渠道</span>
+          <select class="input" id="image-edit-channel"></select>
+          <span class="hint">更换渠道会把图片复制到新渠道并删除原渠道中的原图</span>
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn">保存</button>
+        </div>
+      </form>
+    </div>
   </dialog>
 
   <style is:global>
@@ -76,6 +107,39 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       border-radius: 50%; font-size: 25px; line-height: 1; cursor: pointer; z-index: 1;
     }
     .lightbox-close:hover { background: rgba(255, 255, 255, 0.18); }
+    .image-manager .channel-group-header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; margin-top: 8px; font-size: 14px; font-weight: 700; }
+    .image-manager .channel-group-header .group-meta { color: var(--muted); font-size: 12px; font-weight: 400; }
+    .image-edit-dialog {
+      width: min(520px, calc(100% - 32px));
+      max-height: min(90dvh, 640px);
+      padding: 0; overflow: auto;
+      color: var(--text); background: var(--surface);
+      border: 1px solid var(--line); border-radius: 20px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+    }
+    .image-edit-dialog::backdrop { background: rgba(0, 0, 0, 0.48); backdrop-filter: blur(4px); }
+    .image-edit-head {
+      position: sticky; top: 0; z-index: 1;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+      padding: 22px 24px 14px; background: var(--surface); border-bottom: 1px solid var(--line);
+    }
+    .image-edit-head h2 { margin: 0; font-size: 20px; }
+    .image-edit-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px; }
+    .image-edit-content { padding: 18px 24px 24px; }
+    .image-edit-close {
+      display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; padding: 0;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--text) 6%, transparent);
+      border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+      border-radius: 50%; font-size: 25px; line-height: 1; cursor: pointer;
+    }
+    .image-edit-close:hover { color: var(--text); }
+    #image-edit-channel {
+      height: 42px; padding-top: 0; padding-bottom: 0; padding-right: 38px;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+    }
     @media (max-width: 560px) {
       .image-manager .manager-heading { flex-wrap: wrap; gap: 12px; }
       .image-manager .manager-heading > div { flex: 1 1 100%; }
@@ -90,6 +154,16 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       url: string;
       size: number;
       lastmod: string;
+      channelId: string;
+      channelName: string;
+      channelKind: string;
+    }
+
+    interface ChannelOption {
+      id: string;
+      name: string;
+      kind: string;
+      enabled: boolean;
     }
 
     function initializeImageManager() {
@@ -103,6 +177,86 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const selectAll = app.querySelector<HTMLInputElement>('#select-all')!;
       const selectedCount = app.querySelector<HTMLElement>('#selected-count')!;
       const batchDeleteBtn = app.querySelector<HTMLButtonElement>('#batch-delete')!;
+      const KIND_LABELS: Record<string, string> = {
+        webdav: 'WebDAV',
+        tg: 'Telegram',
+        s3: 'S3',
+        r2: app.dataset.r2Label || 'R2',
+      };
+
+      // 编辑弹窗（改文件名 / 更换存储渠道）
+      const editDialog = document.querySelector<HTMLDialogElement>('#image-edit-dialog')!;
+      const editSub = editDialog.querySelector<HTMLElement>('#image-edit-sub')!;
+      const editForm = editDialog.querySelector<HTMLFormElement>('#image-edit-form')!;
+      const editNameInput = editDialog.querySelector<HTMLInputElement>('#image-edit-name')!;
+      const editChannelSelect = editDialog.querySelector<HTMLSelectElement>('#image-edit-channel')!;
+      let editing: ManagedImage | null = null;
+      editDialog.querySelector('[data-close-image-edit]')!.addEventListener('click', () => editDialog.close());
+      editDialog.addEventListener('click', (event) => {
+        if (event.target === editDialog) editDialog.close();
+      });
+
+      function openImageEditor(image: ManagedImage) {
+        editing = image;
+        editSub.textContent = `${image.filename} · 当前在「${image.channelName}」`;
+        editSub.title = editSub.textContent;
+        editNameInput.value = image.filename;
+        editChannelSelect.replaceChildren();
+        for (const ch of channelOptions) {
+          if (!ch.enabled && ch.id !== image.channelId) continue;
+          const opt = document.createElement('option');
+          opt.value = ch.id;
+          opt.textContent = `${ch.name}（${KIND_LABELS[ch.kind] || ch.kind}）`;
+          editChannelSelect.appendChild(opt);
+        }
+        editChannelSelect.value = image.channelId;
+        if (!editDialog.open) editDialog.showModal();
+      }
+
+      editForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!editing) return;
+        const source = editing;
+        const newFilename = editNameInput.value.trim();
+        const targetChannelId = editChannelSelect.value;
+        if (newFilename === source.filename && targetChannelId === source.channelId) {
+          (window as any).adminToast?.('文件名和存储渠道都没有变化');
+          return;
+        }
+        try {
+          const response = await fetch(`/api/images/${encodeURIComponent(source.filename)}`, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              channelId: source.channelId,
+              newFilename,
+              targetChannelId,
+            }),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+          images = images.filter((item) => !(item.filename === source.filename && item.channelId === source.channelId));
+          selected.delete(keyOf(source));
+          images.push({
+            filename: result.data.filename,
+            url: result.data.url,
+            size: source.size,
+            lastmod: source.lastmod,
+            channelId: result.data.channelId,
+            channelName: result.data.channelName,
+            channelKind: result.data.channelKind,
+          });
+          // 与接口一致的排序：先按渠道顺序、再按时间倒序，保证分组不散
+          const order = new Map(channelOptions.map((ch, i) => [ch.id, i]));
+          images.sort((a, b) =>
+            (order.get(a.channelId) ?? 0) - (order.get(b.channelId) ?? 0) || b.lastmod.localeCompare(a.lastmod));
+          editDialog.close();
+          render();
+          (window as any).adminToast?.('已保存');
+        } catch (error) {
+          (window as any).adminToast?.(`保存失败：${error instanceof Error ? error.message : String(error)}`, true);
+        }
+      });
 
       // 灯箱：点卡片预览图放大查看，点任意处关闭
       const lightbox = document.querySelector<HTMLDialogElement>('#lightbox')!;
@@ -115,10 +269,17 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       lightbox.querySelector('.lightbox-close')!.addEventListener('click', () => lightbox.close());
       const selected = new Set<string>();
       let images: ManagedImage[] = [];
+      let channelOptions: ChannelOption[] = [];
+      let channelErrors: Array<{ channelId: string; name: string; error: string }> = [];
       let appliedQuery = '';
 
+      // 同名图片可存在于不同渠道，选中状态按「渠道+文件名」区分
+      function keyOf(image: ManagedImage): string {
+        return `${image.channelId}::${image.filename}`;
+      }
+
       function updateToolbar(visible: ManagedImage[]) {
-        const visibleSelected = visible.filter((image) => selected.has(image.filename)).length;
+        const visibleSelected = visible.filter((image) => selected.has(keyOf(image))).length;
         selectedCount.textContent = selected.size ? `已选 ${selected.size} 张` : '';
         batchDeleteBtn.disabled = selected.size === 0;
         selectAll.checked = visible.length > 0 && visibleSelected === visible.length;
@@ -137,24 +298,47 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         count.textContent = `${visible.length} / ${images.length} 张`;
         updateToolbar(visible);
         if (visible.length === 0) {
-          status.textContent = images.length === 0 ? '还没有上传图片。' : '没有匹配的图片。';
-          status.classList.remove('error');
+          if (images.length === 0 && channelErrors.length) {
+            status.textContent = `渠道「${channelErrors[0].name}」读取失败：${channelErrors[0].error}`;
+            status.classList.add('error');
+          } else {
+            status.textContent = images.length === 0 ? '还没有上传图片。' : '没有匹配的图片。';
+            status.classList.remove('error');
+          }
           return;
         }
         status.textContent = '';
+        // 按渠道分组：渠道顺序与接口返回一致，组内保持时间倒序
+        const groupCounts = new Map<string, number>();
         for (const image of visible) {
+          groupCounts.set(image.channelId, (groupCounts.get(image.channelId) ?? 0) + 1);
+        }
+        let lastChannelId = '';
+        for (const image of visible) {
+          if (image.channelId !== lastChannelId) {
+            lastChannelId = image.channelId;
+            const header = document.createElement('div');
+            header.className = 'channel-group-header';
+            const groupName = document.createElement('span');
+            groupName.textContent = image.channelName;
+            const groupMeta = document.createElement('span');
+            groupMeta.className = 'group-meta';
+            groupMeta.textContent = `${KIND_LABELS[image.channelKind] || image.channelKind} · ${groupCounts.get(image.channelId)} 张`;
+            header.append(groupName, groupMeta);
+            grid.appendChild(header);
+          }
           const card = document.createElement('article');
           card.className = 'image-card';
           const selectWrap = document.createElement('label');
           selectWrap.className = 'image-select';
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
-          checkbox.checked = selected.has(image.filename);
+          checkbox.checked = selected.has(keyOf(image));
           checkbox.setAttribute('aria-label', `选择 ${image.filename}`);
           if (checkbox.checked) card.classList.add('selected');
           checkbox.addEventListener('change', () => {
-            if (checkbox.checked) selected.add(image.filename);
-            else selected.delete(image.filename);
+            if (checkbox.checked) selected.add(keyOf(image));
+            else selected.delete(keyOf(image));
             card.classList.toggle('selected', checkbox.checked);
             updateToolbar(images.filter((item) => item.filename.toLocaleLowerCase().includes(appliedQuery)));
           });
@@ -182,7 +366,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           name.title = image.filename;
           const meta = document.createElement('p');
           meta.className = 'image-meta';
-          meta.textContent = `${formatSize(image.size)} · ${new Date(image.lastmod).toLocaleString()}`;
+          meta.textContent = `${formatSize(image.size)} · ${new Date(image.lastmod).toLocaleString()} · ${image.channelName}`;
           const actions = document.createElement('div');
           actions.className = 'image-actions';
           const copyButton = document.createElement('button');
@@ -197,19 +381,24 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
               (window as any).adminToast?.(`复制失败：${error instanceof Error ? error.message : String(error)}`, true);
             }
           });
+          const editButton = document.createElement('button');
+          editButton.className = 'btn btn-ghost';
+          editButton.type = 'button';
+          editButton.textContent = '编辑';
+          editButton.addEventListener('click', () => openImageEditor(image));
           const deleteButton = document.createElement('button');
           deleteButton.className = 'btn btn-ghost delete-image';
           deleteButton.type = 'button';
           deleteButton.textContent = '删除';
           deleteButton.addEventListener('click', async () => {
-            if (!(await (window as any).adminConfirm?.(`确定删除图片“${image.filename}”吗？此操作无法撤销。`, { title: '删除图片' }))) return;
+            if (!(await (window as any).adminConfirm?.(`确定删除图片“${image.filename}”吗？将从渠道「${image.channelName}」中永久移除，无法撤销。`, { title: '删除图片' }))) return;
             deleteButton.disabled = true;
             try {
-              const response = await fetch(`/api/images/${encodeURIComponent(image.filename)}`, { method: 'DELETE' });
+              const response = await fetch(`/api/images/${encodeURIComponent(image.filename)}?channelId=${encodeURIComponent(image.channelId)}`, { method: 'DELETE' });
               const result = await response.json();
               if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
-              images = images.filter((item) => item.filename !== image.filename);
-              selected.delete(image.filename);
+              images = images.filter((item) => !(item.filename === image.filename && item.channelId === image.channelId));
+              selected.delete(keyOf(image));
               render();
               (window as any).adminToast?.('图片已删除');
             } catch (error) {
@@ -217,7 +406,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
               deleteButton.disabled = false;
             }
           });
-          actions.append(copyButton, deleteButton);
+          actions.append(copyButton, editButton, deleteButton);
           details.append(name, meta, actions);
           card.append(selectWrap, preview, details);
           grid.appendChild(card);
@@ -231,8 +420,13 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           const response = await fetch('/api/images');
           const result = await response.json();
           if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
-          images = result.data;
+          images = result.data.images;
+          channelOptions = result.data.channels || [];
+          channelErrors = result.data.channelErrors || [];
           render();
+          if (channelErrors.length && images.length) {
+            (window as any).adminToast?.(`部分渠道读取失败：${channelErrors.map((e: { name: string }) => `「${e.name}」`).join('、')}`, true);
+          }
         } catch (error) {
           status.textContent = '';
           (window as any).adminToast?.(`加载失败：${error instanceof Error ? error.message : String(error)}`, true);
@@ -241,26 +435,26 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 
       selectAll.addEventListener('change', () => {
         const visible = images.filter((image) => image.filename.toLocaleLowerCase().includes(appliedQuery));
-        if (selectAll.checked) visible.forEach((image) => selected.add(image.filename));
-        else visible.forEach((image) => selected.delete(image.filename));
+        if (selectAll.checked) visible.forEach((image) => selected.add(keyOf(image)));
+        else visible.forEach((image) => selected.delete(keyOf(image)));
         render();
       });
 
       batchDeleteBtn.addEventListener('click', async () => {
-        const targets = images.filter((image) => selected.has(image.filename));
+        const targets = images.filter((image) => selected.has(keyOf(image)));
         if (!targets.length) return;
-        if (!(await (window as any).adminConfirm?.(`确定删除选中的 ${targets.length} 张图片吗？此操作无法撤销。`, { title: '批量删除图片' }))) return;
+        if (!(await (window as any).adminConfirm?.(`确定删除选中的 ${targets.length} 张图片吗？将从各自渠道中永久移除，无法撤销。`, { title: '批量删除图片' }))) return;
         batchDeleteBtn.disabled = true;
         let ok = 0;
         let failed = 0;
         for (const image of targets) {
           try {
-            const response = await fetch(`/api/images/${encodeURIComponent(image.filename)}`, { method: 'DELETE' });
+            const response = await fetch(`/api/images/${encodeURIComponent(image.filename)}?channelId=${encodeURIComponent(image.channelId)}`, { method: 'DELETE' });
             const result = await response.json();
             if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
             ok += 1;
-            selected.delete(image.filename);
-            images = images.filter((item) => item.filename !== image.filename);
+            selected.delete(keyOf(image));
+            images = images.filter((item) => !(item.filename === image.filename && item.channelId === image.channelId));
           } catch {
             failed += 1;
           }
