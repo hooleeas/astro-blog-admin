@@ -658,12 +658,15 @@ const key = Astro.url.searchParams.get('key') ?? '';
       gap: 16px;
     }
     .editor-section-heading { margin-bottom: 12px; }
-    /* 语言版本选择行：与设置页编辑语言条一样，常驻导航栏下方第二排（sticky 毛玻璃长条），下滑到哪都能切语言、保存（用户定） */
+    /* 语言版本选择行：不要全宽长条，收成居中紧凑的一小条，常驻导航栏下方第二排（sticky 毛玻璃），下滑到哪都能切语言、保存（用户定） */
     .editor-language-controls {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      width: fit-content;
+      max-width: 100%;
+      margin-inline: auto;
       position: sticky; top: 72px; z-index: 90;
       padding: 8px 16px; border-radius: 999px;
       border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
