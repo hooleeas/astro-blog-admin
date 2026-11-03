@@ -74,6 +74,8 @@ export interface SessionPayload {
   /** access_token 过期时间戳（毫秒）；0 = 不过期/未知 */
   accessExp: number;
   version: 1 | 2;
+  /** 会话签发时间戳（毫秒），供中间件判断 cookie 年龄做滚动续签 */
+  issuedAt: number;
 }
 
 /** 签发 v2 会话 cookie（携带 access + refresh + 过期时间）。 */
@@ -113,11 +115,11 @@ export async function getSession(
     const accessToken = b64urlDecode(parts[2]);
     if (!accessToken) return null;
     if (version === 'v1') {
-      return { accessToken, refreshToken: '', accessExp: 0, version: 1 };
+      return { accessToken, refreshToken: '', accessExp: 0, version: 1, issuedAt };
     }
     const refreshToken = b64urlDecode(parts[3]);
     const accessExp = Number(parts[4]) || 0;
-    return { accessToken, refreshToken, accessExp, version: 2 };
+    return { accessToken, refreshToken, accessExp, version: 2, issuedAt };
   } catch {
     return null;
   }

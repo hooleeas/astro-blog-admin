@@ -177,6 +177,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
       }
       // alive === null（网络问题等）→ 放行且不动 cookie，下次再验
     }
+    if (session.version === 2 && !pendingCookie && Date.now() - session.issuedAt > 24 * 3600 * 1000) {
+      // 滚动续签：cookie 的 7 天 TTL 从签发算起，本轮没触发 token 续期时，
+      // cookie 超过 1 天就用同一载荷重签（刷新签发时间），天天用就不会被 cookie 到期踢出（用户令「以后别再弹」）
+      pendingCookie = sessionCookieHeader(
+        await signSessionV2(secret, session.accessToken, session.refreshToken, session.accessExp),
+        isHttps,
+        SESSION_MAX_AGE
+      );
+    }
   }
 
   const withCookie = (res: Response): Response => {
