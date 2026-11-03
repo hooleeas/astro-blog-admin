@@ -346,7 +346,8 @@ function sanitizeChannel(raw: any, locals: unknown): StorageChannel | null {
     kind,
     enabled: raw.enabled !== false,
     path: normalizeLinkPrefix(raw.path) ?? '',
-    dir: String(raw.dir || '').replace(/^\/+|\/+$/g, ''),
+    // Telegram 不是网盘、没有目录概念：TG 渠道的目录恒为空（用户定）
+    dir: kind === 'tg' ? '' : String(raw.dir || '').replace(/^\/+|\/+$/g, ''),
     url: typeof raw.url === 'string' ? raw.url.replace(/\/+$/, '') : '',
     username: String(raw.username || ''),
     password: String(raw.password || ''),

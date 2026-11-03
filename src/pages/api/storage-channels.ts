@@ -83,8 +83,10 @@ function buildChannel(
   if (path === null) return { error: '对外连接路径不合法：只能是单级路径（不含 / 和空格），如 images' };
   if (RESERVED_PATHS.includes(path)) return { error: '该路径与后台路径冲突，请换一个' };
 
-  const dir = String(body.dir ?? old?.dir ?? '').trim().replace(/^\/+|\/+$/g, '');
+  let dir = String(body.dir ?? old?.dir ?? '').trim().replace(/^\/+|\/+$/g, '');
   if (dir.includes('..')) return { error: '上传目录不能包含 ..' };
+  // Telegram 不是网盘、没有目录概念：TG 渠道不保存目录（用户定）
+  if (kind === 'tg') dir = '';
 
   const channel: StorageChannel = {
     id: old?.id ?? newChannelId(),

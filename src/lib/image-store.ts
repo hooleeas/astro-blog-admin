@@ -198,7 +198,6 @@ interface TgIndexItem {
   /** ISO 时间字符串 */
   lastmod: string;
 }
-}
 
 /** 登记表里该 Telegram 渠道的键：优先渠道 ID，旧单配置形态回退到会话维度 */
 function tgRegKey(cfg: WebdavConfig): string {
