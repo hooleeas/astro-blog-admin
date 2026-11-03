@@ -713,6 +713,8 @@ const key = Astro.url.searchParams.get('key') ?? '';
     .editor-card-heading h2 { margin: 0; font-size: 16px; }
     .editor-section-heading p,
     .editor-card-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    /* 空胶囊不显示：按钮填好前它会塌成一条竖线杵在导航下面，填好了再一次性直接显示（用户定） */
+    .editor-language-capsule:empty { display: none; }
     .editor-language-capsule {
       -webkit-touch-callout: none;
       user-select: none;
