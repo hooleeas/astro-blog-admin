@@ -690,12 +690,22 @@ const settingTitle = settingTitles[name] ?? '页面设置';
       }
       function placeLangBar() {
         if (!currentLangBar) return;
+        // 顶栏跨页保留：内嵌模式反复进入会生成多个编辑实例，先清掉别的实例留在顶栏的语言条，
+        // 只留自己的，防无限叠加（用户实报「返回再进入，语言选择无限叠加」）
+        const purgeStaleBars = (container: HTMLElement | null) => {
+          if (!container) return;
+          container.querySelectorAll('.vv-lang-bar').forEach((bar) => {
+            if (bar !== currentLangBar) bar.remove();
+          });
+        };
         if (mobileLangQuery.matches) {
           const slot = ensureLangSlot();
+          purgeStaleBars(slot);
           if (slot && currentLangBar.parentElement !== slot) slot.appendChild(currentLangBar);
         } else {
           // PC：像移动端一样默认放导航栏正下方（顶栏语言行）
           const row = ensureLangRow();
+          purgeStaleBars(row);
           if (row && currentLangBar.parentElement !== row) row.appendChild(currentLangBar);
         }
       }

@@ -1690,6 +1690,11 @@ const homeHref = isSectionLanding ? '/posts' : sectionParent(currentPath);
         };
         document.addEventListener('admin:site-subpage', (event) => {
           siteSubpageActive = !!(event as CustomEvent<{ active?: boolean }>).detail?.active;
+          if (!siteSubpageActive) {
+            // 内嵌编辑已退出：清掉它留在顶栏语言行/槽里的语言条，免得残留在卡片列表上、反复进入叠加
+            document.querySelectorAll('#topbar-lang-row .vv-lang-bar, #topbar-lang-slot .vv-lang-bar')
+              .forEach((bar) => bar.remove());
+          }
           syncHomeLink(window.location.pathname);
         });
         document.querySelector<HTMLAnchorElement>('#topbar-home-link')?.addEventListener('click', (event) => {
