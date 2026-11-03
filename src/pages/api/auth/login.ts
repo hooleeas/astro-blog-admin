@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getEnv } from '../../../lib/env';
-import { STATE_COOKIE } from '../../../lib/session';
+import { NEXT_COOKIE, STATE_COOKIE, sanitizeNextPath } from '../../../lib/session';
 
 export const prerender = false;
 
@@ -34,8 +34,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
   authorize.searchParams.set('state', state);
 
   const isHttps = url.protocol === 'https:';
-  const stateCookie = [
-    `${STATE_COOKIE}=${state}`,
+  const shortCookie = (name: string, value: string) => [
+    `${name}=${value}`,
     'Path=/',
     `Max-Age=${STATE_MAX_AGE}`,
     'HttpOnly',
@@ -43,11 +43,12 @@ export const GET: APIRoute = async ({ request, locals }) => {
     ...(isHttps ? ['Secure'] : []),
   ].join('; ');
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: authorize.toString(),
-      'set-cookie': stateCookie,
-    },
-  });
+  // 自愈跳转带回的原页面（会话死了由 middleware 跳来），授权成功后由 callback 跳回原页
+  const next = sanitizeNextPath(url.searchParams.get('next'));
+
+  const headers = new Headers();
+  headers.set('Location', authorize.toString());
+  headers.append('set-cookie', shortCookie(STATE_COOKIE, state));
+  headers.append('set-cookie', shortCookie(NEXT_COOKIE, encodeURIComponent(next)));
+  return new Response(null, { status: 302, headers });
 };

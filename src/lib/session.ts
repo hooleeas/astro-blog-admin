@@ -165,3 +165,17 @@ export const SESSION_MAX_AGE = 7 * 24 * 3600; // 7 天（秒）
 
 /** OAuth state 防 CSRF cookie（短期）。 */
 export const STATE_COOKIE = 'oauth_state';
+
+/** 自愈跳转的回跳目标 cookie（短期，只存站内路径）。 */
+export const NEXT_COOKIE = 'oauth_next';
+
+/** 自愈跳转防循环标记 cookie（短期）：刚跳过一次就先回登录页，不无限跳。 */
+export const ATTEMPT_COOKIE = 'oauth_attempt';
+
+/** 回跳目标只允许站内绝对路径（防开放重定向），不合法回 /admin。 */
+export function sanitizeNextPath(raw: string | null | undefined): string {
+  const value = (raw || '').trim();
+  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/api/auth')) return '/admin';
+  if (/[\s\\]/.test(value)) return '/admin';
+  return value.slice(0, 512);
+}

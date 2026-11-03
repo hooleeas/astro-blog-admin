@@ -1,9 +1,12 @@
 import type { APIRoute } from 'astro';
 import { getEnv } from '../../../lib/env';
 import {
+  ATTEMPT_COOKIE,
+  NEXT_COOKIE,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
   STATE_COOKIE,
+  sanitizeNextPath,
   signSessionV2,
   timingSafeEqual,
 } from '../../../lib/session';
@@ -109,9 +112,22 @@ export const GET: APIRoute = async ({ request, cookies, locals }) => {
   // 签发 v2 会话（HMAC 密钥用 GITHUB_CLIENT_SECRET，载荷带 access/refresh/过期时间）
   const sessionValue = await signSessionV2(env.GITHUB_CLIENT_SECRET, accessToken, refreshToken, accessExp);
 
+  // 自愈跳转时带了回跳目标就回原页，否则回后台首页桩 /admin
+  let next = '/admin';
+  const nextCookie = cookies.get(NEXT_COOKIE)?.value || '';
+  if (nextCookie) {
+    try {
+      next = sanitizeNextPath(decodeURIComponent(nextCookie));
+    } catch {
+      next = '/admin';
+    }
+  }
+
   const headers = new Headers();
-  headers.set('Location', '/admin');
+  headers.set('Location', next);
   headers.append('set-cookie', cookieHeader(SESSION_COOKIE, sessionValue, isHttps, SESSION_MAX_AGE));
   headers.append('set-cookie', cookieHeader(STATE_COOKIE, '', isHttps, null)); // 清掉 state
+  headers.append('set-cookie', cookieHeader(NEXT_COOKIE, '', isHttps, null)); // 清掉回跳目标
+  headers.append('set-cookie', cookieHeader(ATTEMPT_COOKIE, '', isHttps, null)); // 清掉防循环标记
   return new Response(null, { status: 302, headers });
 };

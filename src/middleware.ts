@@ -1,6 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { getEnv } from './lib/env';
 import {
+  ATTEMPT_COOKIE,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
   getSession,
@@ -17,6 +18,9 @@ import {
  * - 登录后把 GitHub token 写入 locals.githubToken，供各 API 调 GitHub 用
  * - v2 会话：access_token 到期前用 refresh_token 自动续期并回写 cookie；续期失败按未登录处理
  * - v1 旧会话：一次性向 GitHub 校验 token 是否还活着——活着升级为 v2，已失效则清 cookie 强制重登
+ * - v2 无 refresh_token 的会话：accessExp 当验活有效期用，过期才向 GitHub 验活一次，死了同样按会话死亡处理
+ * - 会话刚死（吊销/续期失败/验活不过）且是后台页面：不劳用户手动重登，直接 302 到 /api/auth/login
+ *   走一遍 OAuth 自愈回原页（应用已授权时全程无感）；60 秒内刚跳过一次则回 /login 防循环
  */
 
 function sessionCookieHeader(value: string, isHttps: boolean, maxAge: number | null): string {
@@ -135,6 +139,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   let token: string | null = null;
   let pendingCookie: string | null = null; // 需要回写到响应上的会话 cookie
+  let sessionDied = false; // 本来有会话、但令牌刚被判定死亡（与从未登录区分，自愈跳转只对它触发）
 
   if (session) {
     token = session.accessToken;
@@ -159,7 +164,26 @@ export const onRequest = defineMiddleware(async (context, next) => {
       } else {
         // 续期失败（如 refresh_token 也失效）→ 清会话，按未登录处理
         token = null;
+        sessionDied = true;
         pendingCookie = sessionCookieHeader('', isHttps, null);
+      }
+    } else if (session.version === 2 && !session.refreshToken) {
+      // 无 refresh_token 的 v2 会话没有到期信息可依：accessExp 当「验活有效期」用，
+      // 为 0 或已过才向 GitHub 验活一次（活着就把有效期顺延 15 分钟，避免每请求都打 GitHub）
+      if (!session.accessExp || Date.now() > session.accessExp) {
+        const alive = await validateToken(session.accessToken);
+        if (alive === true) {
+          pendingCookie = sessionCookieHeader(
+            await signSessionV2(secret, session.accessToken, '', Date.now() + 15 * 60 * 1000),
+            isHttps,
+            SESSION_MAX_AGE
+          );
+        } else if (alive === false) {
+          token = null;
+          sessionDied = true;
+          pendingCookie = sessionCookieHeader('', isHttps, null);
+        }
+        // alive === null（网络问题等）→ 放行且不动 cookie，下次再验
       }
     } else if (session.version === 1) {
       // 旧会话只存了 access_token 且无过期信息，一次性校验其有效性
@@ -173,6 +197,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         );
       } else if (alive === false) {
         token = null;
+        sessionDied = true;
         pendingCookie = sessionCookieHeader('', isHttps, null);
       }
       // alive === null（网络问题等）→ 放行且不动 cookie，下次再验
@@ -203,6 +228,28 @@ export const onRequest = defineMiddleware(async (context, next) => {
       );
     }
     if (!isAdminPage) return withCookie(await next()); // 公开 404，不跳登录
+    if (sessionDied) {
+      // 会话刚死：直接跳一遍 OAuth 自愈回原页，不让用户自己找重登入口（用户嫌手动太麻烦）；
+      // 60 秒内刚自愈跳过一次又死，说明光靠跳解决不了，回登录页明示，防无限循环
+      const attemptTs = Number(context.cookies.get(ATTEMPT_COOKIE)?.value || 0);
+      const attemptedRecently = Number.isFinite(attemptTs) && Date.now() - attemptTs < 60_000;
+      if (!attemptedRecently) {
+        const reqUrl = new URL(context.request.url);
+        const res = context.redirect(
+          `/api/auth/login?next=${encodeURIComponent(reqUrl.pathname + reqUrl.search)}`
+        );
+        if (pendingCookie) res.headers.append('set-cookie', pendingCookie);
+        res.headers.append('set-cookie', [
+          `${ATTEMPT_COOKIE}=${Date.now()}`,
+          'Path=/',
+          'Max-Age=60',
+          'HttpOnly',
+          'SameSite=Lax',
+          ...(isHttps ? ['Secure'] : []),
+        ].join('; '));
+        return res;
+      }
+    }
     return withCookie(context.redirect('/login'));
   }
 
