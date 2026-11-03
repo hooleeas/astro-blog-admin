@@ -17,7 +17,7 @@ const nav = [
   { key: 'images', label: '图床', href: '/images' },
 ];
 
-// 顶栏左侧按钮：一级页面（各板块列表页）是「主页」→ / ；进入二级页面变成「返回」→ 所属板块列表页（用户定）
+// 顶栏左侧按钮：一级页面（各板块列表页）是「主页」→ 后台首页 /posts；进入二级页面变成「返回」→ 所属板块列表页（用户定）
 const SECTION_LANDINGS = ['/posts', '/notes', '/pages', '/images'];
 const currentPath = Astro.url.pathname;
 const isSectionLanding = SECTION_LANDINGS.includes(currentPath);
@@ -27,7 +27,7 @@ const sectionParent = (p: string): string =>
   : p.startsWith('/images') ? '/images'
   : '/pages'; // /pages/* 与 /data/* 都归「站点」
 const homeLabel = isSectionLanding ? '主页' : '返回';
-const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
+const homeHref = isSectionLanding ? '/posts' : sectionParent(currentPath);
 ---
 
 <!doctype html>
@@ -1746,12 +1746,12 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
           const isNoteEditor = pathname === '/notes/edit';
           if (noteSaveButton) noteSaveButton.hidden = !isNoteEditor;
           if (noteDeleteButton) noteDeleteButton.hidden = !isNoteEditor;
-          // 左侧按钮随层级切换：一级页面「主页」→ /，二级页面「返回」→ 所属板块（与服务端首屏渲染同规）
+          // 左侧按钮随层级切换：一级页面「主页」→ 后台首页 /posts，二级页面「返回」→ 所属板块（与服务端首屏渲染同规）
           const homeLink = document.querySelector<HTMLAnchorElement>('#topbar-home-link');
           if (homeLink) {
             if (['/posts', '/notes', '/pages', '/images'].includes(pathname)) {
               homeLink.textContent = '主页';
-              homeLink.setAttribute('href', '/');
+              homeLink.setAttribute('href', '/posts');
             } else {
               homeLink.textContent = '返回';
               homeLink.setAttribute('href',
