@@ -283,6 +283,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         addTargets = [];
         skippedLang = 0;
         visualReady = false;
+        currentLangBar = null;
         if (!isObj(working)) {
           visualEl.innerHTML = '<p class="hint">设置数据格式不正确，暂时无法编辑。</p>';
           siteAddButton.hidden = true;
@@ -319,6 +320,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           visualEl.appendChild(el('p', 'hint vv-note', '多语言文案先选上方语言，再编辑对应语言的文字。'));
         }
         visualReady = true;
+        placeLangBar();
         // 新增入口放在各列表标题行右侧（用户定），顶栏不再放总的新增按钮
         siteAddButton.hidden = true;
         siteAddButton.dataset.hasTargets = 'false';
@@ -650,11 +652,25 @@ const settingTitle = settingTitles[name] ?? '页面设置';
       function buildEditLangBar() {
         const list = editLangList();
         if (!list.some((l) => l.code === editLang)) editLang = list[0].code;
+        // 不要「编辑语言」文字，只要语言选择框本身（用户定）
         const bar = el('div', 'vv-lang-bar');
-        bar.appendChild(el('span', 'vv-lang-bar-label', '编辑语言'));
         bar.appendChild(buildLangCapsule(list));
+        currentLangBar = bar;
         return bar;
       }
+      // 语言条的落点：桌面常驻导航下方第二排；移动端搬进顶栏、和「保存」同一排（用户定）
+      let currentLangBar = null;
+      const mobileLangQuery = window.matchMedia('(max-width: 760px)');
+      function placeLangBar() {
+        if (!currentLangBar) return;
+        const slot = document.getElementById('topbar-lang-slot');
+        if (mobileLangQuery.matches && slot) {
+          if (currentLangBar.parentElement !== slot) slot.appendChild(currentLangBar);
+        } else if (currentLangBar.parentElement !== visualEl) {
+          visualEl.insertBefore(currentLangBar, visualEl.firstChild);
+        }
+      }
+      mobileLangQuery.addEventListener?.('change', placeLangBar);
 
       // 多语言字段（标题/副标题/说明这类 {zh-Hans, en, …}）：按当前编辑语言显示与修改，
       // 只改当前语言，其他语言的译文原样保留；字段还不存在时按当前语言新建

@@ -665,7 +665,18 @@ const nav = [
         /* 移动端第二排空间不够时整体缩小（用户定） */
         .vv-lang-bar { top: 128px; padding: 6px 10px; gap: 8px; }
         .vv-lang-bar-label { font-size: 12px; }
+        /* 设置页移动端：语言胶囊搬进顶栏、和「保存」同一排，不再单独占一排（用户定） */
+        .topbar-actions:has(.topbar-lang-slot) { flex-wrap: wrap; }
+        .topbar-lang-slot { display: contents; }
+        .topbar-lang-slot .vv-lang-bar {
+          position: static; margin: 0; padding: 0; border: 0; border-radius: 0;
+          background: none; box-shadow: none;
+          -webkit-backdrop-filter: none; backdrop-filter: none;
+        }
+        .topbar-lang-slot .editor-language-capsule { height: 36px; }
+        .topbar-lang-slot .editor-language-tab { padding-inline: 7px; font-size: 12px; }
       }
+      .topbar-lang-slot { display: none; }
       .vv-lang-bar-label { font-size: 13px; font-weight: 600; }
       /* 语言切换胶囊：与文章编辑页完全同一套样式（用户定，全站统一） */
       .editor-language-capsule {
@@ -1091,6 +1102,7 @@ const nav = [
               <button class="link danger note-delete-button" id="post-delete-btn" type="button" hidden={Astro.url.pathname !== '/posts/edit'}>删除</button>
               <button class="btn" id="new-page-toggle" type="button" hidden={Astro.url.pathname !== '/pages/settings'}>新建页面</button>
               <button class="btn" id="site-add-btn" type="button" hidden>新增</button>
+              {Astro.url.pathname === '/data/edit' && <div id="topbar-lang-slot" class="topbar-lang-slot"></div>}
               <button class="btn" id="site-save-btn" type="button" hidden={!['/data/edit', '/pages/edit'].includes(Astro.url.pathname)}>保存</button>
               <button class="btn" id="note-save-btn" type="button" hidden={!noteEditor}>保存</button>
               <button class="link danger note-delete-button" id="note-delete-btn" type="button" hidden={!noteEditor}>删除</button>
