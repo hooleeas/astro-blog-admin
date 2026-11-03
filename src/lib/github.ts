@@ -205,7 +205,7 @@ export async function moveFile(
   const current = await getFile(locals, oldPath);
   if (current.sha !== expectedSha) throw new GithubError(409, '文件已被其他操作修改，请重新加载后再保存');
   if ((await listTree(locals)).includes(newPath)) {
-    throw new GithubError(409, '目标文件名已存在，请修改日期或处理同名随记');
+    throw new GithubError(409, '目标文件名已存在，请换一个文件名或先处理同名文件');
   }
 
   const blob = await gh(locals, '/git/blobs', 'POST', { content: b64encode(content), encoding: 'base64' });

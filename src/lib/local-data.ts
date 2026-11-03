@@ -147,15 +147,15 @@ export async function writeLocalPost(path: string, content: string, expectedSha:
   return hashLocalContent(content);
 }
 
-/** 本地改名保存（与 updateLocalNote 同语义）：目标已存在时以 EEXIST 失败，绝不覆盖。 */
-export async function updateLocalPost(
+/** 本地文章改名（slug 变更）：写新文件（已存在则 EEXIST 拒覆盖）+ 删旧文件，照 updateLocalNote 的模式 */
+export async function moveLocalPost(
   path: string,
   nextPath: string,
   content: string,
   expectedSha: string,
 ): Promise<string> {
   const filePath = getLocalPostPath(path);
-  const newFilePath = getLocalPostPath(nextPath);
+  const nextFilePath = getLocalPostPath(nextPath);
   const currentContent = await readFile(filePath, 'utf8');
   if (hashLocalContent(currentContent) !== expectedSha) {
     throw Object.assign(new Error('Local file changed since it was loaded'), { code: 'CONFLICT' });
@@ -164,11 +164,11 @@ export async function updateLocalPost(
     await writeFile(filePath, content, 'utf8');
     return hashLocalContent(content);
   }
-  await writeFile(newFilePath, content, { encoding: 'utf8', flag: 'wx' });
+  await writeFile(nextFilePath, content, { encoding: 'utf8', flag: 'wx' });
   try {
     await unlink(filePath);
   } catch (error) {
-    await unlink(newFilePath).catch((cleanupError) => {
+    await unlink(nextFilePath).catch((cleanupError) => {
       console.error('Failed to clean up renamed local post after rename error', cleanupError);
     });
     throw error;

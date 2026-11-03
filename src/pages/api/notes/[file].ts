@@ -65,26 +65,7 @@ export async function GET({ locals, params, request }: APIContext) {
   }
 }
 
-/** body.slug → 本次保存要用的 slug（文件名中日期前缀之后、.md 之前的部分）。
- * 没传（undefined）时沿用旧文件名里的 slug；传了就校验：非空、不带日期
- * 前缀（日期归日期框管）、与日期组合后的文件名须合 NOTE_FILE_RE。 */
-function resolveSlug(raw: unknown, file: string, date: string): string | Response {
-  const oldSlug = file.replace(/^\d{4}-\d{2}-\d{2}-/u, '').replace(/\.md$/u, '');
-  if (raw === undefined) return oldSlug;
-  const slug = String(raw).trim().replace(/\.md$/u, '');
-  if (!slug) return fail('文件名不能为空');
-  if (/^\d{4}-\d{2}-\d{2}-/u.test(slug)) {
-    return fail('文件名不要带日期前缀，日期请用日期框修改');
-  }
-  if (!NOTE_FILE_RE.test(`${date}-${slug}.md`)) {
-    return fail('文件名不合法（仅允许文字、数字、. _ -）');
-  }
-  return slug;
-}
-
-/** PUT /api/notes/[file] — 保存，body: { frontmatter: { date, draft }, body, sha, slug? }
- * slug 是文件名里日期前缀之后、.md 之前的部分，可与日期一起改；
- * 任一变化都会把文件改名（moveFile / updateLocalNote 负责）。 */
+/** PUT /api/notes/[file] — 保存，body: { frontmatter: { date, draft }, body, sha, slug? }（slug 传了且与现文件名不同则连文件名一起改，目标已存在拒覆盖） */
 export async function PUT({ locals, params, request }: APIContext) {
   const file = validFile(params);
   if (!file) return fail('文件名不合法');
@@ -99,11 +80,10 @@ export async function PUT({ locals, params, request }: APIContext) {
   const draft = fmIn.draft === true;
   const text = String(body?.body ?? '');
   const sha = String(body?.sha ?? '');
+  const slugIn = String(body?.slug ?? '').trim();
+  if (slugIn && !/^[\p{L}\p{N}._-]+$/u.test(slugIn)) return fail('文件名不合法：仅允许字母、数字、. _ -');
   if (!isValidDate(date)) return fail('date 不合法，需为 YYYY-MM-DD 有效日期');
   if (!sha) return fail('缺少 sha（请先重新加载再保存）');
-  // 文件名（slug 部分）可随日期一起改：body.slug 传了就用它，没传沿用旧名。
-  const slug = resolveSlug(body?.slug, file, date);
-  if (typeof slug !== 'string') return slug;
 
   if (isLocalPreview(locals, request)) {
     try {
@@ -113,6 +93,7 @@ export async function PUT({ locals, params, request }: APIContext) {
       fm.date = date;
       fm.draft = draft ? 'true' : 'false';
       const updatedContent = serializeFrontmatter(fm, text);
+      const slug = slugIn || file.replace(/^\d{4}-\d{2}-\d{2}-/u, '').replace(/\.md$/u, '');
       const nextFile = `${date}-${slug}.md`;
       await updateLocalNote(file, nextFile, updatedContent, sha);
       return ok({ file: nextFile });
@@ -120,7 +101,7 @@ export async function PUT({ locals, params, request }: APIContext) {
       const error = e as NodeJS.ErrnoException;
       if (error.code === 'ENOENT') return fail('随记不存在', 404);
       if (error.code === 'CONFLICT') return fail('随记已被其他操作修改，请重新加载后再保存', 409);
-      if (error.code === 'EEXIST') return fail('目标文件名已存在，请修改文件名或处理同名随记', 409);
+      if (error.code === 'EEXIST') return fail('目标文件名已存在，请修改日期或文件名，或先处理同名随记', 409);
       return fail('本地保存随记失败：' + (error.message || String(e)), 500);
     }
   }
@@ -137,6 +118,7 @@ export async function PUT({ locals, params, request }: APIContext) {
   fm.date = date;
   fm.draft = draft ? 'true' : 'false';
   const updatedContent = serializeFrontmatter(fm, text);
+  const slug = slugIn || file.replace(/^\d{4}-\d{2}-\d{2}-/u, '').replace(/\.md$/u, '');
   const nextFile = `${date}-${slug}.md`;
 
   try {
