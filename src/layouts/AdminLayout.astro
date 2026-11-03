@@ -1077,7 +1077,6 @@ const nav = [
               <button class="btn" id="site-save-btn" type="button" hidden={!['/data/edit', '/pages/edit'].includes(Astro.url.pathname)}>保存</button>
               <button class="btn" id="note-save-btn" type="button" hidden={!noteEditor}>保存</button>
               <button class="link danger note-delete-button" id="note-delete-btn" type="button" hidden={!noteEditor}>删除</button>
-              <span id="note-save-status" class="status" hidden={!noteEditor} aria-live="polite"></span>
             </div>
           </div>
         </div>
@@ -1655,7 +1654,6 @@ const nav = [
           const siteSaveButton = document.querySelector<HTMLButtonElement>('#site-save-btn');
           const noteSaveButton = document.querySelector<HTMLButtonElement>('#note-save-btn');
           const noteDeleteButton = document.querySelector<HTMLButtonElement>('#note-delete-btn');
-          const saveStatus = document.querySelector<HTMLElement>('#note-save-status');
           const newPostActions = newPostLink?.parentElement;
           if (newPostLink) newPostLink.hidden = pathname !== '/posts';
           if (newNoteLink) newNoteLink.hidden = pathname !== '/notes';
@@ -1691,7 +1689,6 @@ const nav = [
           const isNoteEditor = pathname === '/notes/edit';
           if (noteSaveButton) noteSaveButton.hidden = !isNoteEditor;
           if (noteDeleteButton) noteDeleteButton.hidden = !isNoteEditor;
-          if (saveStatus) saveStatus.hidden = !isNoteEditor;
           if (newPostActions instanceof HTMLElement) {
             newPostActions.hidden = pathname !== '/posts' && pathname !== '/notes' && pathname !== '/images' &&
               !isNoteEditor && !isPostEditor && !isSiteSettingsEditor && !isPageSettings;

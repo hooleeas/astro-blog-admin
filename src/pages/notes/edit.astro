@@ -64,10 +64,9 @@ const valid = NOTE_FILE_RE.test(file);
       const draftEl = document.getElementById('f-draft');
       const bodyEl = document.getElementById('f-body');
       const fileNameEl = document.getElementById('file-name');
-      const statusEl = document.getElementById('note-save-status');
       const saveButton = document.getElementById('note-save-btn');
       const deleteButton = document.getElementById('note-delete-btn');
-      if (!file || !dateEl || !todayButton || !draftEl || !bodyEl || !fileNameEl || !statusEl || !saveButton || !deleteButton) {
+      if (!file || !dateEl || !todayButton || !draftEl || !bodyEl || !fileNameEl || !saveButton || !deleteButton) {
         console.error('随记编辑器缺少必要的页面元素');
         return;
       }
@@ -102,12 +101,11 @@ const valid = NOTE_FILE_RE.test(file);
       }
 
       async function load() {
-        statusEl.textContent = '加载中…';
         try {
           const response = await fetch('/api/notes/' + encodeURIComponent(file));
           const result = await response.json();
           if (!response.ok || !result.ok) {
-            statusEl.textContent = '加载失败：' + (result.error || response.statusText);
+            (window as any).adminToast?.('加载失败：' + (result.error || response.statusText), true);
             return;
           }
           sha = result.data.sha;
@@ -115,20 +113,18 @@ const valid = NOTE_FILE_RE.test(file);
           updateFilenamePreview();
           draftEl.checked = !!result.data.frontmatter.draft;
           bodyEl.value = result.data.body || '';
-          statusEl.textContent = '';
         } catch (error) {
-          statusEl.textContent = `加载失败：${error instanceof Error ? error.message : String(error)}`;
+          (window as any).adminToast?.(`加载失败：${error instanceof Error ? error.message : String(error)}`, true);
         }
       }
 
       saveButton.addEventListener('click', async () => {
         const date = dateEl.value;
         if (!isValidDate(date)) {
-          statusEl.textContent = '日期格式不正确，请输入有效的 YYYY-MM-DD 日期';
+          (window as any).adminToast?.('日期格式不正确，请输入有效的 YYYY-MM-DD 日期', true);
           dateEl.focus();
           return;
         }
-        statusEl.textContent = '保存中…';
         saveButton.setAttribute('disabled', '');
         try {
           const response = await fetch('/api/notes/' + encodeURIComponent(file), {
@@ -142,7 +138,6 @@ const valid = NOTE_FILE_RE.test(file);
           });
           const result = await response.json();
           if (!response.ok || !result.ok) {
-            statusEl.textContent = '保存失败：' + (result.error || response.statusText);
             (window as any).adminToast?.('保存失败：' + (result.error || response.statusText), true);
             return;
           }
@@ -152,14 +147,11 @@ const valid = NOTE_FILE_RE.test(file);
             fileNameEl.textContent = file;
             history.replaceState(history.state, '', `/notes/edit?file=${encodeURIComponent(file)}`);
           }
-          statusEl.textContent = '已保存 ✓';
           (window as any).adminToast?.('保存成功');
           const currentResponse = await fetch('/api/notes/' + encodeURIComponent(file));
           const current = await currentResponse.json();
           if (currentResponse.ok && current.ok) sha = current.data.sha;
-          setTimeout(() => { statusEl.textContent = ''; }, 2000);
         } catch (error) {
-          statusEl.textContent = `保存失败：${error instanceof Error ? error.message : String(error)}`;
           (window as any).adminToast?.(`保存失败：${error instanceof Error ? error.message : String(error)}`, true);
         } finally {
           saveButton.removeAttribute('disabled');
@@ -168,7 +160,6 @@ const valid = NOTE_FILE_RE.test(file);
 
       deleteButton.addEventListener('click', async () => {
         if (!sha || !(await (window as any).adminConfirm?.(`确定删除随记 ${file}？此操作不可撤销。`, { title: '删除随记' }))) return;
-        statusEl.textContent = '删除中…';
         deleteButton.setAttribute('disabled', '');
         try {
           const response = await fetch('/api/notes/' + encodeURIComponent(file), {
@@ -178,12 +169,12 @@ const valid = NOTE_FILE_RE.test(file);
           });
           const result = await response.json();
           if (!response.ok || !result.ok) {
-            statusEl.textContent = '删除失败：' + (result.error || response.statusText);
+            (window as any).adminToast?.('删除失败：' + (result.error || response.statusText), true);
             return;
           }
           window.location.href = '/notes';
         } catch (error) {
-          statusEl.textContent = `删除失败：${error instanceof Error ? error.message : String(error)}`;
+          (window as any).adminToast?.(`删除失败：${error instanceof Error ? error.message : String(error)}`, true);
         } finally {
           deleteButton.removeAttribute('disabled');
         }

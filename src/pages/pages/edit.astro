@@ -35,7 +35,6 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
 
       <div class="actions">
         <button id="save-btn" class="btn" type="button" hidden>保存</button>
-        <span id="save-status" class="status"></span>
       </div>
     </div>
   )}
@@ -48,18 +47,16 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
     if (app) {
       const slug = app.dataset.slug;
       const contentEl = document.querySelector<HTMLTextAreaElement>('#f-content');
-      const statusEl = document.querySelector<HTMLElement>('#save-status');
       const fileNameEl = document.querySelector<HTMLElement>('#file-name');
       const pageUrlEl = document.querySelector<HTMLElement>('#page-url');
       const saveButton = document.querySelector<HTMLButtonElement>('#save-btn');
       let sha = '';
 
-      if (!slug || !contentEl || !statusEl || !fileNameEl || !pageUrlEl || !saveButton) {
+      if (!slug || !contentEl || !fileNameEl || !pageUrlEl || !saveButton) {
         console.error('页面编辑器缺少页面标识或必要的表单元素');
       } else {
         const pageSlug = slug;
         const editorContent = contentEl;
-        const editorStatus = statusEl;
         const sourceFileName = fileNameEl;
         const sourcePageUrl = pageUrlEl;
         const savePageButton = saveButton;
@@ -67,25 +64,22 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
         sourcePageUrl.textContent = `/${pageSlug}`;
 
         async function load() {
-          editorStatus.textContent = '加载中…';
           try {
             const r = await fetch('/api/pages/' + encodeURIComponent(pageSlug));
             const res = await r.json();
             if (!res.ok) {
-              editorStatus.textContent = '加载失败：' + res.error;
+              (window as any).adminToast?.('加载失败：' + res.error, true);
               return;
             }
             sha = res.data.sha;
             editorContent.value = res.data.content || '';
-            editorStatus.textContent = '';
           } catch (error) {
-            editorStatus.textContent = '加载失败：' + (error instanceof Error ? error.message : String(error));
+            (window as any).adminToast?.('加载失败：' + (error instanceof Error ? error.message : String(error)), true);
             console.error('加载页面源码失败', error);
           }
         }
 
         savePageButton.addEventListener('click', async () => {
-          editorStatus.textContent = '保存中…';
           try {
             const r = await fetch('/api/pages/' + encodeURIComponent(pageSlug), {
               method: 'PUT',
@@ -94,17 +88,13 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
             });
             const res = await r.json();
             if (!res.ok) {
-              editorStatus.textContent = '';
               (window as any).adminToast?.('保存失败：' + res.error, true);
               return;
             }
-            editorStatus.textContent = '已保存 ✓';
             // 保存成功只更新 sha，不动页面内容（用户定）
             if (res.data?.sha) sha = res.data.sha;
             (window as any).adminToast?.('保存成功');
-            setTimeout(() => { editorStatus.textContent = ''; }, 2000);
           } catch (error) {
-            editorStatus.textContent = '保存失败：' + (error instanceof Error ? error.message : String(error));
             (window as any).adminToast?.('保存失败：' + (error instanceof Error ? error.message : String(error)), true);
             console.error('保存页面源码失败', error);
           }

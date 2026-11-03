@@ -40,7 +40,6 @@ const key = Astro.url.searchParams.get('key') ?? '';
           <div class="editor-actions">
             <button id="save-btn" class="btn" type="button" hidden>保存</button>
             <button id="del-all-btn" class="btn editor-delete-all" type="button" hidden>删除</button>
-            <span id="save-status" class="status"></span>
           </div>
         </div>
       </section>
@@ -111,7 +110,6 @@ const key = Astro.url.searchParams.get('key') ?? '';
       const tabsEl = requireElement('#tabs', document.querySelector<HTMLDivElement>('#tabs'));
       const panelEl = requireElement('#panel', document.querySelector<HTMLDivElement>('#panel'));
       const statusEl = requireElement('#status', document.querySelector<HTMLSpanElement>('#status'));
-      const saveStatusEl = requireElement('#save-status', document.querySelector<HTMLSpanElement>('#save-status'));
       const keyLabel = requireElement('#key-label', document.querySelector<HTMLElement>('#key-label'));
       const saveButton = requireElement('#save-btn', document.querySelector<HTMLButtonElement>('#save-btn'));
       const deleteAllButton = requireElement('#del-all-btn', document.querySelector<HTMLButtonElement>('#del-all-btn'));
@@ -492,7 +490,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
           setSaveDisabled(false);
         } catch (error) {
           if (renderId !== panelRenderId) return;
-          saveStatusEl.textContent = `编辑器加载失败：${errorMessage(error)}`;
+          (window as any).adminToast?.(`编辑器加载失败：${errorMessage(error)}`, true);
         }
         requireElement('#del-lang-btn', document.querySelector<HTMLButtonElement>('#del-lang-btn'))
           .addEventListener('click', deleteLang);
@@ -522,7 +520,6 @@ const key = Astro.url.searchParams.get('key') ?? '';
         const version = lang ? versions[lang] : undefined;
         if (!lang || !version || !bodyEditor) return;
         setSaveDisabled(true);
-        saveStatusEl.textContent = '保存中…';
         try {
           const res = await api<{ sha: string }>(
             '/api/posts/' + encodeURIComponent(lang) + '/' + encodeURIComponent(version.slug),
@@ -542,18 +539,15 @@ const key = Astro.url.searchParams.get('key') ?? '';
             } else {
               (window as any).adminToast?.('保存失败：' + res.error, true);
             }
-            saveStatusEl.textContent = '保存失败';
             return;
           }
           version.sha = res.data.sha;
           version.frontmatter = collectFrontmatter();
           version.body = bodyEditor.state.doc.toString();
-          saveStatusEl.textContent = '已保存 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
           (window as any).adminToast?.('保存成功');
           renderTabs();
         } catch (error) {
           (window as any).adminToast?.('保存失败：' + errorMessage(error), true);
-          saveStatusEl.textContent = '保存失败';
         } finally {
           setSaveDisabled(false);
         }

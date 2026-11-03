@@ -34,7 +34,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
       <div id="visual"></div>
       <div class="editor-actions">
         <button id="save-visual" class="btn" type="button" disabled hidden>保存</button>
-        <span id="visual-status" class="status"></span>
       </div>
 
     </div>
@@ -164,7 +163,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
       const visualEl = document.getElementById('visual');
       const bannerEl = document.getElementById('parse-banner');
       const saveButton = document.getElementById('save-visual');
-      const saveStatusEl = document.getElementById('visual-status');
       const siteAddButton = document.getElementById('site-add-btn');
       const addDialog = document.getElementById('site-add-dialog');
       const addOptions = document.getElementById('site-add-options');
@@ -1257,18 +1255,14 @@ const settingTitle = settingTitles[name] ?? '页面设置';
 
       saveButton.addEventListener('click', async () => {
         saveButton.disabled = true;
-        saveStatusEl.textContent = '保存中…';
         try {
           const res = await putContent(JSON.stringify(working, null, 2));
           if (!res.ok) throw new Error(res.error || '未知错误');
           // 保存成功只更新 sha，绝不重新加载或重渲染页面：
           // 展开状态、滚动位置和其他正在编辑的内容都不受影响（用户定）
           if (res.data?.sha) sha = res.data.sha;
-          saveStatusEl.textContent = '已保存 ✓';
           window.adminToast?.('保存成功');
-          window.setTimeout(() => { saveStatusEl.textContent = ''; }, 2000);
         } catch (error) {
-          saveStatusEl.textContent = '保存失败';
           window.adminToast?.('保存失败：' + (error instanceof Error ? error.message : String(error)), true);
         } finally {
           saveButton.disabled = !visualReady;
