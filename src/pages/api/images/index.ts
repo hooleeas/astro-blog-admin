@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { getImageUrl, isImageFilename, isLocalImagePreview } from '../../../lib/image-assets';
-import { getChannelsState, channelToConfig, readImghubLevel } from '../../../lib/webdav-config';
+import { getChannelsState, channelToConfig, readImghubLevel, imageDir } from '../../../lib/webdav-config';
 import { storeListFiles } from '../../../lib/image-store';
 import { registryListByChannel, registryUpsert, registryRemove } from '../../../lib/image-registry';
 
@@ -65,9 +65,11 @@ export const GET: APIRoute = async ({ locals, request }) => {
             }
             const registered = await registryListByChannel(locals, ch.id);
             for (const rec of registered) {
-              if (!foundNames.has(rec.filename)) {
-                await registryRemove(locals, ch.id, rec.filename);
-              }
+              if (foundNames.has(rec.filename)) continue;
+              // 带目录的记录（如 Telegram 逻辑目录）只在该目录的清单里才算数：
+              // 当前渠道看的是别的目录时，这条记录不算「已消失」，不许销记
+              if (rec.dir && rec.dir !== imageDir(cfg)) continue;
+              await registryRemove(locals, ch.id, rec.filename);
             }
           } catch {}
         } catch (error) {

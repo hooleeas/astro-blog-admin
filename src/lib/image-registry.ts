@@ -16,6 +16,9 @@ export interface ImageRecord {
   size: number;
   /** ISO 时间字符串 */
   lastmod: string;
+  /** 逻辑目录（渠道的上传目录）：Telegram 没有真实目录，靠这条记录按目录归属；
+      文件类渠道的目录由实物位置决定，此字段可缺省 */
+  dir?: string;
   tgFileId?: string;
   tgMessageId?: number;
 }
@@ -102,7 +105,7 @@ export async function registryListAll(locals: unknown): Promise<ImageRecord[]> {
   if (db) {
     await ensureD1ImagesTable(db);
     const res = await db
-      .prepare('SELECT channel_id, filename, size, lastmod, tg_file_id, tg_message_id FROM images')
+      .prepare('SELECT channel_id, filename, size, lastmod, tg_file_id, tg_message_id, dir FROM images')
       .all<ImageRow>();
     return (res.results ?? []).map(rowToRecord);
   }
@@ -115,7 +118,7 @@ export async function registryListByChannel(locals: unknown, channelId: string):
   if (db) {
     await ensureD1ImagesTable(db);
     const res = await db
-      .prepare('SELECT channel_id, filename, size, lastmod, tg_file_id, tg_message_id FROM images WHERE channel_id = ?')
+      .prepare('SELECT channel_id, filename, size, lastmod, tg_file_id, tg_message_id, dir FROM images WHERE channel_id = ?')
       .bind(channelId)
       .all<ImageRow>();
     return (res.results ?? []).map(rowToRecord);
@@ -129,7 +132,7 @@ export async function registryFindByFilename(locals: unknown, filename: string):
   if (db) {
     await ensureD1ImagesTable(db);
     const res = await db
-      .prepare('SELECT channel_id, filename, size, lastmod, tg_file_id, tg_message_id FROM images WHERE filename = ?')
+      .prepare('SELECT channel_id, filename, size, lastmod, tg_file_id, tg_message_id, dir FROM images WHERE filename = ?')
       .bind(filename)
       .all<ImageRow>();
     return (res.results ?? []).map(rowToRecord);
@@ -143,7 +146,7 @@ export async function registryGet(locals: unknown, channelId: string, filename: 
   if (db) {
     await ensureD1ImagesTable(db);
     const row = await db
-      .prepare('SELECT channel_id, filename, size, lastmod, tg_file_id, tg_message_id FROM images WHERE channel_id = ? AND filename = ?')
+      .prepare('SELECT channel_id, filename, size, lastmod, tg_file_id, tg_message_id, dir FROM images WHERE channel_id = ? AND filename = ?')
       .bind(channelId, filename)
       .first<ImageRow>();
     return row ? rowToRecord(row) : null;
@@ -162,7 +165,7 @@ export async function registryUpsert(locals: unknown, rec: ImageRecord): Promise
     const old = await registryGet(locals, rec.channelId, rec.filename);
     await db
       .prepare(
-        'INSERT OR REPLACE INTO images (channel_id, filename, size, lastmod, tg_file_id, tg_message_id) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT OR REPLACE INTO images (channel_id, filename, size, lastmod, tg_file_id, tg_message_id, dir) VALUES (?, ?, ?, ?, ?, ?, ?)',
       )
       .bind(
         rec.channelId,
@@ -171,6 +174,7 @@ export async function registryUpsert(locals: unknown, rec: ImageRecord): Promise
         rec.lastmod || '',
         rec.tgFileId ?? old?.tgFileId ?? null,
         rec.tgMessageId ?? old?.tgMessageId ?? null,
+        rec.dir ?? old?.dir ?? null,
       )
       .run();
     return;
@@ -183,6 +187,7 @@ export async function registryUpsert(locals: unknown, rec: ImageRecord): Promise
       ...rec,
       tgFileId: rec.tgFileId ?? old.tgFileId,
       tgMessageId: rec.tgMessageId ?? old.tgMessageId,
+      dir: rec.dir ?? old.dir,
     };
   } else {
     items.push(rec);
