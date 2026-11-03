@@ -683,11 +683,22 @@ const key = Astro.url.searchParams.get('key') ?? '';
       gap: 16px;
     }
     .editor-section-heading { margin-bottom: 12px; }
+    /* 语言版本选择行：与设置页编辑语言条一样，常驻导航栏下方第二排（sticky 毛玻璃长条），下滑到哪都能切语言、保存（用户定） */
     .editor-language-controls {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      position: sticky; top: 72px; z-index: 90;
+      padding: 8px 16px; border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
+      background: color-mix(in srgb, var(--surface) 72%, transparent);
+      -webkit-backdrop-filter: blur(12px) saturate(180%);
+      backdrop-filter: blur(12px) saturate(180%);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent), 0 4px 14px rgba(0, 0, 0, 0.12);
+    }
+    @media (max-width: 760px) {
+      .editor-language-controls { top: 128px; }
     }
     .editor-section-heading h2,
     .editor-card-heading h2 { margin: 0; font-size: 16px; }

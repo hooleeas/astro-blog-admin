@@ -351,9 +351,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         const card = el('div', 'card vv-section');
         card.appendChild(el('h3', 'vv-sec-title', '主页文章筛选'));
         const body = el('div');
-        const langList = editLangList();
-        if (!langList.some((l) => l.code === editLang)) editLang = langList[0].code;
-        body.appendChild(buildLangCapsule(langList));
+        // 语言选择只保留页面顶部常驻的那一条（用户定）：本卡字段已注册 langFieldUpdaters，切语言时就地换值
         const translations = isObj(working.ui?.translations?.[editLang]) ? working.ui.translations[editLang] : {};
         const builtinRow = (label, key) => {
           const row = el('div', 'vv-row');
