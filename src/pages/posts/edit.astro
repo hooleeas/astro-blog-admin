@@ -698,7 +698,9 @@ const key = Astro.url.searchParams.get('key') ?? '';
       box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent), 0 4px 14px rgba(0, 0, 0, 0.12);
     }
     @media (max-width: 760px) {
-      .editor-language-controls { top: 128px; }
+      /* 移动端第二排空间不够时整体缩小（用户定） */
+      .editor-language-controls { top: 128px; padding: 6px 10px; gap: 8px; }
+      .editor-language-controls .editor-actions .btn { min-height: 32px; padding: 5px 12px; font-size: 12.5px; }
     }
     .editor-section-heading h2,
     .editor-card-heading h2 { margin: 0; font-size: 16px; }
