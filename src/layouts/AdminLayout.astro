@@ -659,13 +659,14 @@ const nav = [
       @media (max-width: 760px) {
         .vv-lang-bar { top: 128px; }
         /* 设置页移动端：语言胶囊搬进顶栏、和「保存」同一排，不再单独占一排（用户定） */
-        .topbar-actions:has(.topbar-lang-slot) { flex-wrap: wrap; }
+        .topbar-actions:has(.topbar-lang-slot) { flex-wrap: wrap; justify-content: space-between; }
+        .topbar-actions:has(.topbar-lang-slot) #site-save-btn { min-height: 32px; padding: 5px 12px; font-size: 12.5px; }
         .topbar-lang-slot { display: contents; }
         .topbar-lang-slot .vv-lang-bar { position: static; margin: 0; }
         .topbar-lang-slot .editor-language-capsule { height: 36px; }
         .topbar-lang-slot .editor-language-tab { padding-inline: 7px; font-size: 12px; }
       }
-      .topbar-lang-slot { display: none; }
+      @media (min-width: 761px) { .topbar-lang-slot { display: none; } }
       .vv-lang-bar-label { font-size: 13px; font-weight: 600; }
       /* 语言切换胶囊：与文章编辑页完全同一套样式（用户定，全站统一） */
       .editor-language-capsule {

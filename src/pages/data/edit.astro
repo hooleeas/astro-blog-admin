@@ -661,9 +661,23 @@ const settingTitle = settingTitles[name] ?? '页面设置';
       // 语言条的落点：桌面常驻导航下方第二排；移动端搬进顶栏、和「保存」同一排（用户定）
       let currentLangBar = null;
       const mobileLangQuery = window.matchMedia('(max-width: 760px)');
+      function ensureLangSlot() {
+        // 顶栏是跨页复用的（transition:persist），服务端渲染的槽在应用内跳转过来时可能不存在，脚本动态补建
+        let slot = document.getElementById('topbar-lang-slot');
+        if (!slot) {
+          const actions = document.querySelector('.topbar-actions');
+          const saveBtn = document.getElementById('site-save-btn');
+          if (!actions || !saveBtn) return null;
+          slot = document.createElement('div');
+          slot.id = 'topbar-lang-slot';
+          slot.className = 'topbar-lang-slot';
+          actions.insertBefore(slot, saveBtn);
+        }
+        return slot;
+      }
       function placeLangBar() {
         if (!currentLangBar) return;
-        const slot = document.getElementById('topbar-lang-slot');
+        const slot = mobileLangQuery.matches ? ensureLangSlot() : document.getElementById('topbar-lang-slot');
         if (mobileLangQuery.matches && slot) {
           if (currentLangBar.parentElement !== slot) slot.appendChild(currentLangBar);
         } else if (currentLangBar.parentElement !== visualEl) {

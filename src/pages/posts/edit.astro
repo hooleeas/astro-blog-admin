@@ -35,14 +35,14 @@ const key = Astro.url.searchParams.get('key') ?? '';
             <p>选择要编辑的语言；缺少的版本会标记出来。</p>
           </div>
         </div>
-        <div class="editor-language-controls">
-          <div id="tabs" class="editor-language-capsule" role="group" aria-label="文章语言版本"></div>
-          <div class="editor-actions">
-            <button id="save-btn" class="btn" type="button" hidden>保存</button>
-            <button id="del-all-btn" class="btn editor-delete-all" type="button" hidden>删除</button>
-          </div>
-        </div>
       </section>
+      <div class="editor-language-controls">
+        <div id="tabs" class="editor-language-capsule" role="group" aria-label="文章语言版本"></div>
+        <div class="editor-actions">
+          <button id="save-btn" class="btn" type="button" hidden>保存</button>
+          <button id="del-all-btn" class="btn editor-delete-all" type="button" hidden>删除</button>
+        </div>
+      </div>
       <div id="panel"></div>
       <div class="editor-footnote">
         <span>删除整篇会同时删除全部语言版本，且无法撤销。</span>
@@ -658,7 +658,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
       gap: 16px;
     }
     .editor-section-heading { margin-bottom: 12px; }
-    /* 语言版本选择行：不要全宽长条，收成居中紧凑的一小条，常驻导航栏下方第二排（sticky 毛玻璃），下滑到哪都能切语言、保存（用户定） */
+    /* 语言版本选择行：不要外层容器，只留胶囊和按钮本身；居中紧凑、常驻导航栏下方第二排（sticky），下滑到哪都能切语言、保存（用户定） */
     .editor-language-controls {
       display: flex;
       align-items: center;
@@ -668,16 +668,10 @@ const key = Astro.url.searchParams.get('key') ?? '';
       max-width: 100%;
       margin-inline: auto;
       position: sticky; top: 72px; z-index: 90;
-      padding: 8px 16px; border-radius: 999px;
-      border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
-      background: color-mix(in srgb, var(--surface) 72%, transparent);
-      -webkit-backdrop-filter: blur(12px) saturate(180%);
-      backdrop-filter: blur(12px) saturate(180%);
-      box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent), 0 4px 14px rgba(0, 0, 0, 0.12);
     }
     @media (max-width: 760px) {
-      /* 移动端第二排空间不够时整体缩小（用户定） */
-      .editor-language-controls { top: 128px; padding: 6px 10px; gap: 8px; }
+      /* 移动端第二排空间不够时整体缩小；有按钮时左对齐成一排（用户定） */
+      .editor-language-controls { top: 128px; gap: 8px; margin-inline: 0; justify-content: flex-start; }
       .editor-language-controls .editor-actions .btn { min-height: 32px; padding: 5px 12px; font-size: 12.5px; }
     }
     .editor-section-heading h2,
@@ -995,7 +989,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
       .editor-heading .editor-back { min-height: 34px; padding: 6px 11px; font-size: 12px; }
       .editor-overview { align-items: flex-start; flex-direction: column; padding: 14px 16px; margin-bottom: 22px; }
       .editor-load-status { text-align: left; }
-      .editor-language-controls { align-items: stretch; flex-direction: column; gap: 8px; }
+      .editor-language-controls { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
       .editor-language .editor-actions .status { min-height: 0; }
       .editor-language-capsule { max-width: 100%; height: 36px; }
       .editor-language-tab { padding-inline: 9px; font-size: 12.5px; }
