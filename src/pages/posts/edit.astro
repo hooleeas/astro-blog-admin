@@ -617,6 +617,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
       deleteAllButton.addEventListener('click', deleteAll);
       placeLangTabs();
       desktopLangQuery.addEventListener?.('change', placeLangTabs);
+      window.addEventListener('resize', placeLangTabs);
       // 离开文章编辑页时把胶囊从跨页保留的顶栏里摘掉（语言选择只属于这个页面）
       document.addEventListener('astro:before-swap', () => {
         const tabs = document.getElementById('tabs');
