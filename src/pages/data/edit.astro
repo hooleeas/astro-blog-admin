@@ -697,6 +697,8 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           const slot = ensureLangSlot();
           purgeStaleBars(slot);
           if (slot && currentLangBar.parentElement !== slot) slot.appendChild(currentLangBar);
+          // 设置页移动端不用语言行：摘掉文章页可能留下的 keep-mobile，免得空行杵在顶栏
+          document.getElementById('topbar-lang-row')?.classList.remove('keep-mobile');
         } else {
           // PC：像移动端一样默认放导航栏正下方（顶栏语言行）
           const row = ensureLangRow();

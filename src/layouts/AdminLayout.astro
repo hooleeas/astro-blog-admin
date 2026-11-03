@@ -675,9 +675,11 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
       .topbar-lang-row .vv-lang-bar { position: static; margin: 0; }
       .topbar-lang-row .editor-language-capsule { height: 36px; }
       .topbar-lang-row .editor-language-tab { font-size: 12.5px; padding-inline: 9px; }
-      /* 语言行只限桌面：手机上顶栏会变成多排，胶囊若进语言行就成了单独一排压住内容（用户手机实测文章页错位） */
+      /* 语言行默认只限桌面：手机上设置页胶囊改走顶栏槽位；
+         文章编辑页例外（keep-mobile）：移动端也用语言行，导航下居中，与设置页观感一致（用户定） */
       @media (max-width: 760px) {
         .topbar-lang-row { display: none; }
+        .topbar-lang-row.keep-mobile { display: flex; }
       }
       /* 编辑语言：不要长条容器，只留语言胶囊本身、居中常驻导航栏下方第二排（sticky），下滑到哪都能切（用户定） */
       .vv-lang-bar {

@@ -634,11 +634,13 @@ const key = Astro.url.searchParams.get('key') ?? '';
       document.addEventListener('astro:before-swap', () => {
         const tabs = document.getElementById('tabs');
         if (tabs && tabs.parentElement?.id === 'topbar-lang-row') tabs.remove();
+        document.getElementById('topbar-lang-row')?.classList.remove('keep-mobile');
       });
       load();
     }
 
-    // PC 端语言胶囊放导航栏正下方（顶栏语言行，和设置页一致）；移动端留在页内选择行（用户定）
+    // 语言胶囊全端都放导航栏正下方（顶栏语言行、居中，和设置页一致）；
+    // 移动端靠 keep-mobile 让语言行在窄屏也显示，页内选择行只留保存/删除（用户定）
     const desktopLangQuery = window.matchMedia('(min-width: 761px)');
     function ensureTopbarLangRow(): HTMLElement | null {
       let row = document.getElementById('topbar-lang-row');
@@ -654,14 +656,11 @@ const key = Astro.url.searchParams.get('key') ?? '';
     }
     function placeLangTabs(): void {
       const tabs = document.getElementById('tabs');
-      const controls = document.querySelector('.editor-language-controls');
-      if (!tabs || !controls) return;
-      if (desktopLangQuery.matches) {
-        const row = ensureTopbarLangRow();
-        if (row && tabs.parentElement !== row) row.appendChild(tabs);
-      } else if (tabs.parentElement !== controls) {
-        controls.insertBefore(tabs, controls.firstChild);
-      }
+      if (!tabs) return;
+      const row = ensureTopbarLangRow();
+      if (!row) return;
+      if (tabs.parentElement !== row) row.appendChild(tabs);
+      row.classList.add('keep-mobile');
     }
 
     document.addEventListener('astro:page-load', initializeEditor);
@@ -716,8 +715,9 @@ const key = Astro.url.searchParams.get('key') ?? '';
       position: sticky; top: 108px; z-index: 90;
     }
     @media (max-width: 760px) {
-      /* 移动端：胶囊和保存/删除合并成一排（总共两排：导航 + 这一排），左对齐、不换行，按钮再缩小（用户定） */
-      .editor-language-controls { top: 76px; gap: 6px; margin-inline: 0; justify-content: flex-start; flex-wrap: nowrap; }
+      /* 移动端：语言胶囊在顶栏语言行（导航下居中），本行只剩保存/删除：左对齐、不换行，按钮缩小；
+         粘性位置在原 76px 基础上顺延语言行高度（约 38px），免得下滑时被顶栏盖住（用户定） */
+      .editor-language-controls { top: 114px; gap: 6px; margin-inline: 0; justify-content: flex-start; flex-wrap: nowrap; }
       .editor-language-controls .editor-actions { flex-wrap: nowrap; gap: 6px; }
       .editor-language-controls .editor-actions .btn { min-height: 28px; padding: 3px 9px; font-size: 12px; }
     }
