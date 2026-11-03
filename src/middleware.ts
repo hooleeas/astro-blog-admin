@@ -16,7 +16,8 @@ import {
  * - 后台页面（/、/posts、/notes、/pages、/data、/images、/settings 及其子路径）需登录，未登录 → 302 跳 /login
  * - 未知路径放行，渲染公开 404（不跳登录）
  * - 登录后把 GitHub token 写入 locals.githubToken，供各 API 调 GitHub 用
- * - v2 会话：access_token 到期前用 refresh_token 自动续期并回写 cookie；续期失败按未登录处理
+ * - v2 会话：access_token 剩余不足 7 小时（寿命 8 小时、已用超 1 小时）就用 refresh_token 提前续期
+ *   并回写 cookie，让随时发生的吊销在下一次请求就暴露并自愈；续期失败先验活防并发轮换误杀，确认死了才判死
  * - v1 旧会话：一次性向 GitHub 校验 token 是否还活着——活着升级为 v2，已失效则清 cookie 强制重登
  * - v2 无 refresh_token 的会话：accessExp 当验活有效期用，过期才向 GitHub 验活一次，死了同样按会话死亡处理
  * - 会话刚死（吊销/续期失败/验活不过）且是后台页面：不劳用户手动重登，直接 302 到 /api/auth/login
@@ -147,9 +148,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
       session.version === 2 &&
       session.refreshToken &&
       session.accessExp &&
-      Date.now() > session.accessExp - 60_000
+      Date.now() > session.accessExp - 7 * 3600 * 1000
     ) {
-      // access_token 已过期或即将过期 → 续期
+      // 提前续期：不等快到期——access 令牌剩余不足 7 小时（即已用超 1 小时，OAuth 令牌寿命 8 小时）
+      // 就先续一次。吊销是随时发生的（同应用令牌超限会吊销最久未用者），等到期才续会让死令牌
+      // 在页面上报错好几个小时；提前续期能让下一次请求就发现授权已死并走自愈跳转。
       const refreshed =
         env.GITHUB_CLIENT_ID && secret
           ? await refreshTokens(env.GITHUB_CLIENT_ID, secret, session.refreshToken)
@@ -162,10 +165,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
           SESSION_MAX_AGE
         );
       } else {
-        // 续期失败（如 refresh_token 也失效）→ 清会话，按未登录处理
-        token = null;
-        sessionDied = true;
-        pendingCookie = sessionCookieHeader('', isHttps, null);
+        // 续期失败不一定是授权已死：并发请求里先到的那个已经把 refresh_token 轮换掉，
+        // 后到的拿旧的续就会失败。先验活当前 access 令牌，活着就照常用（新 cookie 由先到的响应写入），
+        // 确认死了才判会话死亡；网络等无法判定则放行不动。
+        const alive = await validateToken(session.accessToken);
+        if (alive === false) {
+          token = null;
+          sessionDied = true;
+          pendingCookie = sessionCookieHeader('', isHttps, null);
+        }
       }
     } else if (session.version === 2 && !session.refreshToken) {
       // 无 refresh_token 的 v2 会话没有到期信息可依：accessExp 当「验活有效期」用，
