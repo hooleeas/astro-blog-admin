@@ -342,7 +342,9 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
         .topbar-home { position: relative; top: auto; right: auto; flex: 0 0 auto; }
         .topbar-actions .note-delete-button { flex: 0 0 auto; }
         .nav-capsule {
-          flex: 0 1 auto; min-width: 0; width: fit-content; max-width: calc(100% - 48px);
+          /* 曾留 calc(100% - 48px) 给旁边的主题按钮让位，反而把胶囊钳得比内容窄 48px，
+             链接不收缩，最后一个「图床」被挤出边框（用户手机截图实报）；放开到 100%，放不下就让按钮自然换行 */
+          flex: 0 1 auto; min-width: 0; width: fit-content; max-width: 100%;
         }
         .nav { width: auto; min-width: 0; }
         .nav a {
