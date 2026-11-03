@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getWebdavConfig, saveWebdavConfig, toPublic, normalizeLinkPrefix, DEFAULT_LINK_PREFIX, normalizePageTitle, normalizeR2Endpoint, normalizeR2Bucket } from '../../lib/webdav-config';
+import { getWebdavConfig, saveWebdavConfig, toPublic, normalizeLinkPrefix, DEFAULT_LINK_PREFIX, normalizePageTitle, normalizeR2Endpoint, normalizeR2Bucket, normalizeTgChannelName, normalizeTgChatId, DEFAULT_TG_CHANNEL_NAME } from '../../lib/webdav-config';
 import { getR2Binding } from '../../lib/image-store';
 import { isEdgeOne } from '../../lib/platform';
 
@@ -46,6 +46,10 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       r2Bucket?: unknown;
       r2AccessKeyId?: unknown;
       r2SecretAccessKey?: unknown;
+      tgChannelName?: unknown;
+      tgEnabled?: unknown;
+      tgBotToken?: unknown;
+      tgChatId?: unknown;
     } | null;
     if (!body || typeof body !== 'object') {
       return json({ ok: false, error: '请求体必须是 JSON' }, 400);
@@ -54,7 +58,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     const oldCfg = await getWebdavConfig(locals).catch(() => null);
 
     // 存储方式：未传则保留已保存值
-    const storage = body.storage === 'r2' || body.storage === 'webdav'
+    const storage = body.storage === 'r2' || body.storage === 'webdav' || body.storage === 'tg'
       ? body.storage
       : (oldCfg?.storage ?? 'webdav');
 
@@ -99,6 +103,31 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       if (!r2Bucket) return json({ ok: false, error: 'R2 存储桶名必填' }, 400);
       if (!r2AccessKeyId) return json({ ok: false, error: 'R2 访问密钥 ID 必填' }, 400);
       if (!r2SecretAccessKey) return json({ ok: false, error: 'R2 密钥必填' }, 400);
+    }
+
+    // Telegram 渠道字段：未传保留旧值；令牌与 Chat ID 留空保留已保存值（同密码/密钥的处理）
+    let tgChannelName = oldCfg?.tgChannelName ?? DEFAULT_TG_CHANNEL_NAME;
+    if (body.tgChannelName !== undefined) {
+      const normalized = normalizeTgChannelName(body.tgChannelName);
+      if (normalized === null) {
+        return json({ ok: false, error: '渠道名称不合法：最长 30 个字符，不能包含控制字符' }, 400);
+      }
+      tgChannelName = normalized;
+    }
+    const tgEnabled = body.tgEnabled === undefined ? (oldCfg?.tgEnabled ?? true) : body.tgEnabled !== false;
+    let tgBotToken = String(body.tgBotToken ?? '');
+    if (!tgBotToken) tgBotToken = oldCfg?.tgBotToken ?? '';
+    let tgChatId = oldCfg?.tgChatId ?? '';
+    if (body.tgChatId !== undefined && String(body.tgChatId ?? '').trim() !== '') {
+      const normalized = normalizeTgChatId(body.tgChatId);
+      if (normalized === null) {
+        return json({ ok: false, error: 'Chat ID 不合法：应为数字 ID（频道通常是 -100 开头）或 @频道用户名' }, 400);
+      }
+      tgChatId = normalized;
+    }
+    if (storage === 'tg') {
+      if (!tgBotToken) return json({ ok: false, error: 'Bot Token 必填' }, 400);
+      if (!tgChatId) return json({ ok: false, error: 'Chat ID 必填' }, 400);
     }
 
     const dir = String(body.dir || '').trim().replace(/^\/+|\/+$/g, '');
@@ -149,6 +178,10 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       username: String(body.username || '').trim(),
       password,
       dir,
+      tgChannelName,
+      tgEnabled,
+      tgBotToken,
+      tgChatId,
       webp: body.webp !== false,
       linkPrefix,
       pageTitle,

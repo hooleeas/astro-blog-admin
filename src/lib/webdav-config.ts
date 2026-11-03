@@ -1,9 +1,9 @@
 import { getKVStore, isEdgeOne, type KvLike } from './platform';
 
-export type ImageStorageKind = 'webdav' | 'r2';
+export type ImageStorageKind = 'webdav' | 'r2' | 'tg';
 
 export interface WebdavConfig {
-  /** 图片存储方式：WebDAV 或 Cloudflare R2（S3 兼容接口） */
+  /** 图片存储方式：WebDAV、Cloudflare R2（S3 兼容接口）或 Telegram 渠道 */
   storage: ImageStorageKind;
   /** Cloudflare R2 的 S3 端点，如 https://<账号ID>.r2.cloudflarestorage.com */
   r2Endpoint: string;
@@ -18,6 +18,14 @@ export interface WebdavConfig {
   /** 明文密码 —— 只存 KV，绝不进代码仓库，绝不返回给前端 */
   password: string;
   dir: string;
+  /** Telegram 渠道名称（仅用于区分，默认 TG） */
+  tgChannelName: string;
+  /** Telegram 渠道是否启用（停用后该渠道不可上传/读取） */
+  tgEnabled: boolean;
+  /** Telegram 机器人令牌 —— 只存 KV，绝不进代码仓库，绝不返回给前端 */
+  tgBotToken: string;
+  /** Telegram 会话 ID（图片存放的频道/群）—— 只存 KV，不返回给前端 */
+  tgChatId: string;
   /** 是否上传时转 WebP（默认 true，可在设置页开关） */
   webp: boolean;
   /** 图片对外链接的路径前缀（默认 images），链接形如 /<前缀>/<文件名> */
@@ -42,6 +50,14 @@ export interface WebdavConfigPublic {
   dir: string;
   /** 是否已设置密码（只给布尔值，不回显原值） */
   hasPassword: boolean;
+  /** Telegram 渠道名称 */
+  tgChannelName: string;
+  /** Telegram 渠道是否启用 */
+  tgEnabled: boolean;
+  /** 是否已设置 Bot Token（只给布尔值，不回显原值） */
+  hasTgBotToken: boolean;
+  /** 是否已设置 Chat ID（只给布尔值，不回显原值） */
+  hasTgChatId: boolean;
   /** 是否上传时转 WebP */
   webp: boolean;
   /** 图片对外链接的路径前缀 */
@@ -100,6 +116,29 @@ export function normalizePageTitle(raw: unknown): string | null {
   return s;
 }
 
+/** Telegram 渠道默认名称 */
+export const DEFAULT_TG_CHANNEL_NAME = 'TG';
+
+/** 规范化 Telegram 渠道名称：去首尾空白，最长 30 字符、不含控制字符；留空用默认 TG；不合法返回 null */
+export function normalizeTgChannelName(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  if (!s) return DEFAULT_TG_CHANNEL_NAME;
+  if (s.length > 30 || /[\u0000-\u001f\u007f]/.test(s)) return null;
+  return s;
+}
+
+/**
+ * 规范化 Telegram Chat ID：数字 ID（频道为 -100 开头）或 @频道用户名；
+ * 留空返回空字符串，不合法返回 null。
+ */
+export function normalizeTgChatId(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  if (/^-?\d{1,20}$/.test(s)) return s;
+  if (/^@[A-Za-z0-9_]{5,}$/.test(s)) return s;
+  return null;
+}
+
 export interface ConfigError {
   status: number;
   message: string;
@@ -135,15 +174,20 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
     throw notConfigured();
   }
   if (!parsed || typeof parsed !== 'object') throw notConfigured();
-  const storage: ImageStorageKind = parsed.storage === 'r2' ? 'r2' : 'webdav';
+  const storage: ImageStorageKind = parsed.storage === 'r2' ? 'r2' : parsed.storage === 'tg' ? 'tg' : 'webdav';
   const r2Endpoint = normalizeR2Endpoint(parsed.r2Endpoint) ?? '';
   const r2Bucket = normalizeR2Bucket(parsed.r2Bucket) ?? '';
   const r2AccessKeyId = String(parsed.r2AccessKeyId || '').trim();
   const r2SecretAccessKey = String(parsed.r2SecretAccessKey || '');
   const url = typeof parsed.url === 'string' ? parsed.url.replace(/\/+$/, '') : '';
+  const tgChannelName = normalizeTgChannelName(parsed.tgChannelName) ?? DEFAULT_TG_CHANNEL_NAME;
+  const tgEnabled = parsed.tgEnabled !== false;
+  const tgBotToken = String(parsed.tgBotToken || '').trim();
+  const tgChatId = normalizeTgChatId(parsed.tgChatId) ?? '';
   // 两种存储都未配置才视为未配置（兼容只填 R2 的保存）；
-  // EdgeOne 上「R2」档走 Blob 对象存储、不需要端点与密钥（见 platform.ts），同样视为已配置
-  if (!url && !(r2Endpoint && r2Bucket && r2AccessKeyId && r2SecretAccessKey) && !(storage === 'r2' && isEdgeOne(locals))) throw notConfigured();
+  // EdgeOne 上「R2」档走 Blob 对象存储、不需要端点与密钥（见 platform.ts），同样视为已配置；
+  // Telegram 档填了令牌与会话 ID 即视为已配置
+  if (!url && !(r2Endpoint && r2Bucket && r2AccessKeyId && r2SecretAccessKey) && !(storage === 'r2' && isEdgeOne(locals)) && !(tgBotToken && tgChatId)) throw notConfigured();
   return {
     storage,
     r2Endpoint,
@@ -154,6 +198,10 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
     username: String(parsed.username || ''),
     password: String(parsed.password || ''),
     dir: String(parsed.dir || '').replace(/^\/+|\/+$/g, ''),
+    tgChannelName,
+    tgEnabled,
+    tgBotToken,
+    tgChatId,
     webp: parsed.webp !== false,
     linkPrefix: normalizeLinkPrefix(parsed.linkPrefix) ?? DEFAULT_LINK_PREFIX,
     pageTitle: normalizePageTitle(parsed.pageTitle) ?? '',
@@ -163,7 +211,7 @@ export async function getWebdavConfig(locals: unknown): Promise<WebdavConfig> {
 /** 写 WebDAV 配置到 KV。password 由调用方决定（空则调用方先填入旧值）。 */
 export async function saveWebdavConfig(
   locals: unknown,
-  cfg: { storage: ImageStorageKind; r2Endpoint: string; r2Bucket: string; r2AccessKeyId: string; r2SecretAccessKey: string; url: string; username: string; password: string; dir: string; webp: boolean; linkPrefix: string; pageTitle: string },
+  cfg: { storage: ImageStorageKind; r2Endpoint: string; r2Bucket: string; r2AccessKeyId: string; r2SecretAccessKey: string; url: string; username: string; password: string; dir: string; tgChannelName: string; tgEnabled: boolean; tgBotToken: string; tgChatId: string; webp: boolean; linkPrefix: string; pageTitle: string },
 ): Promise<void> {
   const kv = await getKV(locals);
   await kv.put(
@@ -178,6 +226,10 @@ export async function saveWebdavConfig(
       username: cfg.username,
       password: cfg.password,
       dir: cfg.dir,
+      tgChannelName: cfg.tgChannelName,
+      tgEnabled: cfg.tgEnabled,
+      tgBotToken: cfg.tgBotToken,
+      tgChatId: cfg.tgChatId,
       webp: cfg.webp,
       linkPrefix: cfg.linkPrefix,
       pageTitle: cfg.pageTitle,
@@ -198,6 +250,10 @@ export function toPublic(cfg: WebdavConfig): WebdavConfigPublic {
     username: cfg.username,
     dir: cfg.dir,
     hasPassword: cfg.password.length > 0,
+    tgChannelName: cfg.tgChannelName,
+    tgEnabled: cfg.tgEnabled,
+    hasTgBotToken: cfg.tgBotToken.length > 0,
+    hasTgChatId: cfg.tgChatId.length > 0,
     webp: cfg.webp,
     linkPrefix: cfg.linkPrefix,
     pageTitle: cfg.pageTitle,

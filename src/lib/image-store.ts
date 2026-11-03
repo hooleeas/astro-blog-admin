@@ -4,7 +4,7 @@
 // 注意：不要用默认入口 'webdav'（依赖 node-fetch），'webdav/web' 是官方自包含 web 构建。
 import { createClient } from 'webdav/web';
 import { AwsClient } from 'aws4fetch';
-import { getBinding, getImageBlobStore } from './platform';
+import { getBinding, getImageBlobStore, getKVStore } from './platform';
 import { imageDir, type WebdavConfig } from './webdav-config';
 
 /** Pages 项目里 R2 存储桶的绑定变量名（在 Pages 设置 → 函数 → R2 存储桶绑定里添加） */
@@ -130,9 +130,107 @@ function xmlUnescape(s: string): string {
     .replace(/&amp;/g, '&');
 }
 
+/* ---------------- Telegram 渠道 ----------------
+ * 图片以「文件」（sendDocument）形式发进指定频道/群，避免按照片发送被 Telegram 压缩。
+ * Telegram 没有列目录接口：文件名 → file_id / message_id 的清单自存在配置存储（tg:index），
+ * 列表/查重/删除都查这份清单；读取时先 getFile 换取下载路径再拉原文件（路径现取现用）。
+ * 图片对外仍走本站 /<前缀>/<文件名> 路由由服务器中转，机器人令牌不出现在任何链接里。
+ */
+
+interface TgIndexItem {
+  filename: string;
+  fileId: string;
+  messageId: number;
+  size: number;
+  /** ISO 时间字符串 */
+  lastmod: string;
+}
+
+const TG_INDEX_KEY = 'tg:index';
+
+function requireTg(cfg: WebdavConfig): void {
+  if (!cfg.tgEnabled) fail(500, 'Telegram 渠道未启用，请先到图床设置页启用该渠道');
+  if (!cfg.tgBotToken || !cfg.tgChatId) {
+    fail(500, '未配置 Telegram：请先到图床设置页填写 Bot Token 与 Chat ID');
+  }
+}
+
+async function tgApi(cfg: WebdavConfig, method: string, body?: unknown, isForm = false): Promise<any> {
+  let res: Response;
+  try {
+    res = await fetch(`https://api.telegram.org/bot${cfg.tgBotToken}/${method}`, {
+      method: 'POST',
+      headers: isForm ? undefined : { 'content-type': 'application/json' },
+      body: isForm ? (body as FormData) : JSON.stringify(body ?? {}),
+    });
+  } catch (e) {
+    fail(502, `Telegram ${method} 请求失败：网络错误（${(e as Error)?.message || String(e)}）`);
+  }
+  const data: any = await res!.json().catch(() => null);
+  if (!res!.ok || !data?.ok) {
+    fail(502, `Telegram ${method} 失败：${data?.description || `HTTP ${res!.status}`}`);
+  }
+  return data.result;
+}
+
+async function tgLoadIndex(locals: unknown): Promise<TgIndexItem[]> {
+  const kv = await getKVStore(locals);
+  if (!kv) fail(500, '配置存储不可用（KV 未绑定）：无法读取 Telegram 图片清单');
+  const raw = await kv!.get(TG_INDEX_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (it): it is TgIndexItem =>
+        it && typeof it.filename === 'string' && typeof it.fileId === 'string' && typeof it.messageId === 'number',
+    );
+  } catch {
+    return [];
+  }
+}
+
+async function tgSaveIndex(locals: unknown, items: TgIndexItem[]): Promise<void> {
+  const kv = await getKVStore(locals);
+  if (!kv) fail(500, '配置存储不可用（KV 未绑定）：无法保存 Telegram 图片清单');
+  await kv!.put(TG_INDEX_KEY, JSON.stringify(items));
+}
+
+/** 测试 Telegram 渠道连通性：验令牌、验会话可达、验机器人在会话内的身份（频道须为管理员） */
+export async function testTelegramConnection(
+  botToken: string,
+  chatId: string,
+): Promise<{ botUsername: string; chatLabel: string }> {
+  const probe = { tgBotToken: botToken, tgChatId: chatId, tgEnabled: true } as WebdavConfig;
+  const me = await tgApi(probe, 'getMe');
+  const chat = await tgApi(probe, 'getChat', { chat_id: chatId }).catch((e) => {
+    const ce = e as StoreError;
+    throw {
+      status: 502,
+      message: `连接失败：机器人无法访问该会话（${ce.message.replace(/^Telegram getChat 失败：/, '')}），请确认 Chat ID 正确、且机器人已加入该频道/群`,
+    } as StoreError;
+  });
+  const member = await tgApi(probe, 'getChatMember', { chat_id: chatId, user_id: me.id }).catch(() => null);
+  const status = member?.status as string | undefined;
+  if (status === 'left' || status === 'kicked') {
+    fail(400, '连接失败：机器人不在该频道/群里，请先把机器人加入并设为管理员');
+  }
+  if ((chat.type === 'channel') && status !== 'administrator' && status !== 'creator') {
+    fail(400, '连接失败：机器人在该频道里不是管理员，无法发送图片，请把机器人设为频道管理员');
+  }
+  const kindLabel = chat.type === 'channel' ? '频道' : chat.type === 'supergroup' || chat.type === 'group' ? '群组' : '会话';
+  const title = chat.title || chat.username || String(chat.id);
+  return { botUsername: me.username ? `@${me.username}` : String(me.id), chatLabel: `${kindLabel}「${title}」` };
+}
+
 /* ---------------- 统一接口 ---------------- */
 
 export async function storeFileExists(locals: unknown, cfg: WebdavConfig, filename: string): Promise<boolean> {
+  if (cfg.storage === 'tg') {
+    requireTg(cfg);
+    const index = await tgLoadIndex(locals);
+    return index.some((it) => it.filename === filename);
+  }
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
     if (bucket) return (await bucket.head(r2Key(cfg, filename))) !== null;
@@ -146,6 +244,37 @@ export async function storeFileExists(locals: unknown, cfg: WebdavConfig, filena
 }
 
 export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename: string, data: ArrayBuffer): Promise<void> {
+  if (cfg.storage === 'tg') {
+    requireTg(cfg);
+    const form = new FormData();
+    form.set('chat_id', cfg.tgChatId);
+    form.set('caption', filename);
+    form.set('document', new Blob([data], { type: imageContentType(filename) }), filename);
+    const message = await tgApi(cfg, 'sendDocument', form, true);
+    const doc = message?.document;
+    if (!doc?.file_id || typeof message?.message_id !== 'number') {
+      fail(502, 'Telegram sendDocument 失败：返回数据不完整');
+    }
+    const index = await tgLoadIndex(locals);
+    const existing = index.findIndex((it) => it.filename === filename);
+    const item: TgIndexItem = {
+      filename,
+      fileId: doc.file_id,
+      messageId: message.message_id,
+      size: typeof doc.file_size === 'number' ? doc.file_size : data.byteLength,
+      lastmod: new Date().toISOString(),
+    };
+    if (existing >= 0) {
+      const old = index[existing];
+      index[existing] = item;
+      // 同名覆盖：旧消息尽力删掉（失败不影响新图已存入）
+      await tgApi(cfg, 'deleteMessage', { chat_id: cfg.tgChatId, message_id: old.messageId }).catch(() => {});
+    } else {
+      index.push(item);
+    }
+    await tgSaveIndex(locals, index);
+    return;
+  }
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
     if (bucket) {
@@ -171,6 +300,22 @@ export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename:
 }
 
 export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename: string): Promise<Uint8Array> {
+  if (cfg.storage === 'tg') {
+    requireTg(cfg);
+    const index = await tgLoadIndex(locals);
+    const item = index.find((it) => it.filename === filename);
+    if (!item) fail(404, '图片不存在');
+    const file = await tgApi(cfg, 'getFile', { file_id: item!.fileId });
+    if (!file?.file_path) fail(502, 'Telegram getFile 失败：未返回文件路径');
+    let res: Response;
+    try {
+      res = await fetch(`https://api.telegram.org/file/bot${cfg.tgBotToken}/${file.file_path}`);
+    } catch (e) {
+      fail(502, `Telegram 文件下载失败：网络错误（${(e as Error)?.message || String(e)}）`);
+    }
+    if (!res!.ok) fail(502, `Telegram 文件下载失败（${res!.status}）`);
+    return new Uint8Array(await res!.arrayBuffer());
+  }
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
     if (bucket) {
@@ -194,6 +339,11 @@ export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename:
 }
 
 export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promise<StoredImage[]> {
+  if (cfg.storage === 'tg') {
+    requireTg(cfg);
+    const index = await tgLoadIndex(locals);
+    return index.map((it) => ({ filename: it.filename, size: it.size, lastmod: it.lastmod }));
+  }
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
     if (bucket) {
@@ -262,6 +412,18 @@ export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promis
 }
 
 export async function storeDeleteFile(locals: unknown, cfg: WebdavConfig, filename: string): Promise<void> {
+  if (cfg.storage === 'tg') {
+    requireTg(cfg);
+    const index = await tgLoadIndex(locals);
+    const at = index.findIndex((it) => it.filename === filename);
+    if (at >= 0) {
+      const [item] = index.splice(at, 1);
+      // 频道里的原消息尽力删除（消息可能已被手动删掉，失败不拦清单移除）
+      await tgApi(cfg, 'deleteMessage', { chat_id: cfg.tgChatId, message_id: item.messageId }).catch(() => {});
+      await tgSaveIndex(locals, index);
+    }
+    return;
+  }
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
     if (bucket) {

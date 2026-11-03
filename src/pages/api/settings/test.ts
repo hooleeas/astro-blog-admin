@@ -4,8 +4,8 @@ import type { APIRoute } from 'astro';
 // 同 upload.ts：用 'webdav/web' 自包含构建，Workers 兼容
 import { createClient } from 'webdav/web';
 import { AwsClient } from 'aws4fetch';
-import { getWebdavConfig, normalizeR2Endpoint, normalizeR2Bucket } from '../../../lib/webdav-config';
-import { getR2Binding, R2_BINDING_NAME } from '../../../lib/image-store';
+import { getWebdavConfig, normalizeR2Endpoint, normalizeR2Bucket, normalizeTgChatId } from '../../../lib/webdav-config';
+import { getR2Binding, R2_BINDING_NAME, testTelegramConnection } from '../../../lib/image-store';
 import { getImageBlobStore } from '../../../lib/platform';
 
 function json(data: unknown, status = 200): Response {
@@ -62,6 +62,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
         return json({ ok: false, error: '连接失败：R2 拒绝访问，请核对访问密钥与权限（需要读写权限）' }, 403);
       }
       return json({ ok: false, error: `连接失败：R2 返回 ${res.status}` }, 502);
+    }
+
+    // 存储方式为 Telegram 时测 TG 渠道：表单值优先，令牌与 Chat ID 留空沿用已保存的
+    if ((body as any).storage === 'tg') {
+      const b = body as any;
+      const botToken = typeof b.tgBotToken === 'string' && b.tgBotToken.trim() ? b.tgBotToken.trim() : saved.tgBotToken;
+      const rawChatId = typeof b.tgChatId === 'string' && b.tgChatId.trim() ? b.tgChatId : saved.tgChatId;
+      const chatId = normalizeTgChatId(rawChatId);
+      if (!botToken || !chatId) {
+        return json({ ok: false, error: 'Telegram 配置不完整：Bot Token 与 Chat ID 都要填（Chat ID 应为数字 ID 或 @频道用户名）' }, 400);
+      }
+      const { botUsername, chatLabel } = await testTelegramConnection(botToken, chatId);
+      return json({ ok: true, data: { message: `连接成功，Telegram 渠道可用（机器人 ${botUsername}，${chatLabel}）` } });
     }
 
     const url = typeof body.url === 'string' ? body.url.trim() : saved.url;
