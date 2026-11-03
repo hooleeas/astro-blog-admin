@@ -157,7 +157,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
     .storage-page .channel-badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--muted); }
     .storage-page .channel-badge.active { background: var(--accent); color: #fff; }
     .storage-page .channel-meta { margin: 5px 0 0; color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-    .storage-page .channel-actions { display: flex; gap: 8px; flex: 0 0 auto; flex-wrap: wrap; min-width: 0; }
+    .storage-page .channel-actions { display: flex; gap: 8px; flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; }
     .storage-page .channel-actions .btn { min-height: 34px; padding: 6px 12px; font-size: 12.5px; }
     .storage-page .delete-channel { color: var(--danger); }
     .channel-dialog {
@@ -200,9 +200,9 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
     .channel-close:hover { color: var(--text); }
     @media (max-width: 640px) {
       .storage-page .storage-heading { flex-wrap: wrap; }
-      .storage-page .channel-card { flex-wrap: wrap; }
-      .storage-page .channel-actions { width: 100%; }
-      .storage-page .channel-actions .btn { flex: 1; }
+      /* 窄屏按钮仍保持一行：等分收缩、文字不折行，宁可挤内容区也不让按钮换行或出卡 */
+      .storage-page .channel-actions { gap: 6px; }
+      .storage-page .channel-actions .btn { flex: 1 1 0; min-width: 0; white-space: nowrap; min-height: 32px; padding: 5px 8px; font-size: 12px; }
       .channel-dialog-head { padding: 18px 18px 12px; }
       .channel-dialog-content { padding: 16px 18px 20px; }
     }
