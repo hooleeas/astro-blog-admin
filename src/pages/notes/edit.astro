@@ -133,7 +133,16 @@ const valid = NOTE_FILE_RE.test(file);
         }
       }
 
-      saveButton.addEventListener('click', async () => {
+      // 顶栏保存/删除按钮跨页保留：重复进入本页会给同一按钮叠加旧页面的监听，
+      // 旧监听拿着已改名的旧文件名保存就会先报「随记不存在」。绑定前先摘掉旧的（用户实遇）
+      const bindTopbarButton = (button: HTMLElement, handler: () => Promise<void>) => {
+        const prev = (button as any).__noteClickHandler as (() => Promise<void>) | undefined;
+        if (prev) button.removeEventListener('click', prev);
+        (button as any).__noteClickHandler = handler;
+        button.addEventListener('click', handler);
+      };
+
+      bindTopbarButton(saveButton, async () => {
         const date = dateEl.value;
         if (!isValidDate(date)) {
           (window as any).adminToast?.('日期格式不正确，请选择有效的日期', true);
@@ -181,7 +190,7 @@ const valid = NOTE_FILE_RE.test(file);
         }
       });
 
-      deleteButton.addEventListener('click', async () => {
+      bindTopbarButton(deleteButton, async () => {
         if (!sha || !(await (window as any).adminConfirm?.(`确定删除随记 ${file}？此操作不可撤销。`, { title: '删除随记' }))) return;
         deleteButton.setAttribute('disabled', '');
         try {
