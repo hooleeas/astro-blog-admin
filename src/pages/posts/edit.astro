@@ -360,6 +360,17 @@ const key = Astro.url.searchParams.get('key') ?? '';
         bodyEditor = null;
         setSaveDisabled(true);
         const fm = version.frontmatter;
+        // 封面整篇文章共用：本语言没填时借同组其他语言的封面来显示（优先简体中文，与博客兜底顺序一致）
+        const sharedCover = ((): { url: string; lang: Lang } | null => {
+          if ((fm.cover ?? '').trim()) return null;
+          const order: Lang[] = ['zh-Hans', ...LANGS.filter((item) => item !== 'zh-Hans')];
+          for (const item of order) {
+            if (item === lang) continue;
+            const url = (versions[item]?.frontmatter.cover ?? '').trim();
+            if (url) return { url, lang: item };
+          }
+          return null;
+        })();
         panelEl.innerHTML = `
           <section class="card editor-card editor-meta-card">
             <div class="editor-card-heading">
@@ -381,6 +392,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
                 </span>
                 <span>封面（cover，URL，可空）</span>
                 <input id="f-cover" class="input" type="text" aria-label="封面（cover，URL，可空）" value="${esc(fm.cover ?? '')}" />
+                ${sharedCover ? `<span class="editor-cover-shared">封面共用中：正在用${esc(LANG_LABELS[sharedCover.lang])}版的封面；在此填写 URL，本语言改用自己的</span>` : ''}
               </label>
               ${field('f-tags', '标签（tags，逗号分隔）', Array.isArray(fm.tags) ? fm.tags.join(', ') : '')}
               ${field('f-category', '分类（category）', fm.category)}
@@ -429,7 +441,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
           document.querySelector<HTMLElement>('#cover-preview-message'),
         );
         const updateCoverPreview = (): void => {
-          const coverUrl = coverInput.value.trim();
+          const coverUrl = coverInput.value.trim() || sharedCover?.url || '';
           coverPreviewImage.hidden = true;
           coverPreviewImage.removeAttribute('src');
           if (!coverUrl) {
@@ -885,6 +897,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
       height: 100%;
       object-fit: contain;
     }
+    .editor-cover-shared { color: var(--muted); font-size: 12px; font-weight: 500; }
     .editor-toggle {
       display: flex;
       align-items: center;
