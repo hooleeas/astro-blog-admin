@@ -197,8 +197,7 @@ interface TgIndexItem {
   size: number;
   /** ISO 时间字符串 */
   lastmod: string;
-  /** 逻辑目录（渠道上传目录）：Telegram 没有真实目录，靠登记记录上的这个字段归属 */
-  dir?: string;
+}
 }
 
 /** 登记表里该 Telegram 渠道的键：优先渠道 ID，旧单配置形态回退到会话维度 */
@@ -232,31 +231,24 @@ async function tgApi(cfg: WebdavConfig, method: string, body?: unknown, isForm =
 }
 
 async function tgLoadIndex(locals: unknown, cfg: WebdavConfig): Promise<TgIndexItem[]> {
-  const dir = imageDir(cfg);
   const records = await registryListByChannel(locals, tgRegKey(cfg));
   return records
     .filter((it) => typeof it.tgFileId === 'string' && typeof it.tgMessageId === 'number')
-    // 按目录认：记录带了目录就只在该目录下可见；没带目录的是早期记录，不分目录都认（不弄丢）
-    .filter((it) => !it.dir || it.dir === dir)
     .map((it) => ({
       filename: it.filename,
       fileId: it.tgFileId as string,
       messageId: it.tgMessageId as number,
       size: it.size,
       lastmod: it.lastmod,
-      dir: it.dir,
     }));
 }
 
 async function tgSaveIndex(locals: unknown, cfg: WebdavConfig, items: TgIndexItem[]): Promise<void> {
   const key = tgRegKey(cfg);
-  const dir = imageDir(cfg);
   const current = await registryListByChannel(locals, key);
   const keep = new Set(items.map((it) => it.filename));
   for (const rec of current) {
-    if (keep.has(rec.filename)) continue;
-    // 只销本目录范围内的记录（没带目录的早期记录也在范围内）；其他目录的记录不动
-    if (!rec.dir || rec.dir === dir) await registryRemove(locals, key, rec.filename);
+    if (!keep.has(rec.filename)) await registryRemove(locals, key, rec.filename);
   }
   for (const it of items) {
     await registryUpsert(locals, {
@@ -266,7 +258,6 @@ async function tgSaveIndex(locals: unknown, cfg: WebdavConfig, items: TgIndexIte
       lastmod: it.lastmod,
       tgFileId: it.fileId,
       tgMessageId: it.messageId,
-      dir: it.dir,
     });
   }
 }
@@ -364,7 +355,6 @@ async function storePutFileRaw(locals: unknown, cfg: WebdavConfig, filename: str
       messageId: message.message_id,
       size: typeof doc.file_size === 'number' ? doc.file_size : data.byteLength,
       lastmod: new Date().toISOString(),
-      dir: imageDir(cfg),
     };
     if (existing >= 0) {
       const old = index[existing];

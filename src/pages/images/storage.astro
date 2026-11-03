@@ -64,7 +64,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
           <input class="input" name="chPath" type="text" placeholder="images" />
           <span class="hint">图片链接形如 /路径/文件名（如 /images/IMG_2032.webp）；可与其他渠道共用同一路径，共用时切换存储不影响链接</span>
         </label>
-        <label class="field">
+        <label class="field" id="ch-dir-field">
           <span class="flabel">上传目录</span>
           <input class="input" name="chDir" type="text" placeholder="img" />
           <span class="hint">图片存放于该渠道的该目录下，可填多级路径（如 photos/blog）；留空使用默认 img</span>
@@ -247,6 +247,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       const enabledInput = form.querySelector<HTMLInputElement>('[name="chEnabled"]')!;
       const pathInput = form.querySelector<HTMLInputElement>('[name="chPath"]')!;
       const dirInput = form.querySelector<HTMLInputElement>('[name="chDir"]')!;
+      const dirField = dialog.querySelector<HTMLElement>('#ch-dir-field')!;
       const webdavFields = dialog.querySelector<HTMLElement>('#ch-webdav-fields')!;
       const urlInput = form.querySelector<HTMLInputElement>('[name="chUrl"]')!;
       const usernameInput = form.querySelector<HTMLInputElement>('[name="chUsername"]')!;
@@ -286,12 +287,16 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
         r2Fields.hidden = kind !== 'r2';
         s3Fields.hidden = kind !== 's3';
         tgFields.hidden = kind !== 'tg';
+        // Telegram 不是网盘、没有目录概念，不显示上传目录（用户定）
+        dirField.hidden = kind === 'tg';
         urlInput.required = kind === 'webdav';
       }
       kindSelect.addEventListener('change', applyKindVisibility);
 
       function channelSummary(ch: ChannelPublic): string {
-        const parts = [`/${ch.path}`, ch.dir ? `目录 ${ch.dir}` : '目录 img'];
+        const parts = [`/${ch.path}`];
+        // Telegram 没有目录概念，卡片不显示目录（用户定）
+        if (ch.kind !== 'tg') parts.push(ch.dir ? `目录 ${ch.dir}` : '目录 img');
         if (ch.kind === 'webdav') parts.push(ch.url || '未填写地址');
         else if (ch.kind === 'r2') parts.push(r2Bound ? 'Pages 绑定 IMGS_R2' : 'EdgeOne Blob');
         else if (ch.kind === 's3') parts.push(ch.s3Bucket || '未填写存储桶');
