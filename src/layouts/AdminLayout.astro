@@ -150,7 +150,7 @@ const nav = [
       .topbar-actions {
         position: absolute;
         top: 0;
-        left: calc(100% + 8px);
+        left: calc(100% + 56px);
         display: flex;
         width: max-content;
         align-items: center;
@@ -280,6 +280,8 @@ const nav = [
         .theme-toggle:hover { color: color-mix(in srgb, var(--header-text) 60%, transparent); }
       }
       .theme-toggle:focus-visible { outline: 2px solid color-mix(in srgb, var(--header-text) 72%, transparent); outline-offset: 3px; }
+      /* 深色模式按钮脱离导航：导航胶囊单独居中（真居中），按钮仍挂在导航右边同样 8px 距离处（用户定） */
+      .topbar-controls > .theme-toggle { position: absolute; left: calc(100% + 8px); top: 0; }
       .glass-button {
         border: 1px solid color-mix(in srgb, var(--header-text) 18%, var(--surface));
         background: color-mix(in srgb, var(--surface) 72%, transparent);
@@ -335,7 +337,7 @@ const nav = [
           flex: 0 0 auto; padding-inline: clamp(12px, 3vw, 16px);
           font-size: clamp(11px, 3.8vw, 15px);
         }
-        .topbar .theme-toggle { flex-basis: 40px; width: 40px; height: 40px; font-size: 18px; }
+        .topbar .theme-toggle { position: static; flex-basis: 40px; width: 40px; height: 40px; font-size: 18px; }
       }
 
       @media (max-width: 480px) {
@@ -1084,8 +1086,8 @@ const nav = [
                   ))}
                 </nav>
               </div>
-              <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">◐</button>
             </div>
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">◐</button>
             <div class="topbar-actions" hidden={!['/posts', '/posts/edit', '/notes', '/images', '/images/manage', '/pages', '/pages/settings', '/data/edit', '/pages/edit'].includes(Astro.url.pathname) && !noteEditor}>
               <a class="btn" id="new-post-link" href="/posts/new" hidden={Astro.url.pathname !== '/posts'}>
                 新建
