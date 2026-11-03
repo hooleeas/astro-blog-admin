@@ -1205,6 +1205,15 @@ const nav = [
         }, isError ? 4200 : 2400);
       };
 
+      // 顶栏语言行/语言槽只属于设置编辑页与文章编辑页：顶栏跨页保留，到了别的页面就清掉，
+      // 语言选择不是全站常驻、只有特定编辑页才有（用户纠正）
+      document.addEventListener('astro:page-load', () => {
+        const path = window.location.pathname;
+        if (path === '/data/edit' || path === '/posts/edit') return;
+        document.getElementById('topbar-lang-row')?.replaceChildren();
+        document.getElementById('topbar-lang-slot')?.replaceChildren();
+      });
+
       // 全站站内确认弹窗（替代系统 confirm）：返回 Promise<boolean>，点遮罩/ESC/取消都算取消（用户定）
       (window as unknown as { adminConfirm: (message: string, options?: { title?: string; okLabel?: string }) => Promise<boolean> }).adminConfirm = (message: string, options?: { title?: string; okLabel?: string }) => {
         return new Promise<boolean>((resolve) => {

@@ -700,6 +700,10 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         }
       }
       mobileLangQuery.addEventListener?.('change', placeLangBar);
+      // 离开设置页时把语言条从跨页保留的顶栏里摘掉（语言选择只属于这个页面）
+      document.addEventListener('astro:before-swap', () => {
+        if (currentLangBar) { currentLangBar.remove(); currentLangBar = null; }
+      });
 
       // 多语言字段（标题/副标题/说明这类 {zh-Hans, en, …}）：按当前编辑语言显示与修改，
       // 只改当前语言，其他语言的译文原样保留；字段还不存在时按当前语言新建
