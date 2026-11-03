@@ -34,7 +34,7 @@ function parseData(name: string, content: string, sha: string) {
 /** GET /api/data/[name] — 读 jsonc：{ raw, parsed, sha, parseError? } */
 export async function GET({ locals, params, request }: APIContext) {
   const name = String(params.name ?? '');
-  if (!isDataName(name)) return fail('name 不合法，仅支持 config | posts | about | apple | services');
+  if (!isDataName(name)) return fail('name 不合法，仅支持 config | posts | about | services');
   if (isLocalDataPreview(locals, request)) {
     try {
       const { readLocalData } = await import('../../../lib/local-data.js');
@@ -56,7 +56,7 @@ export async function GET({ locals, params, request }: APIContext) {
 /** PUT /api/data/[name] — 保存，body: { content }；先用 jsonc-parser 校验，有错 400 */
 export async function PUT({ locals, params, request }: APIContext) {
   const name = String(params.name ?? '');
-  if (!isDataName(name)) return fail('name 不合法，仅支持 config | posts | about | apple | services');
+  if (!isDataName(name)) return fail('name 不合法，仅支持 config | posts | about | services');
   let body: Record<string, unknown>;
   try {
     body = await request.json();

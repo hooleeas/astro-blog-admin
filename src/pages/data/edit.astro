@@ -5,12 +5,11 @@ export const prerender = false;
 
 const name = Astro.url.searchParams.get('name') ?? '';
 const embedded = Astro.url.searchParams.get('embedded') === '1';
-const valid = ['config', 'posts', 'about', 'apple', 'services'].includes(name);
+const valid = ['config', 'posts', 'about', 'services'].includes(name);
 const settingTitles: Record<string, string> = {
   config: '主页设置',
   posts: '文章列表设置',
   about: '关于页面设置',
-  apple: 'Apple 页面设置',
   services: '公益服务设置',
 };
 const settingTitle = settingTitles[name] ?? '页面设置';
@@ -132,15 +131,12 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         'config.home.creativity.items': '技术图标列表',
         'about.contact.contacts': '联系方式列表',
         'about.logos': '技能图标列表',
-        'apple.plans': '订阅套餐列表',
-        'apple.carouselLogos': 'Apple 轮播图',
         'services.items': '服务项目列表',
       };
       const ADD_BUTTON_LABELS: Record<string, string> = {
         'config.navigation.items': '新增导航',
         'config.languages': '新增语言',
         'services.items': '新增服务',
-        'apple.carouselLogos': '新增轮播图',
         'config.home.creativity.items': '新增轮播',
       };
       const labelFor = (path: string[]) => {
@@ -294,7 +290,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
           visualEl.appendChild(buildEditLangBar());
         }
         for (const [k, v] of Object.entries(working)) {
-          if (name === 'apple' && k === 'plans') continue;
           if (isLangMap(v)) {
             const card = el('div', 'card vv-section');
             card.appendChild(renderLangText(k, v, [k]));
@@ -746,16 +741,14 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         const head = el('div', 'vv-array-head');
         const arrayLabel = ARRAY_LABELS[[name, ...pathArr].join('.')] ?? labelFor(pathArr);
         head.appendChild(el('span', null, `${esc(arrayLabel)}（${arr.length} 项）`));
-        if (name !== 'apple' || pathArr.join('.') === 'carouselLogos') {
-          addTargets.push({ path: [...pathArr], label: arrayLabel });
-          // 语言列表是封闭预设：不新增、也不删除（用户定）
-          if (!(name === 'config' && pathArr.join('.') === 'languages')) {
-            const addBtn = el('button', 'btn glass-button btn-sm');
-            addBtn.type = 'button';
-            addBtn.textContent = ADD_BUTTON_LABELS[[name, ...pathArr].join('.')] ?? '新增';
-            addBtn.addEventListener('click', () => addTarget([...pathArr]));
-            head.appendChild(addBtn);
-          }
+        addTargets.push({ path: [...pathArr], label: arrayLabel });
+        // 语言列表是封闭预设：不新增、也不删除（用户定）
+        if (!(name === 'config' && pathArr.join('.') === 'languages')) {
+          const addBtn = el('button', 'btn glass-button btn-sm');
+          addBtn.type = 'button';
+          addBtn.textContent = ADD_BUTTON_LABELS[[name, ...pathArr].join('.')] ?? '新增';
+          addBtn.addEventListener('click', () => addTarget([...pathArr]));
+          head.appendChild(addBtn);
         }
         wrap.appendChild(head);
         if (ICON_GRID_PATHS.includes([name, ...pathArr].join('.'))) {
@@ -771,7 +764,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
       }
 
       // 轮播图标列表用双列网格 + 预览卡呈现，点击卡片弹窗编辑（用户定）
-      const ICON_GRID_PATHS = ['config.home.creativity.items', 'apple.carouselLogos'];
+      const ICON_GRID_PATHS = ['config.home.creativity.items'];
       function iconTile(item, large = false) {
         const tile = el('span', 'vv-icon-tile' + (large ? ' vv-icon-tile-lg' : ''));
         tile.style.background = typeof item.color === 'string' && item.color ? item.color : 'var(--surface)';
@@ -1046,66 +1039,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         }, { once: true });
       }
 
-      function openAppleCarouselDialog(pathArr) {
-        addOptions.replaceChildren();
-        addDialogTitle.textContent = '新增 Apple 轮播图';
-        addDialogDescription.textContent = '填写标题、图标地址和链接。';
-        const form = el('form', 'new-page-fields');
-        const addInput = (labelText, type, placeholder) => {
-          const label = el('label');
-          label.appendChild(document.createTextNode(labelText));
-          const input = el('input', 'input');
-          input.type = type;
-          input.required = true;
-          input.placeholder = placeholder;
-          label.appendChild(input);
-          form.appendChild(label);
-          return input;
-        };
-        const titleInput = addInput('标题', 'text', '输入轮播图标题');
-        const iconInput = addInput('图标地址', 'url', 'https://example.com/icon.png');
-        const linkInput = addInput('链接', 'url', 'https://example.com');
-        const tplItem = getAt(pathArr).find((item) => isObj(item));
-        const addColorField = (labelText, initial) => {
-          const fieldLabel = el('label');
-          fieldLabel.appendChild(document.createTextNode(labelText));
-          const control = makeColorControl(initial, () => {});
-          fieldLabel.appendChild(control.wrap);
-          form.appendChild(fieldLabel);
-          return control;
-        };
-        const bgColor = addColorField('背景颜色', tplItem?.color ?? '#fff');
-        const labelColor = addColorField('文字颜色', tplItem?.labelColor ?? '#17191c');
-        const actions = el('div', 'new-page-actions');
-        const submit = el('button', 'btn');
-        submit.type = 'submit';
-        submit.textContent = '添加轮播图';
-        actions.append(submit);
-        form.appendChild(actions);
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          const items = getAt(pathArr);
-          const template = items.find((item) => isObj(item));
-          items.push({
-            name: titleInput.value.trim(),
-            color: bgColor.text.value.trim() || (template?.color ?? '#fff'),
-            labelColor: labelColor.text.value.trim() || (template?.labelColor ?? '#17191c'),
-            icon: iconInput.value.trim(),
-            href: linkInput.value.trim(),
-          });
-          pendingFocusPath = [...pathArr, items.length - 1];
-          addDialog.close();
-          saveButton.disabled = !renderVisual();
-        });
-        addOptions.appendChild(form);
-        addDialog.showModal();
-        titleInput.focus();
-        addDialog.addEventListener('close', () => {
-          addDialogTitle.textContent = '选择新增列表';
-          addDialogDescription.textContent = '选择要添加项目的列表。';
-        }, { once: true });
-      }
-
       function openNavigationItemDialog(pathArr) {
         addOptions.replaceChildren();
         addDialogTitle.textContent = '新增导航项';
@@ -1271,10 +1204,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         }
         if (name === 'config' && pathArr.join('.') === 'navigation.items') {
           openNavigationItemDialog(pathArr);
-          return;
-        }
-        if (name === 'apple' && pathArr.join('.') === 'carouselLogos') {
-          openAppleCarouselDialog(pathArr);
           return;
         }
         openGenericAddDialog(pathArr);
