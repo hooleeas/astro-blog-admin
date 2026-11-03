@@ -39,6 +39,24 @@ const dataFiles = [
       const homeTitle = document.title;
       let requestId = 0;
 
+      // 退回卡片列表：恢复首页内容并通知顶栏左侧按钮切回「主页」
+      function goHome() {
+        requestId++;
+        content.innerHTML = homeMarkup;
+        document.title = homeTitle;
+        document.dispatchEvent(new Event('admin:content-loaded'));
+        document.dispatchEvent(new CustomEvent('admin:site-subpage', { detail: { active: false } }));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      // 顶栏「返回」在内嵌编辑时发 admin:site-go-home：文档级只绑一次，永远调最近一次登记的 goHome
+      (document as any).__siteGoHome = goHome;
+      if (!(document as any).__siteGoHomeBound) {
+        (document as any).__siteGoHomeBound = true;
+        document.addEventListener('admin:site-go-home', () => {
+          (document as any).__siteGoHome?.();
+        });
+      }
+
       async function showRoute(url: URL) {
         const thisRequest = ++requestId;
         try {
@@ -82,11 +100,14 @@ const dataFiles = [
           }
           if (thisRequest !== requestId) return;
           document.dispatchEvent(new Event('admin:content-loaded'));
+          // 已进入内嵌的二级编辑：通知顶栏左侧按钮切到「返回」
+          document.dispatchEvent(new CustomEvent('admin:site-subpage', { detail: { active: true } }));
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } catch (error) {
           if (thisRequest !== requestId) return;
           content.innerHTML = homeMarkup;
           document.title = homeTitle;
+          document.dispatchEvent(new CustomEvent('admin:site-subpage', { detail: { active: false } }));
           const errorLine = document.createElement('p');
           errorLine.className = 'hint';
           errorLine.style.color = 'var(--danger)';
@@ -105,11 +126,7 @@ const dataFiles = [
         if (destination.origin !== window.location.origin) return;
         if (destination.pathname === '/pages' && destination.searchParams.get('embedded') === '1') {
           event.preventDefault();
-          requestId++;
-          content.innerHTML = homeMarkup;
-          document.title = homeTitle;
-          document.dispatchEvent(new Event('admin:content-loaded'));
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          goHome();
           return;
         }
         if (

@@ -1665,6 +1665,38 @@ const homeHref = isSectionLanding ? '/posts' : sectionParent(currentPath);
 
       if (root.dataset.adminNavigationListeners !== 'true') {
         root.dataset.adminNavigationListeners = 'true';
+        // 顶栏左侧按钮：一级页面「主页」→ 后台首页 /posts；二级页面「返回」→ 所属板块列表页。
+        // 站点页的内嵌编辑网址不变（仍是 /pages），页面另发 admin:site-subpage 通知切到「返回」，
+        // 此时点按钮发 admin:site-go-home 让站点页自己退回卡片列表，不刷新页面（用户实报站点几个仍显主页）
+        let siteSubpageActive = false;
+        const syncHomeLink = (pathname: string) => {
+          if (pathname !== '/pages') siteSubpageActive = false;
+          const homeLink = document.querySelector<HTMLAnchorElement>('#topbar-home-link');
+          if (!homeLink) return;
+          if (siteSubpageActive) {
+            homeLink.textContent = '返回';
+            homeLink.setAttribute('href', '/pages');
+          } else if (['/posts', '/notes', '/pages', '/images'].includes(pathname)) {
+            homeLink.textContent = '主页';
+            homeLink.setAttribute('href', '/posts');
+          } else {
+            homeLink.textContent = '返回';
+            homeLink.setAttribute('href',
+              pathname.startsWith('/posts') ? '/posts'
+              : pathname.startsWith('/notes') ? '/notes'
+              : pathname.startsWith('/images') ? '/images'
+              : '/pages');
+          }
+        };
+        document.addEventListener('admin:site-subpage', (event) => {
+          siteSubpageActive = !!(event as CustomEvent<{ active?: boolean }>).detail?.active;
+          syncHomeLink(window.location.pathname);
+        });
+        document.querySelector<HTMLAnchorElement>('#topbar-home-link')?.addEventListener('click', (event) => {
+          if (!siteSubpageActive) return;
+          event.preventDefault();
+          document.dispatchEvent(new Event('admin:site-go-home'));
+        });
         document.querySelector<HTMLButtonElement>('#post-save-btn')?.addEventListener('click', () => {
           document.querySelector<HTMLButtonElement>('#save-btn')?.click();
         });
@@ -1746,21 +1778,7 @@ const homeHref = isSectionLanding ? '/posts' : sectionParent(currentPath);
           const isNoteEditor = pathname === '/notes/edit';
           if (noteSaveButton) noteSaveButton.hidden = !isNoteEditor;
           if (noteDeleteButton) noteDeleteButton.hidden = !isNoteEditor;
-          // 左侧按钮随层级切换：一级页面「主页」→ 后台首页 /posts，二级页面「返回」→ 所属板块（与服务端首屏渲染同规）
-          const homeLink = document.querySelector<HTMLAnchorElement>('#topbar-home-link');
-          if (homeLink) {
-            if (['/posts', '/notes', '/pages', '/images'].includes(pathname)) {
-              homeLink.textContent = '主页';
-              homeLink.setAttribute('href', '/posts');
-            } else {
-              homeLink.textContent = '返回';
-              homeLink.setAttribute('href',
-                pathname.startsWith('/posts') ? '/posts'
-                : pathname.startsWith('/notes') ? '/notes'
-                : pathname.startsWith('/images') ? '/images'
-                : '/pages');
-            }
-          }
+          syncHomeLink(pathname);
           if (newPostActions instanceof HTMLElement) {
             newPostActions.hidden = pathname !== '/posts' && pathname !== '/notes' && pathname !== '/images' &&
               !isNoteEditor && !isPostEditor && !isSiteSettingsEditor && !isPageSettings;
