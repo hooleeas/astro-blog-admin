@@ -14,7 +14,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
   </div>
 
   {!key && (
-    <div class="card"><p style="color: #dc2626;">缺少 key 参数。</p><a href="/posts">← 返回列表</a></div>
+    <div class="card"><p style="color: #dc2626;">缺少 key 参数。</p></div>
   )}
 
   {key && (

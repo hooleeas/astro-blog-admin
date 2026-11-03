@@ -18,7 +18,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
 <AdminLayout title={settingTitle} active="pages">
   <div class="page-heading">
     <h1 class="page-title">{settingTitle}</h1>
-    <a class="btn glass-button back-button" href={embedded ? '/pages?embedded=1' : '/pages'}>返回站点设置</a>
   </div>
 
   {!valid && (

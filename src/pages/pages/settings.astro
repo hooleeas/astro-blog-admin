@@ -8,9 +8,6 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
 <AdminLayout title="页面设置" active="pages">
   <div class="page-heading" id="page-settings-root" data-embedded={embedded ? 'true' : 'false'}>
     <h1 class="page-title">页面设置</h1>
-    <div class="page-heading-actions">
-      <a class="btn glass-button back-button" href={embedded ? '/pages?embedded=1' : '/pages'}>返回站点设置</a>
-    </div>
     <dialog id="new-page-dialog" class="new-page-dialog" aria-labelledby="new-page-title">
       <header class="new-page-dialog-head">
         <div>

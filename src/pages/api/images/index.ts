@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { getImageUrl, isImageFilename, isLocalImagePreview } from '../../../lib/image-assets';
-import { getChannelsState, channelToConfig, readImghubLevel } from '../../../lib/webdav-config';
+import { getChannelsState, channelToConfig, readImghubLevel, imageDir } from '../../../lib/webdav-config';
 import { storeListFiles } from '../../../lib/image-store';
 import { registryListByChannel, registryUpsert, registryRemove } from '../../../lib/image-registry';
 
@@ -39,9 +39,14 @@ export const GET: APIRoute = async ({ locals, request }) => {
         try {
           const files = await storeListFiles(locals, cfg);
           const foundNames = new Set<string>();
+          // 渠道里文件的身份 = 目录 + 文件名（对象存储渠道全桶列出后，同一渠道可有多个目录）
+          const foundKeys = new Set<string>();
+          for (const file of files) {
+            foundNames.add(file.filename);
+            foundKeys.add(`${file.dir ?? imageDir(cfg)}/${file.filename}`);
+          }
           for (const file of files) {
             if (!isImageFilename(file.filename)) continue;
-            foundNames.add(file.filename);
             images.push({
               filename: file.filename,
               url: getImageUrl(locals, file.filename, localPreview, request.url, cfg.linkPrefix),
@@ -52,7 +57,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
               channelKind: ch.kind,
             });
           }
-          // 与登记表对账：渠道里有的补登记，登记里有但渠道已没有的销记（自愈，不让失败拖垮列表）
+          // 与登记表对账：渠道里有的补登记（带实际目录），登记里有但渠道已没有的销记（自愈，不让失败拖垮列表）
           try {
             for (const file of files) {
               if (!isImageFilename(file.filename)) continue;
@@ -61,11 +66,12 @@ export const GET: APIRoute = async ({ locals, request }) => {
                 channelId: ch.id,
                 size: file.size,
                 lastmod: file.lastmod,
+                dir: file.dir,
               });
             }
             const registered = await registryListByChannel(locals, ch.id);
             for (const rec of registered) {
-              if (!foundNames.has(rec.filename)) {
+              if (!foundKeys.has(`${rec.dir ?? imageDir(cfg)}/${rec.filename}`)) {
                 await registryRemove(locals, ch.id, rec.filename);
               }
             }

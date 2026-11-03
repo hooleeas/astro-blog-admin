@@ -14,11 +14,10 @@ const valid = NOTE_FILE_RE.test(file);
       <h1 class="page-title">编辑随记</h1>
       {valid && <code id="file-name" class="note-filename">{file}</code>}
     </div>
-    <a class="btn btn-ghost" href="/notes">返回</a>
   </div>
 
   {!valid && (
-    <div class="card"><p style="color: #dc2626;">文件名不合法。</p><a href="/notes">← 返回列表</a></div>
+    <div class="card"><p style="color: #dc2626;">文件名不合法。</p></div>
   )}
 
   {valid && (

@@ -10,6 +10,7 @@ import {
   registryListByChannel,
   registryUpsert,
   registryRemove,
+  registryGet,
 } from './image-registry';
 
 /** Pages 项目里 R2 存储桶的绑定变量名（在 Pages 设置 → 函数 → R2 存储桶绑定里添加） */
@@ -47,6 +48,8 @@ export interface StoredImage {
   size: number;
   /** ISO 时间字符串 */
   lastmod: string;
+  /** 对象在桶内的实际目录（对象存储渠道全桶列出时带回；WebDAV/TG 不带） */
+  dir?: string;
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -83,8 +86,9 @@ function requireS3(cfg: WebdavConfig): void {
   }
 }
 
-function r2Key(cfg: WebdavConfig, filename: string): string {
-  return `${imageDir(cfg)}/${filename}`;
+function r2Key(cfg: WebdavConfig, filename: string, dir?: string): string {
+  const d = dir ?? imageDir(cfg);
+  return d ? `${d}/${filename}` : filename;
 }
 
 /* ---------------- WebDAV ---------------- */
@@ -148,8 +152,9 @@ function s3Client(p: S3Params): AwsClient {
   });
 }
 
-function s3ObjectUrl(p: S3Params, cfg: WebdavConfig, filename: string): string {
-  const key = `${imageDir(cfg)}/${filename}`;
+function s3ObjectUrl(p: S3Params, cfg: WebdavConfig, filename: string, dir?: string): string {
+  const d = dir ?? imageDir(cfg);
+  const key = d ? `${d}/${filename}` : filename;
   const encodedKey = key.split('/').map((seg) => encodeURIComponent(seg)).join('/');
   return `${p.endpoint}/${p.bucket}/${encodedKey}`;
 }
@@ -295,6 +300,15 @@ function regChannelId(cfg: WebdavConfig): string {
   return cfg.channelId ?? `legacy-${cfg.storage}`;
 }
 
+/**
+ * 某个文件在这个渠道里的实际存放目录：登记表记了就按登记的（对象存储渠道
+ * 全桶管理后，文件可能不在渠道当前目录下），没记按渠道目录。
+ */
+async function storedDir(locals: unknown, cfg: WebdavConfig, filename: string): Promise<string> {
+  const rec = await registryGet(locals, regChannelId(cfg), filename).catch(() => null);
+  return rec?.dir ?? imageDir(cfg);
+}
+
 export async function storeFileExists(locals: unknown, cfg: WebdavConfig, filename: string): Promise<boolean> {
   if (cfg.storage === 'tg') {
     requireTg(cfg);
@@ -303,16 +317,17 @@ export async function storeFileExists(locals: unknown, cfg: WebdavConfig, filena
   }
   if (cfg.storage === 's3') {
     const p = s3Params(cfg);
-    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), { method: 'HEAD' });
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename, await storedDir(locals, cfg, filename)), { method: 'HEAD' });
     return res.ok;
   }
   if (cfg.storage === 'r2') {
+    const dir = await storedDir(locals, cfg, filename);
     const bucket = getR2Binding(locals);
-    if (bucket) return (await bucket.head(r2Key(cfg, filename))) !== null;
+    if (bucket) return (await bucket.head(r2Key(cfg, filename, dir))) !== null;
     const blob = await getImageBlobStore(locals);
-    if (blob) return blob.exists(r2Key(cfg, filename));
+    if (blob) return blob.exists(r2Key(cfg, filename, dir));
     const p = r2S3Params(cfg);
-    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), { method: 'HEAD' });
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename, dir), { method: 'HEAD' });
     return res.ok;
   }
   const client = webdavClient(cfg);
@@ -328,6 +343,7 @@ export async function storePutFile(locals: unknown, cfg: WebdavConfig, filename:
       channelId: regChannelId(cfg),
       size: data.byteLength,
       lastmod: new Date().toISOString(),
+      dir: imageDir(cfg),
     });
   }
 }
@@ -420,25 +436,26 @@ export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename:
   }
   if (cfg.storage === 's3') {
     const p = s3Params(cfg);
-    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename));
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename, await storedDir(locals, cfg, filename)));
     if (!res.ok) await s3Error(res, '读取', p.label);
     return new Uint8Array(await res.arrayBuffer());
   }
   if (cfg.storage === 'r2') {
+    const dir = await storedDir(locals, cfg, filename);
     const bucket = getR2Binding(locals);
     if (bucket) {
-      const obj = await bucket.get(r2Key(cfg, filename));
+      const obj = await bucket.get(r2Key(cfg, filename, dir));
       if (!obj) fail(404, '图片不存在');
       return new Uint8Array(await obj.arrayBuffer());
     }
     const blob = await getImageBlobStore(locals);
     if (blob) {
-      const data = await blob.get(r2Key(cfg, filename));
+      const data = await blob.get(r2Key(cfg, filename, dir));
       if (!data) fail(404, '图片不存在');
       return new Uint8Array(data);
     }
     const p = r2S3Params(cfg);
-    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename));
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename, dir));
     if (!res.ok) await s3Error(res, '读取', p.label);
     return new Uint8Array(await res.arrayBuffer());
   }
@@ -447,10 +464,13 @@ export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename:
   return data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data as unknown as ArrayLike<number>);
 }
 
-/** S3 协议列目录（R2 密钥模式与 S3 渠道共用）：ListObjects V2 + XML 解析 */
+/**
+ * S3 协议列全桶（R2 密钥模式与 S3 渠道共用）：ListObjects V2 + XML 解析。
+ * 不限目录：桶里任何目录下的图都列出并带回实际目录——存储选择只是选上传渠道，
+ * 其他目录的图不能因为不在当前目录就从管理里消失（用户定）。
+ */
 async function s3ListFiles(p: S3Params, cfg: WebdavConfig): Promise<StoredImage[]> {
-  const prefix = `${imageDir(cfg)}/`;
-  const url = `${p.endpoint}/${p.bucket}?list-type=2&encoding-type=url&prefix=${encodeURIComponent(prefix)}`;
+  const url = `${p.endpoint}/${p.bucket}?list-type=2&encoding-type=url`;
   const res = await s3Client(p).fetch(url);
   if (!res.ok) await s3Error(res, '读取列表', p.label);
   const xml = await res.text();
@@ -461,13 +481,15 @@ async function s3ListFiles(p: S3Params, cfg: WebdavConfig): Promise<StoredImage[
     if (!rawKey) continue;
     let key = xmlUnescape(rawKey);
     try { key = decodeURIComponent(key); } catch {}
-    if (!key.startsWith(prefix)) continue;
-    const name = key.slice(prefix.length);
-    if (!name || name.includes('/')) continue;
+    if (!key || key.endsWith('/')) continue;
+    const slash = key.lastIndexOf('/');
+    const name = slash >= 0 ? key.slice(slash + 1) : key;
+    if (!name) continue;
     out.push({
       filename: name,
       size: Number(inner.match(/<Size>(\d+)<\/Size>/)?.[1] || 0),
       lastmod: inner.match(/<LastModified>([^<]+)<\/LastModified>/)?.[1] || '',
+      dir: slash >= 0 ? key.slice(0, slash) : '',
     });
   }
   return out;
@@ -485,18 +507,21 @@ export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promis
   if (cfg.storage === 'r2') {
     const bucket = getR2Binding(locals);
     if (bucket) {
-      const prefix = `${imageDir(cfg)}/`;
+      // 全桶列出（不限渠道目录）：其他目录下的图也要能看见、能管（用户定）
       const out: StoredImage[] = [];
       let cursor: string | undefined;
       for (let page = 0; page < 20; page++) {
-        const res = await bucket.list({ prefix, cursor, limit: 1000 });
+        const res = await bucket.list({ cursor, limit: 1000 });
         for (const obj of res.objects) {
-          const name = obj.key.slice(prefix.length);
-          if (!name || name.includes('/')) continue;
+          if (!obj.key || obj.key.endsWith('/')) continue;
+          const slash = obj.key.lastIndexOf('/');
+          const name = slash >= 0 ? obj.key.slice(slash + 1) : obj.key;
+          if (!name) continue;
           out.push({
             filename: name,
             size: obj.size,
             lastmod: obj.uploaded instanceof Date ? obj.uploaded.toISOString() : String(obj.uploaded || ''),
+            dir: slash >= 0 ? obj.key.slice(0, slash) : '',
           });
         }
         if (!res.truncated || !res.cursor) break;
@@ -506,13 +531,14 @@ export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promis
     }
     const blob = await getImageBlobStore(locals);
     if (blob) {
-      const prefix = `${imageDir(cfg)}/`;
-      const items = await blob.list(prefix);
+      const items = await blob.list('');
       const out: StoredImage[] = [];
       for (const it of items) {
-        const name = it.key.slice(prefix.length);
-        if (!name || name.includes('/')) continue;
-        out.push({ filename: name, size: it.size, lastmod: it.lastmod });
+        if (!it.key || it.key.endsWith('/')) continue;
+        const slash = it.key.lastIndexOf('/');
+        const name = slash >= 0 ? it.key.slice(slash + 1) : it.key;
+        if (!name) continue;
+        out.push({ filename: name, size: it.size, lastmod: it.lastmod, dir: slash >= 0 ? it.key.slice(0, slash) : '' });
       }
       return out;
     }
@@ -550,23 +576,24 @@ async function storeDeleteFileRaw(locals: unknown, cfg: WebdavConfig, filename: 
   }
   if (cfg.storage === 's3') {
     const p = s3Params(cfg);
-    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), { method: 'DELETE' });
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename, await storedDir(locals, cfg, filename)), { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await s3Error(res, '删除', p.label);
     return;
   }
   if (cfg.storage === 'r2') {
+    const dir = await storedDir(locals, cfg, filename);
     const bucket = getR2Binding(locals);
     if (bucket) {
-      await bucket.delete(r2Key(cfg, filename));
+      await bucket.delete(r2Key(cfg, filename, dir));
       return;
     }
     const blob = await getImageBlobStore(locals);
     if (blob) {
-      await blob.delete(r2Key(cfg, filename));
+      await blob.delete(r2Key(cfg, filename, dir));
       return;
     }
     const p = r2S3Params(cfg);
-    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename), { method: 'DELETE' });
+    const res = await s3Client(p).fetch(s3ObjectUrl(p, cfg, filename, dir), { method: 'DELETE' });
     if (!res.ok && res.status !== 204) await s3Error(res, '删除', p.label);
     return;
   }
