@@ -17,7 +17,7 @@ const nav = [
   { key: 'images', label: '图床', href: '/images' },
 ];
 
-// 顶栏左侧按钮：一级页面（各板块列表页）是「主页」→ 后台首页 /posts；进入二级页面变成「返回」→ 所属板块列表页（用户定）
+// 顶栏左侧按钮：一级页面（各板块列表页）是「主页」→ 站点根路径 /（图床主页）；进入二级页面变成「返回」→ 所属板块列表页（用户定）
 const SECTION_LANDINGS = ['/posts', '/notes', '/pages', '/images'];
 const currentPath = Astro.url.pathname;
 const isSectionLanding = SECTION_LANDINGS.includes(currentPath);
@@ -27,7 +27,7 @@ const sectionParent = (p: string): string =>
   : p.startsWith('/images') ? '/images'
   : '/pages'; // /pages/* 与 /data/* 都归「站点」
 const homeLabel = isSectionLanding ? '主页' : '返回';
-const homeHref = isSectionLanding ? '/posts' : sectionParent(currentPath);
+const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
 ---
 
 <!doctype html>
@@ -1665,7 +1665,7 @@ const homeHref = isSectionLanding ? '/posts' : sectionParent(currentPath);
 
       if (root.dataset.adminNavigationListeners !== 'true') {
         root.dataset.adminNavigationListeners = 'true';
-        // 顶栏左侧按钮：一级页面「主页」→ 后台首页 /posts；二级页面「返回」→ 所属板块列表页。
+        // 顶栏左侧按钮：一级页面「主页」→ 站点根路径 /；二级页面「返回」→ 所属板块列表页。
         // 站点页的内嵌编辑网址不变（仍是 /pages），页面另发 admin:site-subpage 通知切到「返回」，
         // 此时点按钮发 admin:site-go-home 让站点页自己退回卡片列表，不刷新页面（用户实报站点几个仍显主页）
         let siteSubpageActive = false;
@@ -1678,7 +1678,7 @@ const homeHref = isSectionLanding ? '/posts' : sectionParent(currentPath);
             homeLink.setAttribute('href', '/pages');
           } else if (['/posts', '/notes', '/pages', '/images'].includes(pathname)) {
             homeLink.textContent = '主页';
-            homeLink.setAttribute('href', '/posts');
+            homeLink.setAttribute('href', '/');
           } else {
             homeLink.textContent = '返回';
             homeLink.setAttribute('href',
