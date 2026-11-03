@@ -650,6 +650,13 @@ const nav = [
       .vv-img-preview { display: block; margin: 0 0 10px; width: 100%; max-width: 320px; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
       .vv-img-preview.square { width: 96px; height: 96px; aspect-ratio: 1 / 1; object-fit: contain; }
       .vv-lang-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+      /* 顶栏语言行：PC 端语言胶囊像移动端一样默认放在导航栏正下方（顶栏第二排、居中、贴得近、胶囊小一号），空时不占位（用户定） */
+      .topbar-lang-row { display: flex; justify-content: center; width: min(1320px, calc(100% - 40px)); margin: 0 auto; }
+      .topbar-lang-row:empty { display: none; }
+      .topbar:has(.topbar-lang-row:not(:empty)) .topbar-inner { margin-bottom: 2px; }
+      .topbar-lang-row .vv-lang-bar { position: static; margin: 0; }
+      .topbar-lang-row .editor-language-capsule { height: 36px; }
+      .topbar-lang-row .editor-language-tab { font-size: 12.5px; padding-inline: 9px; }
       /* 编辑语言：不要长条容器，只留语言胶囊本身、居中常驻导航栏下方第二排（sticky），下滑到哪都能切（用户定） */
       .vv-lang-bar {
         display: flex; align-items: center; justify-content: center;
@@ -1099,6 +1106,7 @@ const nav = [
             </div>
           </div>
         </div>
+        <div id="topbar-lang-row" class="topbar-lang-row"></div>
       </header>
     )    }
 

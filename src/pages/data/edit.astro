@@ -283,7 +283,7 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         addTargets = [];
         skippedLang = 0;
         visualReady = false;
-        currentLangBar = null;
+        if (currentLangBar) { currentLangBar.remove(); currentLangBar = null; }
         if (!isObj(working)) {
           visualEl.innerHTML = '<p class="hint">设置数据格式不正确，暂时无法编辑。</p>';
           siteAddButton.hidden = true;
@@ -675,13 +675,28 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         }
         return slot;
       }
+      function ensureLangRow() {
+        // 顶栏跨页复用，旧顶栏可能没有语言行，动态补建（插在导航行下方）
+        let row = document.getElementById('topbar-lang-row');
+        if (!row) {
+          const inner = document.querySelector('.topbar-inner');
+          if (!inner) return null;
+          row = document.createElement('div');
+          row.id = 'topbar-lang-row';
+          row.className = 'topbar-lang-row';
+          inner.after(row);
+        }
+        return row;
+      }
       function placeLangBar() {
         if (!currentLangBar) return;
-        const slot = mobileLangQuery.matches ? ensureLangSlot() : document.getElementById('topbar-lang-slot');
-        if (mobileLangQuery.matches && slot) {
-          if (currentLangBar.parentElement !== slot) slot.appendChild(currentLangBar);
-        } else if (currentLangBar.parentElement !== visualEl) {
-          visualEl.insertBefore(currentLangBar, visualEl.firstChild);
+        if (mobileLangQuery.matches) {
+          const slot = ensureLangSlot();
+          if (slot && currentLangBar.parentElement !== slot) slot.appendChild(currentLangBar);
+        } else {
+          // PC：像移动端一样默认放导航栏正下方（顶栏语言行）
+          const row = ensureLangRow();
+          if (row && currentLangBar.parentElement !== row) row.appendChild(currentLangBar);
         }
       }
       mobileLangQuery.addEventListener?.('change', placeLangBar);

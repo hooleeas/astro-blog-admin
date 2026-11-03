@@ -615,7 +615,35 @@ const key = Astro.url.searchParams.get('key') ?? '';
 
       saveButton.addEventListener('click', save);
       deleteAllButton.addEventListener('click', deleteAll);
+      placeLangTabs();
+      desktopLangQuery.addEventListener?.('change', placeLangTabs);
       load();
+    }
+
+    // PC 端语言胶囊放导航栏正下方（顶栏语言行，和设置页一致）；移动端留在页内选择行（用户定）
+    const desktopLangQuery = window.matchMedia('(min-width: 761px)');
+    function ensureTopbarLangRow(): HTMLElement | null {
+      let row = document.getElementById('topbar-lang-row');
+      if (!row) {
+        const inner = document.querySelector('.topbar-inner');
+        if (!inner) return null;
+        row = document.createElement('div');
+        row.id = 'topbar-lang-row';
+        row.className = 'topbar-lang-row';
+        inner.after(row);
+      }
+      return row;
+    }
+    function placeLangTabs(): void {
+      const tabs = document.getElementById('tabs');
+      const controls = document.querySelector('.editor-language-controls');
+      if (!tabs || !controls) return;
+      if (desktopLangQuery.matches) {
+        const row = ensureTopbarLangRow();
+        if (row && tabs.parentElement !== row) row.appendChild(tabs);
+      } else if (tabs.parentElement !== controls) {
+        controls.insertBefore(tabs, controls.firstChild);
+      }
     }
 
     document.addEventListener('astro:page-load', initializeEditor);
@@ -658,7 +686,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
       gap: 16px;
     }
     .editor-section-heading { margin-bottom: 12px; }
-    /* 语言版本选择行：不要外层容器，只留胶囊和按钮本身；居中紧凑、常驻导航栏下方第二排（sticky），下滑到哪都能切语言、保存（用户定） */
+    /* 语言版本选择行：不要外层容器，只留胶囊和按钮本身；居中紧凑、常驻导航栏下方（胶囊在顶栏语言行时，本行只剩保存/删除，贴在其下方），下滑到哪都能切语言、保存（用户定） */
     .editor-language-controls {
       display: flex;
       align-items: center;
@@ -667,7 +695,7 @@ const key = Astro.url.searchParams.get('key') ?? '';
       width: fit-content;
       max-width: 100%;
       margin-inline: auto;
-      position: sticky; top: 72px; z-index: 90;
+      position: sticky; top: 108px; z-index: 90;
     }
     @media (max-width: 760px) {
       /* 移动端第二排空间不够时整体缩小；有按钮时左对齐成一排（用户定） */
