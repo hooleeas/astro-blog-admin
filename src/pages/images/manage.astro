@@ -27,7 +27,6 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       <button id="batch-delete" class="btn btn-ghost delete-image" type="button" disabled>批量删除</button>
     </div>
     <div id="image-grid" class="image-grid"></div>
-    <div id="image-manager-toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
   </main>
 
   <dialog id="lightbox" class="lightbox" aria-label="图片预览">
@@ -101,7 +100,6 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const status = app.querySelector<HTMLElement>('#image-status')!;
       const count = app.querySelector<HTMLElement>('#image-count')!;
       const search = app.querySelector<HTMLInputElement>('#image-search')!;
-      const toast = document.querySelector<HTMLElement>('#image-manager-toast')!;
       const selectAll = app.querySelector<HTMLInputElement>('#select-all')!;
       const selectedCount = app.querySelector<HTMLElement>('#selected-count')!;
       const batchDeleteBtn = app.querySelector<HTMLButtonElement>('#batch-delete')!;
@@ -118,24 +116,6 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
       const selected = new Set<string>();
       let images: ManagedImage[] = [];
       let appliedQuery = '';
-      let toastTimer = 0;
-
-      function showToast(message: string) {
-        toast.textContent = message;
-        // 原生弹窗（showModal）在浏览器顶层，普通 toast 会被弹窗虚化背景盖住：用 Popover 把 toast 也送进顶层
-        if (typeof toast.showPopover === 'function') {
-          if (toast.matches(':popover-open')) toast.hidePopover();
-          toast.showPopover();
-        }
-        toast.classList.add('show');
-        window.clearTimeout(toastTimer);
-        toastTimer = window.setTimeout(() => {
-          toast.classList.remove('show');
-          window.setTimeout(() => {
-            if (!toast.classList.contains('show') && typeof toast.hidePopover === 'function' && toast.matches(':popover-open')) toast.hidePopover();
-          }, 300);
-        }, 2200);
-      }
 
       function updateToolbar(visible: ManagedImage[]) {
         const visibleSelected = visible.filter((image) => selected.has(image.filename)).length;
@@ -212,10 +192,9 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           copyButton.addEventListener('click', async () => {
             try {
               await navigator.clipboard.writeText(new URL(image.url, window.location.origin).href);
-              showToast('链接已复制');
+              (window as any).adminToast?.('链接已复制');
             } catch (error) {
-              status.textContent = `复制失败：${error instanceof Error ? error.message : String(error)}`;
-              status.classList.add('error');
+              (window as any).adminToast?.(`复制失败：${error instanceof Error ? error.message : String(error)}`, true);
             }
           });
           const deleteButton = document.createElement('button');
@@ -225,8 +204,6 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           deleteButton.addEventListener('click', async () => {
             if (!(await (window as any).adminConfirm?.(`确定删除图片“${image.filename}”吗？此操作无法撤销。`, { title: '删除图片' }))) return;
             deleteButton.disabled = true;
-            status.textContent = `正在删除：${image.filename}`;
-            status.classList.remove('error');
             try {
               const response = await fetch(`/api/images/${encodeURIComponent(image.filename)}`, { method: 'DELETE' });
               const result = await response.json();
@@ -234,10 +211,9 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
               images = images.filter((item) => item.filename !== image.filename);
               selected.delete(image.filename);
               render();
-              showToast('图片已删除');
+              (window as any).adminToast?.('图片已删除');
             } catch (error) {
-              status.textContent = `删除失败：${error instanceof Error ? error.message : String(error)}`;
-              status.classList.add('error');
+              (window as any).adminToast?.(`删除失败：${error instanceof Error ? error.message : String(error)}`, true);
               deleteButton.disabled = false;
             }
           });
@@ -258,8 +234,8 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
           images = result.data;
           render();
         } catch (error) {
-          status.textContent = `加载失败：${error instanceof Error ? error.message : String(error)}`;
-          status.classList.add('error');
+          status.textContent = '';
+          (window as any).adminToast?.(`加载失败：${error instanceof Error ? error.message : String(error)}`, true);
         }
       }
 
@@ -278,8 +254,6 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         let ok = 0;
         let failed = 0;
         for (const image of targets) {
-          status.textContent = `正在批量删除：${ok + failed + 1} / ${targets.length}（${image.filename}）`;
-          status.classList.remove('error');
           try {
             const response = await fetch(`/api/images/${encodeURIComponent(image.filename)}`, { method: 'DELETE' });
             const result = await response.json();
@@ -293,10 +267,9 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
         }
         render();
         if (failed) {
-          status.textContent = `批量删除完成：成功 ${ok} 张，失败 ${failed} 张`;
-          status.classList.add('error');
+          (window as any).adminToast?.(`批量删除完成：成功 ${ok} 张，失败 ${failed} 张`, true);
         } else if (ok) {
-          showToast(`已删除 ${ok} 张图片`);
+          (window as any).adminToast?.(`已删除 ${ok} 张图片`);
         }
       });
 

@@ -114,7 +114,6 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
           <button type="button" id="test-settings" class="btn btn-ghost">测试连接</button>
         </div>
       </form>
-      <p id="settings-msg" class="msg" role="status" aria-live="polite"></p>
     </div>
   </dialog>
 
@@ -163,7 +162,6 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       dialog.dataset.initialized = 'true';
 
       const form = requiredElement<HTMLFormElement>(document, '#cfg-form');
-      const msg = requiredElement<HTMLElement>(document, '#settings-msg');
       const testBtn = requiredElement<HTMLButtonElement>(document, '#test-settings');
       const passwordInput = requiredElement<HTMLInputElement>(document, '#settings-password');
       const urlInput = requiredElement<HTMLInputElement>(form, '[name="url"]');
@@ -194,8 +192,10 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       const closeButton = requiredElement<HTMLButtonElement>(dialog, '[data-close-settings]');
 
       function setSettingsMsg(text: string, ok: boolean) {
-        msg.textContent = text;
-        msg.className = 'msg ' + (ok ? 'ok' : 'err');
+        // 保存/测试连接的反馈只走站内弹窗，不再往弹窗里写状态字（用户定）；
+        // 「保存中…」「正在测试连接…」这类进行时文字直接不出。
+        if (text === '保存中…' || text === '正在测试连接…') return;
+        (window as any).adminToast?.(text === '已保存' ? '保存成功' : text, !ok);
       }
 
       function closeDialog() {
