@@ -704,9 +704,10 @@ const key = Astro.url.searchParams.get('key') ?? '';
       position: sticky; top: 108px; z-index: 90;
     }
     @media (max-width: 760px) {
-      /* 移动端第二排空间不够时整体缩小；有按钮时左对齐成一排（用户定） */
-      .editor-language-controls { top: 128px; gap: 8px; margin-inline: 0; justify-content: flex-start; }
-      .editor-language-controls .editor-actions .btn { min-height: 32px; padding: 5px 12px; font-size: 12.5px; }
+      /* 移动端：胶囊和保存/删除合并成一排（总共两排：导航 + 这一排），左对齐、不换行，按钮再缩小（用户定） */
+      .editor-language-controls { top: 76px; gap: 6px; margin-inline: 0; justify-content: flex-start; flex-wrap: nowrap; }
+      .editor-language-controls .editor-actions { flex-wrap: nowrap; gap: 6px; }
+      .editor-language-controls .editor-actions .btn { min-height: 28px; padding: 3px 9px; font-size: 12px; }
     }
     .editor-section-heading h2,
     .editor-card-heading h2 { margin: 0; font-size: 16px; }
@@ -1023,11 +1024,11 @@ const key = Astro.url.searchParams.get('key') ?? '';
       .editor-heading .editor-back { min-height: 34px; padding: 6px 11px; font-size: 12px; }
       .editor-overview { align-items: flex-start; flex-direction: column; padding: 14px 16px; margin-bottom: 22px; }
       .editor-load-status { text-align: left; }
-      .editor-language-controls { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+      .editor-language-controls { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px; }
       .editor-language .editor-actions .status { min-height: 0; }
-      .editor-language-capsule { max-width: 100%; height: 36px; }
-      .editor-language-tab { padding-inline: 9px; font-size: 12.5px; }
-      .editor-actions { flex-wrap: wrap; }
+      .editor-language-capsule { max-width: 100%; height: 32px; }
+      .editor-language-tab { padding-inline: 6px; font-size: 11.5px; }
+      .editor-actions { flex-wrap: nowrap; }
       .editor-actions .status { flex-basis: 100%; margin-left: 0; }
       .editor-card { padding: 17px; }
       .editor-fields { grid-template-columns: minmax(0, 1fr); gap: 14px; }

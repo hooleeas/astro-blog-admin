@@ -323,6 +323,8 @@ const nav = [
           display: flex; align-items: center; justify-content: flex-end; gap: 8px;
         }
         .topbar-actions .btn { flex: 0 0 auto; }
+        /* 文章编辑页移动端：顶栏的保存/删除与页内那套重复、单独占一排，隐藏它，页内胶囊+保存/删除合并成一排（用户定，总共两排） */
+        #post-save-btn, #post-delete-btn { display: none; }
         .topbar-home { position: relative; top: auto; right: auto; flex: 0 0 auto; }
         .topbar-actions .note-delete-button { flex: 0 0 auto; }
         .nav-capsule {
