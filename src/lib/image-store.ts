@@ -350,7 +350,9 @@ async function storePutFileRaw(locals: unknown, cfg: WebdavConfig, filename: str
     form.set('caption', filename);
     form.set('document', new Blob([data], { type: imageContentType(filename) }), filename);
     const message = await tgApi(cfg, 'sendDocument', form, true);
-    const doc = message?.document;
+    // Telegram 对 webp 有特殊处理：文件会被当作贴纸收下，返回消息里没有 document、
+    // 文件信息在 sticker 字段（file_id / file_size 齐全，出图照样走 getFile）
+    const doc = message?.document ?? message?.sticker;
     if (!doc?.file_id || typeof message?.message_id !== 'number') {
       fail(502, 'Telegram sendDocument 失败：返回数据不完整');
     }
