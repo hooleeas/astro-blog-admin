@@ -360,12 +360,15 @@ export interface DataStoreState {
   pref: DataStoreKind;
   /** 是否检测到 ADMIN_D1 绑定 */
   d1Bound: boolean;
+  /** 是否检测到 ADMIN_KV 绑定 */
+  kvBound: boolean;
 }
 
 export async function resolveDataStore(locals: unknown): Promise<DataStoreState> {
   const d1Bound = getD1Binding(locals) !== null;
+  const kvBound = getBinding(locals, 'ADMIN_KV') !== null;
   const pref = await getDataStorePref(locals);
-  return { pref, d1Bound, kind: pref === 'd1' && d1Bound ? 'd1' : 'kv' };
+  return { pref, d1Bound, kvBound, kind: pref === 'd1' && d1Bound ? 'd1' : 'kv' };
 }
 
 /** 账本应使用的 D1：数据存储生效为 D1 时返回绑定，否则 null */

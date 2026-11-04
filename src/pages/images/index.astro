@@ -169,9 +169,9 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
             channelSelect.appendChild(opt);
           }
           if (d.activeChannelId) channelSelect.value = d.activeChannelId;
-          // 数据存储：只有检测到 D1 绑定时才显示这一项，没检测到整项不出现（用户定）；
+          // 数据存储：KV 与 D1 两个绑定都检测到才有得选、才显示这一项，缺任何一个整项不出现（用户定）；
           // 接口在 EdgeOne 返回 null（固定 Blob），同样不显示
-          if (d.dataStore && d.dataStore.d1Bound && datastoreField && datastoreSelect && datastoreHint) {
+          if (d.dataStore && d.dataStore.d1Bound && d.dataStore.kvBound && datastoreField && datastoreSelect && datastoreHint) {
             datastoreField.hidden = false;
             datastoreActive = d.dataStore.active === 'd1' ? 'd1' : 'kv';
             datastoreSelect.value = datastoreActive;

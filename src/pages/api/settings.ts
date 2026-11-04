@@ -38,10 +38,10 @@ export const GET: APIRoute = async ({ locals }) => {
     const found = await getActiveChannel(locals);
     const level = await readImghubLevel(locals);
     // 数据存储（账本存 KV 还是 D1）：仅 Cloudflare 有这个选择，EdgeOne 固定 Blob 返回 null
-    let dataStore: { active: string; pref: string; d1Bound: boolean } | null = null;
+    let dataStore: { active: string; pref: string; d1Bound: boolean; kvBound: boolean } | null = null;
     if (!isEdgeOne(locals)) {
       const state = await resolveDataStore(locals);
-      dataStore = { active: state.kind, pref: state.pref, d1Bound: state.d1Bound };
+      dataStore = { active: state.kind, pref: state.pref, d1Bound: state.d1Bound, kvBound: state.kvBound };
     }
     return json({
       ok: true,
@@ -111,6 +111,12 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       if (target === 'd1' && !state.d1Bound) {
         return json(
           { ok: false, error: '未检测到 D1 绑定（ADMIN_D1），请先在 Cloudflare Pages 里绑定 D1 数据库' },
+          400,
+        );
+      }
+      if (target === 'kv' && !state.kvBound) {
+        return json(
+          { ok: false, error: '未检测到 KV 绑定（ADMIN_KV），无法切换到 KV' },
           400,
         );
       }
