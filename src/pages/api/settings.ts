@@ -11,7 +11,8 @@ import {
   normalizePageTitle,
 } from '../../lib/webdav-config';
 import { getR2Binding } from '../../lib/image-store';
-import { isEdgeOne } from '../../lib/platform';
+import { isEdgeOne, resolveDataStore, setDataStorePref } from '../../lib/platform';
+import { migrateDataStore } from '../../lib/datastore';
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -36,6 +37,12 @@ export const GET: APIRoute = async ({ locals }) => {
   try {
     const found = await getActiveChannel(locals);
     const level = await readImghubLevel(locals);
+    // 数据存储（账本存 KV 还是 D1）：仅 Cloudflare 有这个选择，EdgeOne 固定 Blob 返回 null
+    let dataStore: { active: string; pref: string; d1Bound: boolean } | null = null;
+    if (!isEdgeOne(locals)) {
+      const state = await resolveDataStore(locals);
+      dataStore = { active: state.kind, pref: state.pref, d1Bound: state.d1Bound };
+    }
     return json({
       ok: true,
       data: {
@@ -45,6 +52,7 @@ export const GET: APIRoute = async ({ locals }) => {
         pageTitle: level.pageTitle,
         hasR2Binding: getR2Binding(locals) !== null,
         hasBlobBackend: isEdgeOne(locals),
+        dataStore,
       },
     });
   } catch (e) {
@@ -59,6 +67,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       activeChannelId?: unknown;
       webp?: unknown;
       pageTitle?: unknown;
+      dataStore?: unknown;
     } | null;
     if (!body || typeof body !== 'object') {
       return json({ ok: false, error: '请求体必须是 JSON' }, 400);
@@ -87,6 +96,28 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     }
     if (patch.webp !== undefined || patch.pageTitle !== undefined) {
       await saveImghubLevel(locals, patch);
+    }
+
+    // 数据存储切换（放最后：前面的校验都过了才搬家）：搬家成功后才写新偏好
+    if (body.dataStore !== undefined) {
+      if (body.dataStore !== 'kv' && body.dataStore !== 'd1') {
+        return json({ ok: false, error: '数据存储取值不合法' }, 400);
+      }
+      if (isEdgeOne(locals)) {
+        return json({ ok: false, error: 'EdgeOne 的数据固定存 Blob，没有此选择' }, 400);
+      }
+      const target = body.dataStore;
+      const state = await resolveDataStore(locals);
+      if (target === 'd1' && !state.d1Bound) {
+        return json(
+          { ok: false, error: '未检测到 D1 绑定（ADMIN_D1），请先在 Cloudflare Pages 里绑定 D1 数据库' },
+          400,
+        );
+      }
+      if (target !== state.kind) {
+        await migrateDataStore(locals, target);
+      }
+      await setDataStorePref(locals, target);
     }
     return json({ ok: true });
   } catch (e) {

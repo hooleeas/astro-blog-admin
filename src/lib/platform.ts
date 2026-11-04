@@ -209,9 +209,10 @@ export async function getKVStore(locals: unknown): Promise<KvLike | null> {
 }
 
 /* ---------------- D1（元数据可选后端，仅 Cloudflare） ----------------
- * KV 免费额度较紧：绑了 D1 数据库（变量名 ADMIN_D1）时，应用账本
- * （配置、渠道、图片登记表）改存 D1——meta 表存键值账本、images 表存登记表，
- * 表在首次使用时自动建好。没有 D1 绑定时一切照旧走 KV。
+ * KV 免费额度较紧：应用账本（配置、渠道、图片登记表）可改存 D1——
+ * meta 表存键值账本、images 表存登记表，表在首次使用时自动建好。
+ * 存 KV 还是 D1 由图床设置里的「数据存储」决定（见下方数据存储选择一节）：
+ * 默认 KV；选了 D1 且检测到 ADMIN_D1 绑定时才实际走 D1。
  * EdgeOne 没有 D1，账本继续走 Blob，不受影响。
  */
 
@@ -240,7 +241,7 @@ export function getD1Binding(locals: unknown): D1Like | null {
 
 let d1MetaReady: Promise<void> | null = null;
 
-function ensureD1MetaTable(db: D1Like): Promise<void> {
+export function ensureD1MetaTable(db: D1Like): Promise<void> {
   if (!d1MetaReady) {
     d1MetaReady = db
       .prepare('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
@@ -293,16 +294,62 @@ function d1MetaStore(db: D1Like, kvFallback: KvLike | null): KvLike {
 /**
  * 取应用账本存储（配置/渠道等键值数据），按优先级：
  * - EdgeOne：同 getKVStore（Blob）；
- * - Cloudflare：绑了 D1（ADMIN_D1）时用 D1（KV 数据懒迁移），否则 KV。
+ * - Cloudflare：数据存储生效为 D1 时用 D1（D1 里没有的 key 首次读时从 KV 懒拷贝），否则 KV。
  */
 export async function getMetaStore(locals: unknown): Promise<KvLike | null> {
   if (isEdgeOne(locals)) return getKVStore(locals);
-  const db = getD1Binding(locals);
+  const db = await resolveD1(locals);
   if (db) {
     const kv = await getKVStore(locals).catch(() => null);
     return d1MetaStore(db, kv);
   }
   return getKVStore(locals);
+}
+
+/* ---------------- 数据存储选择（仅 Cloudflare） ----------------
+ * 账本存 KV 还是 D1 由图床设置里的「数据存储」决定：
+ * - 偏好键钉在 KV（DATASTORE_PREF_KEY），不参与两边搬家，永远从 KV 直读；
+ * - 未设置偏好默认 KV；选了 D1 也要检测到 ADMIN_D1 绑定才实际生效；
+ * - EdgeOne 没有这个选择：账本固定走 Blob，偏好恒为 KV（不适用）。
+ */
+export const DATASTORE_PREF_KEY = 'settings:datastore';
+export type DataStoreKind = 'kv' | 'd1';
+
+export async function getDataStorePref(locals: unknown): Promise<DataStoreKind> {
+  if (isEdgeOne(locals)) return 'kv';
+  try {
+    const kv = await getKVStore(locals);
+    const v = kv ? await kv.get(DATASTORE_PREF_KEY).catch(() => null) : null;
+    return v === 'd1' ? 'd1' : 'kv';
+  } catch {
+    return 'kv';
+  }
+}
+
+export async function setDataStorePref(locals: unknown, kind: DataStoreKind): Promise<void> {
+  const kv = await getKVStore(locals);
+  if (kv) await kv.put(DATASTORE_PREF_KEY, kind);
+}
+
+export interface DataStoreState {
+  /** 实际生效的数据存储 */
+  kind: DataStoreKind;
+  /** 用户已保存的选择 */
+  pref: DataStoreKind;
+  /** 是否检测到 ADMIN_D1 绑定 */
+  d1Bound: boolean;
+}
+
+export async function resolveDataStore(locals: unknown): Promise<DataStoreState> {
+  const d1Bound = getD1Binding(locals) !== null;
+  const pref = await getDataStorePref(locals);
+  return { pref, d1Bound, kind: pref === 'd1' && d1Bound ? 'd1' : 'kv' };
+}
+
+/** 账本应使用的 D1：数据存储生效为 D1 时返回绑定，否则 null */
+export async function resolveD1(locals: unknown): Promise<D1Like | null> {
+  const { kind } = await resolveDataStore(locals);
+  return kind === 'd1' ? getD1Binding(locals) : null;
 }
 
 /* ---------------- 图片对象存储（EdgeOne Blob） ---------------- */

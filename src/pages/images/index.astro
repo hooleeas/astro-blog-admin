@@ -41,6 +41,14 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
           <select class="input" name="channel" id="settings-channel" data-r2-label={objectStorageLabel}></select>
           <span class="hint">图片实际存放在所选渠道中；各渠道的参数（地址、密钥、对外连接路径等）在顶栏「存储」页管理。切换存储不会迁移已有图片。</span>
         </label>
+        <label class="field" id="datastore-field" hidden>
+          <span class="flabel">数据存储</span>
+          <select class="input" name="dataStore" id="settings-datastore">
+            <option value="kv">KV</option>
+            <option value="d1">D1</option>
+          </select>
+          <span class="hint" id="datastore-hint"></span>
+        </label>
         <label class="field">
           <span class="flabel">公开页标题</span>
           <input class="input" name="pageTitle" type="text" placeholder="图床" maxlength="60" />
@@ -112,6 +120,10 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       const webpInput = requiredElement<HTMLInputElement>(form, '[name="webp"]');
       const pageTitleInput = requiredElement<HTMLInputElement>(form, '[name="pageTitle"]');
       const channelSelect = requiredElement<HTMLSelectElement>(document, '#settings-channel');
+      const datastoreField = document.querySelector<HTMLElement>('#datastore-field');
+      const datastoreSelect = document.querySelector<HTMLSelectElement>('#settings-datastore');
+      const datastoreHint = document.querySelector<HTMLElement>('#datastore-hint');
+      let datastoreActive = 'kv';
       const r2Label = channelSelect.dataset.r2Label || 'R2';
       const KIND_LABELS: Record<string, string> = { webdav: 'WebDAV', r2: r2Label, s3: 'S3', tg: 'Telegram' };
       const closeButton = requiredElement<HTMLButtonElement>(dialog, '[data-close-settings]');
@@ -157,6 +169,19 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
             channelSelect.appendChild(opt);
           }
           if (d.activeChannelId) channelSelect.value = d.activeChannelId;
+          // 数据存储：接口在 EdgeOne 返回 null（固定 Blob）就不显示这一项；
+          // Cloudflare 未检测到 D1 绑定时整项禁用，只有绑定了才能选（用户定）
+          if (d.dataStore && datastoreField && datastoreSelect && datastoreHint) {
+            datastoreField.hidden = false;
+            datastoreActive = d.dataStore.active === 'd1' ? 'd1' : 'kv';
+            datastoreSelect.value = datastoreActive;
+            if (!d.dataStore.d1Bound) {
+              datastoreSelect.disabled = true;
+              datastoreHint.textContent = '图床的配置与图片登记存放位置。未检测到 D1 绑定（ADMIN_D1），在 Cloudflare Pages 里绑定 D1 数据库后才能选择。';
+            } else {
+              datastoreHint.textContent = '图床的配置与图片登记存放位置；切换时把数据整体搬过去，并清空原位置，只留一份。';
+            }
+          }
         }
       }).catch(() => setSettingsMsg('读取设置失败：网络错误', false));
 
@@ -168,6 +193,15 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
           pageTitle: pageTitleInput.value.trim(),
         };
         if (channelSelect.value) body.activeChannelId = channelSelect.value;
+        if (
+          datastoreSelect &&
+          datastoreField &&
+          !datastoreField.hidden &&
+          !datastoreSelect.disabled &&
+          datastoreSelect.value !== datastoreActive
+        ) {
+          body.dataStore = datastoreSelect.value;
+        }
         try {
           const response = await fetch('/api/settings', {
             method: 'PUT',
@@ -176,6 +210,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
           });
           const result = await response.json();
           if (result.ok) {
+            if (body.dataStore) datastoreActive = String(body.dataStore);
             setSettingsMsg('已保存', true);
           } else {
             setSettingsMsg(result.error || '保存失败', false);

@@ -1,11 +1,11 @@
-import { getD1Binding, getMetaStore, isEdgeOne, type D1Like } from './platform';
+import { getMetaStore, resolveD1, type D1Like } from './platform';
 
 /**
  * 图片登记表：每张图一条记录，只记「文件名 + 渠道 ID + 大小 + 时间」，
  * Telegram 的图另存 fileId / messageId（读图与删消息要用）。
  * 归属判断、出图定位、管理页分组都查这张表，不再挨个渠道现查目录。
  *
- * 存储后端与账本一致：Cloudflare 绑了 D1（ADMIN_D1）时用 D1 的 images 表
+ * 存储后端与账本一致：数据存储生效为 D1 时用 D1 的 images 表
  * （一行一条）；否则整表存配置存储里一个 JSON 键（images:registry）；
  * EdgeOne 走 Blob 配置存储里的同一个键。
  */
@@ -25,24 +25,30 @@ export interface ImageRecord {
 
 const REGISTRY_KEY = 'images:registry';
 
-function useD1(locals: unknown): D1Like | null {
-  if (isEdgeOne(locals)) return null;
-  return getD1Binding(locals);
+async function useD1(locals: unknown): Promise<D1Like | null> {
+  return resolveD1(locals);
 }
 
 let d1ImagesReady: Promise<void> | null = null;
 
-function ensureD1ImagesTable(db: D1Like): Promise<void> {
+export function ensureD1ImagesTable(db: D1Like): Promise<void> {
   if (!d1ImagesReady) {
     d1ImagesReady = db
       .prepare(
         'CREATE TABLE IF NOT EXISTS images (' +
           'channel_id TEXT NOT NULL, filename TEXT NOT NULL, ' +
           'size INTEGER NOT NULL DEFAULT 0, lastmod TEXT NOT NULL DEFAULT \'\', ' +
-          'tg_file_id TEXT, tg_message_id INTEGER, ' +
+          'tg_file_id TEXT, tg_message_id INTEGER, dir TEXT, ' +
           'PRIMARY KEY (channel_id, filename))',
       )
       .run()
+      .then(async () => {
+        // 早期建表语句漏了 dir 列（读写 SQL 都带 dir，缺列会报错）：已存在的表补上
+        const cols = await db.prepare('PRAGMA table_info(images)').all<{ name: string }>();
+        if (!(cols.results ?? []).some((c) => c.name === 'dir')) {
+          await db.prepare('ALTER TABLE images ADD COLUMN dir TEXT').run();
+        }
+      })
       .then(() => undefined)
       .catch(() => {
         d1ImagesReady = null;
@@ -58,6 +64,7 @@ interface ImageRow {
   lastmod: string;
   tg_file_id: string | null;
   tg_message_id: number | null;
+  dir: string | null;
 }
 
 function rowToRecord(row: ImageRow): ImageRecord {
@@ -69,6 +76,7 @@ function rowToRecord(row: ImageRow): ImageRecord {
   };
   if (row.tg_file_id) rec.tgFileId = row.tg_file_id;
   if (typeof row.tg_message_id === 'number') rec.tgMessageId = row.tg_message_id;
+  if (row.dir) rec.dir = row.dir;
   return rec;
 }
 
@@ -101,7 +109,7 @@ async function jsonSave(locals: unknown, items: ImageRecord[]): Promise<void> {
 
 /** 登记表全部记录 */
 export async function registryListAll(locals: unknown): Promise<ImageRecord[]> {
-  const db = useD1(locals);
+  const db = await useD1(locals);
   if (db) {
     await ensureD1ImagesTable(db);
     const res = await db
@@ -114,7 +122,7 @@ export async function registryListAll(locals: unknown): Promise<ImageRecord[]> {
 
 /** 某个渠道名下的全部记录 */
 export async function registryListByChannel(locals: unknown, channelId: string): Promise<ImageRecord[]> {
-  const db = useD1(locals);
+  const db = await useD1(locals);
   if (db) {
     await ensureD1ImagesTable(db);
     const res = await db
@@ -128,7 +136,7 @@ export async function registryListByChannel(locals: unknown, channelId: string):
 
 /** 按文件名找记录（可能命中多个渠道） */
 export async function registryFindByFilename(locals: unknown, filename: string): Promise<ImageRecord[]> {
-  const db = useD1(locals);
+  const db = await useD1(locals);
   if (db) {
     await ensureD1ImagesTable(db);
     const res = await db
@@ -142,7 +150,7 @@ export async function registryFindByFilename(locals: unknown, filename: string):
 
 /** 取一条记录；不存在返回 null */
 export async function registryGet(locals: unknown, channelId: string, filename: string): Promise<ImageRecord | null> {
-  const db = useD1(locals);
+  const db = await useD1(locals);
   if (db) {
     await ensureD1ImagesTable(db);
     const row = await db
@@ -159,7 +167,7 @@ export async function registryGet(locals: unknown, channelId: string, filename: 
  * （管理页对账回填时只有文件名/大小/时间，不能把 fileId 冲掉）。
  */
 export async function registryUpsert(locals: unknown, rec: ImageRecord): Promise<void> {
-  const db = useD1(locals);
+  const db = await useD1(locals);
   if (db) {
     await ensureD1ImagesTable(db);
     const old = await registryGet(locals, rec.channelId, rec.filename);
@@ -197,7 +205,7 @@ export async function registryUpsert(locals: unknown, rec: ImageRecord): Promise
 
 /** 删除一条记录；不存在时静默通过 */
 export async function registryRemove(locals: unknown, channelId: string, filename: string): Promise<void> {
-  const db = useD1(locals);
+  const db = await useD1(locals);
   if (db) {
     await ensureD1ImagesTable(db);
     await db
