@@ -62,7 +62,6 @@ const embedded = Astro.url.searchParams.get('embedded') === '1';
       newPageToggle.addEventListener('click', () => {
         const dialog = document.querySelector<HTMLDialogElement>('#new-page-dialog');
         dialog?.showModal();
-        document.querySelector<HTMLInputElement>('#new-slug')?.focus();
       });
     }
     cancelNewPage?.addEventListener('click', () => {

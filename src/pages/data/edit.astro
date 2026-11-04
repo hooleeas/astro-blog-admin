@@ -865,7 +865,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         });
         addOptions.appendChild(form);
         addDialog.showModal();
-        (nameInput ?? form.querySelector('input'))?.focus();
         addDialog.addEventListener('close', () => {
           addDialogTitle.textContent = '选择新增列表';
           addDialogDescription.textContent = '选择要添加项目的列表。';
@@ -1033,7 +1032,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         });
         addOptions.appendChild(form);
         addDialog.showModal();
-        titleInput.focus();
         addDialog.addEventListener('close', () => {
           addDialogTitle.textContent = '选择新增列表';
           addDialogDescription.textContent = '选择要添加项目的列表。';
@@ -1081,7 +1079,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         });
         addOptions.appendChild(form);
         addDialog.showModal();
-        hrefInput.focus();
         addDialog.addEventListener('close', () => {
           addDialogTitle.textContent = '选择新增列表';
           addDialogDescription.textContent = '选择要添加项目的列表。';
@@ -1191,7 +1188,6 @@ const settingTitle = settingTitles[name] ?? '页面设置';
         });
         addOptions.appendChild(form);
         addDialog.showModal();
-        (nameInput ?? form.querySelector('input'))?.focus();
         addDialog.addEventListener('close', () => {
           addDialogTitle.textContent = '选择新增列表';
           addDialogDescription.textContent = '选择要添加项目的列表。';

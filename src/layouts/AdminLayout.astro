@@ -1457,7 +1457,8 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
 
       // 主题切换（机制与博客前台一致）
       let adminThemeTimeout: number | undefined;
-      // 弹窗打开时浏览器会自动聚焦第一个按钮并带出系统蓝圈：统一把焦点先落在弹窗本身（页面随后自行聚焦输入框的不受影响）
+      // 弹窗打开时浏览器会自动聚焦第一个按钮并带出系统蓝圈：统一把焦点先落在弹窗本身；
+      // 且任何弹窗打开后都不自动聚焦输入框（用户定：免得移动端键盘自动弹出，要输入自己点）
       const dialogProto = HTMLDialogElement.prototype as HTMLDialogElement & { __focusPatched?: boolean; __scrollLocks?: number };
       if (!dialogProto.__focusPatched) {
         dialogProto.__focusPatched = true;
@@ -1505,7 +1506,6 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
           newPostStatus.textContent = '';
           newPostInput.value = '';
           newPostDialog.showModal();
-          newPostInput.focus();
         });
         newPostDialog.querySelectorAll<HTMLButtonElement>('[data-close-new-post]').forEach((button) => {
           button.addEventListener('click', () => newPostDialog.close());
@@ -1559,7 +1559,6 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
           newNoteStatus.textContent = '';
           newNoteInput.value = '';
           newNoteDialog.showModal();
-          newNoteInput.focus();
         });
         newNoteDialog.querySelectorAll<HTMLButtonElement>('[data-close-new-note]').forEach((button) => {
           button.addEventListener('click', () => newNoteDialog.close());
