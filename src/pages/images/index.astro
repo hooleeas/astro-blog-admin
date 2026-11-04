@@ -482,6 +482,9 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
     .settings-dialog-head h2 { margin: 0; font-size: 20px; }
     .settings-dialog-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
     .settings-dialog-content { padding: 18px 24px 24px; }
+    /* 保存按钮：小一号，固定在弹窗内容区右下角（用户定） */
+    .settings-dialog-content .actions { justify-content: flex-end; }
+    .settings-dialog-content .actions .btn { min-height: 32px; padding: 6px 14px; font-size: 12.5px; }
     .settings-close {
       display: grid;
       width: 36px;
