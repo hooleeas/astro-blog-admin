@@ -11,7 +11,7 @@ import {
   normalizePageTitle,
 } from '../../lib/webdav-config';
 import { getR2Binding } from '../../lib/image-store';
-import { isEdgeOne, resolveDataStore, setDataStorePref } from '../../lib/platform';
+import { isEdgeOne, resolveDataStore } from '../../lib/platform';
 import { migrateDataStore } from '../../lib/datastore';
 
 function json(data: unknown, status = 200): Response {
@@ -98,7 +98,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       await saveImghubLevel(locals, patch);
     }
 
-    // 数据存储切换（放最后：前面的校验都过了才搬家）：搬家成功后才写新偏好
+    // 数据存储切换（放最后：前面的校验都过了才搬家）：标记随搬家写进目标端，源端彻底清空
     if (body.dataStore !== undefined) {
       if (body.dataStore !== 'kv' && body.dataStore !== 'd1') {
         return json({ ok: false, error: '数据存储取值不合法' }, 400);
@@ -117,7 +117,6 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       if (target !== state.kind) {
         await migrateDataStore(locals, target);
       }
-      await setDataStorePref(locals, target);
     }
     return json({ ok: true });
   } catch (e) {

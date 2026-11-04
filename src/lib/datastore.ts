@@ -11,9 +11,11 @@ import { ensureD1ImagesTable, type ImageRecord } from './image-registry';
 
 /**
  * 数据存储搬家（仅 Cloudflare）：把账本整体从 KV 搬到 D1、或反向搬回 KV。
- * 搬家语义（用户定）：拷贝到目标端并校验条数一致后，清空源端，只留一份数据。
- * 偏好键（settings:datastore）钉在 KV、不参与搬家；新偏好由调用方在搬家
- * 成功后最后写入——中途失败时偏好不变，应用仍按旧偏好读源端数据。
+ * 搬家语义（用户定）：拷贝到目标端并校验条数一致后，源端彻底清空，一个键、
+ * 一行都不留，只留一份数据。标记（settings:datastore）随数据一起搬：写进
+ * 目标端（D1 时是 meta 表的一行，KV 时是普通数据键），表示「当前生效的是谁」；
+ * 判定逻辑先查 D1 的标记，所以标记必须在清空源端之前先落进目标端，
+ * 中途失败时标记还在源端、应用继续按旧存储读，不会丢账。
  *
  * 搬家范围 = ADMIN_KV 命名空间里的全部键（该命名空间为本应用专用）：
  * - 一般键 → D1 的 meta 表（反向同理）；
@@ -93,7 +95,8 @@ export async function migrateDataStore(
 }
 
 async function moveToD1(kv: RawKv, db: D1Like): Promise<{ metaKeys: number; images: number }> {
-  const names = (await listAllKvKeys(kv)).filter((n) => n !== DATASTORE_PREF_KEY);
+  // KV 的全部键都要搬走/清掉（含旧标记键），一个不留
+  const names = await listAllKvKeys(kv);
   const metaEntries: [string, string][] = [];
   let records: ImageRecord[] = [];
   for (const name of names) {
@@ -106,7 +109,8 @@ async function moveToD1(kv: RawKv, db: D1Like): Promise<{ metaKeys: number; imag
       } catch {
         records = [];
       }
-    } else {
+    } else if (name !== DATASTORE_PREF_KEY) {
+      // 标记键不按原值拷贝：下面统一在 D1 里写 'd1'
       metaEntries.push([name, value]);
     }
   }
@@ -117,6 +121,11 @@ async function moveToD1(kv: RawKv, db: D1Like): Promise<{ metaKeys: number; imag
       .bind(k, v)
       .run();
   }
+  // 标记最后落进 D1：从这一行起，判定逻辑认 D1 为当前存储
+  await db
+    .prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)')
+    .bind(DATASTORE_PREF_KEY, 'd1')
+    .run();
   for (const rec of records) {
     await db
       .prepare(
@@ -134,10 +143,10 @@ async function moveToD1(kv: RawKv, db: D1Like): Promise<{ metaKeys: number; imag
       .run();
   }
 
-  // 校验条数（目标端只多不少于本次搬入量）后才清源端
+  // 校验条数（目标端只多不少于本次搬入量，含标记行）后才彻底清源端
   const metaCount = await db.prepare('SELECT COUNT(*) AS n FROM meta').first<{ n: number }>();
   const imgCount = await db.prepare('SELECT COUNT(*) AS n FROM images').first<{ n: number }>();
-  if (Number(metaCount?.n ?? -1) < metaEntries.length || Number(imgCount?.n ?? -1) < records.length) {
+  if (Number(metaCount?.n ?? -1) < metaEntries.length + 1 || Number(imgCount?.n ?? -1) < records.length) {
     throw { status: 500, message: '搬家校验失败：D1 里的条数对不上，KV 原数据已保留' };
   }
   for (const name of names) await kv.delete(name);
@@ -146,6 +155,7 @@ async function moveToD1(kv: RawKv, db: D1Like): Promise<{ metaKeys: number; imag
 
 async function moveToKv(kv: RawKv, db: D1Like): Promise<{ metaKeys: number; images: number }> {
   const metaRes = await db.prepare('SELECT key, value FROM meta').all<{ key: string; value: string }>();
+  // 标记行不按原值（'d1'）拷贝：下面统一在 KV 里写 'kv'
   const metaRows = (metaRes.results ?? []).filter((r) => r.key !== DATASTORE_PREF_KEY);
   const imgRes = await db
     .prepare('SELECT channel_id, filename, size, lastmod, tg_file_id, tg_message_id, dir FROM images')
@@ -153,6 +163,8 @@ async function moveToKv(kv: RawKv, db: D1Like): Promise<{ metaKeys: number; imag
   const imgRows = imgRes.results ?? [];
 
   for (const row of metaRows) await kv.put(row.key, row.value);
+  // 标记落进 KV（就是普通数据键之一）：当前存储 = KV
+  await kv.put(DATASTORE_PREF_KEY, 'kv');
   const records: ImageRecord[] = imgRows.map((r) => {
     const rec: ImageRecord = {
       channelId: r.channel_id,

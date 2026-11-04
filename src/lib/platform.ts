@@ -308,27 +308,29 @@ export async function getMetaStore(locals: unknown): Promise<KvLike | null> {
 
 /* ---------------- 数据存储选择（仅 Cloudflare） ----------------
  * 账本存 KV 还是 D1 由图床设置里的「数据存储」决定：
- * - 偏好键钉在 KV（DATASTORE_PREF_KEY），不参与两边搬家，永远从 KV 直读；
- * - 未设置偏好默认 KV；选了 D1 也要检测到 ADMIN_D1 绑定才实际生效；
- * - EdgeOne 没有这个选择：账本固定走 Blob，偏好恒为 KV（不适用）。
+ * - 标记（DATASTORE_PREF_KEY）就存在当前生效的那个存储里：生效为 D1 时它是
+ *   D1 meta 表里的一行，生效为 KV 时它是 KV 里的数据键之一；未生效的那一端
+ *   不留任何数据（切换时彻底清空，用户定）；
+ * - 判定：绑了 D1 就先查 D1 里的标记，是 'd1' 即 D1，否则一律 KV（默认 KV）；
+ * - EdgeOne 没有这个选择：账本固定走 Blob，本节不适用。
  */
 export const DATASTORE_PREF_KEY = 'settings:datastore';
 export type DataStoreKind = 'kv' | 'd1';
 
 export async function getDataStorePref(locals: unknown): Promise<DataStoreKind> {
   if (isEdgeOne(locals)) return 'kv';
+  const db = getD1Binding(locals);
+  if (!db) return 'kv';
   try {
-    const kv = await getKVStore(locals);
-    const v = kv ? await kv.get(DATASTORE_PREF_KEY).catch(() => null) : null;
-    return v === 'd1' ? 'd1' : 'kv';
+    await ensureD1MetaTable(db);
+    const row = await db
+      .prepare('SELECT value FROM meta WHERE key = ?')
+      .bind(DATASTORE_PREF_KEY)
+      .first<{ value: string }>();
+    return row?.value === 'd1' ? 'd1' : 'kv';
   } catch {
     return 'kv';
   }
-}
-
-export async function setDataStorePref(locals: unknown, kind: DataStoreKind): Promise<void> {
-  const kv = await getKVStore(locals);
-  if (kv) await kv.put(DATASTORE_PREF_KEY, kind);
 }
 
 export interface DataStoreState {
