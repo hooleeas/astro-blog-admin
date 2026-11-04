@@ -37,7 +37,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
     <div class="settings-dialog-content">
       <form id="cfg-form" class="form" autocomplete="off">
         <label class="field">
-          <span class="flabel">存储</span>
+          <span class="flabel">图片存储</span>
           <select class="input" name="channel" id="settings-channel" data-r2-label={objectStorageLabel}></select>
           <span class="hint">图片实际存放在所选渠道中；各渠道的参数（地址、密钥、对外连接路径等）在顶栏「存储」页管理。切换存储不会迁移已有图片。</span>
         </label>
@@ -483,8 +483,8 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
   </script>
 
   <style is:global>
-    /* 存储渠道选择框：去掉原生外观（macOS 系统自绘按钮不认圆角、高度压不实），自绘下拉箭头，圆角与高度都与文本输入框一致 */
-    #settings-channel {
+    /* 设置弹窗里的选择框（图片存储 / 数据存储共用）：去掉原生外观（macOS 系统自绘按钮不认圆角、高度压不实），自绘下拉箭头，圆角与高度都与文本输入框一致 */
+    #settings-channel, #settings-datastore {
       height: 42px; padding-top: 0; padding-bottom: 0; padding-right: 38px;
       -webkit-appearance: none; appearance: none;
       background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
