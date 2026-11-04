@@ -11,7 +11,7 @@ import {
   normalizePageTitle,
 } from '../../lib/webdav-config';
 import { getR2Binding } from '../../lib/image-store';
-import { isEdgeOne, resolveDataStore } from '../../lib/platform';
+import { isEdgeOne, resolveDataStore, setDataStorePref } from '../../lib/platform';
 import { migrateDataStore } from '../../lib/datastore';
 
 function json(data: unknown, status = 200): Response {
@@ -117,6 +117,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       if (target !== state.kind) {
         await migrateDataStore(locals, target);
       }
+      await setDataStorePref(locals, target);
     }
     return json({ ok: true });
   } catch (e) {
