@@ -10,6 +10,12 @@ export interface RuntimeEnv {
   GITHUB_NAME?: string;
   GITHUB_REPO?: string;
   GITHUB_BRANCH?: string;
+  /** 账号密码登录：用户名（与 ADMIN_PASSWORD、GITHUB_PAT 三者齐全时启用） */
+  ADMIN_USER?: string;
+  /** 账号密码登录：密码（明文存于平台变量，与 CLIENT_SECRET 同级保管） */
+  ADMIN_PASSWORD?: string;
+  /** 账号密码登录：仓库令牌（GitHub PAT，登录时实测对 GITHUB_REPO 有写权限才放行） */
+  GITHUB_PAT?: string;
   ADMIN_LOCAL_PREVIEW?: string;
   ADMIN_KV?: any;
   [k: string]: any;

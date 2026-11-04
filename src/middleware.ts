@@ -104,6 +104,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     path === '/login' ||
     path === '/api/auth/login' ||
     path === '/api/auth/callback' ||
+    path === '/api/auth/password' ||
     path === '/favicon.ico' ||
     // 公开图床页及其上传接口（只能上传，不能管理与设置）
     path === '/upload' ||

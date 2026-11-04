@@ -1,5 +1,13 @@
 ---
+import { getEnv } from '../lib/env';
+
 export const prerender = false;
+
+// 账号密码登录启用条件：三个变量齐全才渲染密码表单（GitHub 登录始终保留）
+const env = getEnv(Astro.locals);
+const pwdEnabled = Boolean(
+  (env.ADMIN_USER || '').trim() && env.ADMIN_PASSWORD && (env.GITHUB_PAT || '').trim()
+);
 ---
 
 <!doctype html>
@@ -65,6 +73,7 @@ export const prerender = false;
       @keyframes cardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
       .card h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; }
       .card p { font-size: 13px; color: var(--muted); margin: 0 0 26px; line-height: 1.7; }
+      /* 两个登录按钮统一用后台同款毛玻璃（配方与 AdminLayout .btn 一致，本页以 --text 代 --header-text） */
       .btn {
         display: inline-flex;
         align-items: center;
@@ -72,30 +81,136 @@ export const prerender = false;
         gap: 8px;
         width: 100%;
         min-height: 48px;
-        border: none;
-        background: var(--text);
-        color: var(--bg);
+        border: 1px solid color-mix(in srgb, var(--text) 18%, var(--surface));
+        background: color-mix(in srgb, var(--surface) 72%, transparent);
+        color: var(--text);
         border-radius: 999px;
         padding: 13px 20px;
         font-size: 16px;
         font-weight: 700;
         cursor: pointer;
         text-decoration: none;
-        transition: transform 0.18s ease, filter 0.18s ease;
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+        backdrop-filter: blur(12px) saturate(180%);
+        box-shadow:
+          inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent),
+          0 4px 14px rgba(0, 0, 0, 0.12);
+        transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.12s ease;
       }
       @media (hover: hover) and (pointer: fine) {
-        .btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+        .btn:hover {
+          border-color: color-mix(in srgb, var(--text) 48%, var(--surface));
+          background: color-mix(in srgb, color-mix(in srgb, var(--surface) 72%, var(--text) 28%) 82%, transparent);
+          box-shadow:
+            inset 0 1px 0 color-mix(in srgb, #fff 72%, transparent),
+            inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent),
+            0 8px 22px rgba(0, 0, 0, 0.2);
+        }
       }
-      .btn:active { transform: translateY(0); }
+      .btn:active:not(:disabled) {
+        background: color-mix(in srgb, var(--surface) 78%, transparent);
+        box-shadow:
+          inset 0 2px 6px rgba(0, 0, 0, 0.18),
+          inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent);
+      }
+      /* 触摸点击反馈与全站一致：玻璃色明显变一档 + 边框加深 + 轻微缩小，不黑底 */
+      @media (hover: none) {
+        .btn:active:not(:disabled) {
+          background: color-mix(in srgb, color-mix(in srgb, var(--surface) 74%, var(--text) 26%) 84%, transparent);
+          border-color: color-mix(in srgb, var(--text) 40%, var(--surface));
+          box-shadow:
+            inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent),
+            0 2px 8px rgba(0, 0, 0, 0.10);
+          transform: scale(0.97);
+        }
+      }
+      .btn:disabled { opacity: 0.55; cursor: not-allowed; }
       .note { font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.7; }
+      .field { margin-bottom: 12px; text-align: left; }
+      .field input {
+        width: 100%;
+        min-height: 48px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--text);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: 16px;
+        font-family: inherit;
+        outline: none;
+      }
+      .field input:focus { border-color: var(--muted); }
+      .divider {
+        display: flex; align-items: center; gap: 12px;
+        color: var(--muted); font-size: 12px; margin: 18px 0;
+      }
+      .divider::before, .divider::after {
+        content: ''; flex: 1; height: 1px; background: var(--line);
+      }
+      .error {
+        display: none;
+        font-size: 13px; color: #c0392b; line-height: 1.6;
+        margin: 0 0 14px; text-align: left;
+      }
+      :root.dark .error { color: #ff8a75; }
     </style>
   </head>
   <body>
     <div class="card">
       <h1>博客管理后台</h1>
-      <p>使用 GitHub 账号登录（仅仓库主人可进）</p>
+      <p>{pwdEnabled ? '使用账号密码或 GitHub 账号登录（仅仓库主人可进）' : '使用 GitHub 账号登录（仅仓库主人可进）'}</p>
+      {pwdEnabled && (
+        <form id="pwd-form" novalidate>
+          <div class="field">
+            <input id="pwd-user" type="text" name="username" placeholder="账号" autocomplete="username" />
+          </div>
+          <div class="field">
+            <input id="pwd-pass" type="password" name="password" placeholder="密码" autocomplete="current-password" />
+          </div>
+          <p class="error" id="pwd-error"></p>
+          <button class="btn" id="pwd-submit" type="submit">登录</button>
+          <div class="divider">或</div>
+        </form>
+      )}
       <a class="btn" href="/api/auth/login">使用 GitHub 登录</a>
       <div class="note">登录后即获得仓库读写权限，无需额外配置</div>
     </div>
+    {pwdEnabled && (
+      <script>
+        const form = document.getElementById('pwd-form');
+        const errEl = document.getElementById('pwd-error');
+        const btn = document.getElementById('pwd-submit');
+        form?.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const username = (document.getElementById('pwd-user') as HTMLInputElement).value;
+          const password = (document.getElementById('pwd-pass') as HTMLInputElement).value;
+          if (errEl) errEl.style.display = 'none';
+          if (btn) (btn as HTMLButtonElement).disabled = true;
+          try {
+            const res = await fetch('/api/auth/password', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ username, password }),
+            });
+            const data = await res.json().catch(() => null);
+            if (res.ok && data?.ok) {
+              location.href = '/admin';
+              return;
+            }
+            if (errEl) {
+              errEl.textContent = data?.error || '登录失败，请再试一次';
+              errEl.style.display = 'block';
+            }
+          } catch {
+            if (errEl) {
+              errEl.textContent = '连不上服务器，请再试一次';
+              errEl.style.display = 'block';
+            }
+          } finally {
+            if (btn) (btn as HTMLButtonElement).disabled = false;
+          }
+        });
+      </script>
+    )}
   </body>
 </html>

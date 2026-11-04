@@ -4,7 +4,7 @@ Astro 博客内容仓库的管理后台：管理文章、随记、页面、站�
 
 - 框架：Astro 5，SSR
 - 云端部署：同一仓库可同时部署到 Cloudflare Pages 与 EdgeOne Pages，两边构建命令相同（`npm run build`），构建时按环境特征自动识别平台并选用对应 adapter（`@astrojs/cloudflare` / `@edgeone/astro`），业务代码不感知平台；一般无需手动设置，特殊情况可用环境变量 `PLATFORM=cloudflare` / `PLATFORM=edgeone` 显式覆盖
-- 云端鉴权：GitHub OAuth，仅 `GITHUB_NAME` 指定的账号可登录
+- 云端鉴权：GitHub OAuth，仅 `GITHUB_NAME` 指定的账号可登录；也可另开账号密码登录（可选，见下文「账号密码登录」）
 - 本地预览：显式开启后，限本机回环地址免登录，内容 API 使用本地文件
 - 仓库公开，**不要把密钥写入代码或提交历史**；本地密钥放在已忽略的 `.dev.vars`，云端密钥放部署平台的环境变量（Cloudflare Pages 设置或 EdgeOne 控制台）
 
@@ -83,6 +83,18 @@ npm run dev -- --host 127.0.0.1 --port 4323
 | 名称 | 填什么 |
 |---|---|
 | `GITHUB_BRANCH` | 内容仓库的分支，默认 `main`；只有仓库默认分支不是 `main` 时才需要填 |
+
+### 账号密码登录（可选）
+
+除 GitHub OAuth 外，后台还支持账号密码登录：登录页同时摆出密码表单和 GitHub 按钮，任选其一，登录后的会话与权限完全相同。启用条件是下面三个变量**同时**设置（缺任何一个，登录页就不显示密码表单、密码登录接口也直接拒绝）；两个平台各配一份，改动后重新部署一次才生效。
+
+| 名称 | 填什么 |
+|---|---|
+| `ADMIN_USER` | 登录账号名，自己定 |
+| `ADMIN_PASSWORD` | 登录密码，自己定；按密钥对待（与 `GITHUB_CLIENT_SECRET` 同级），不要外泄 |
+| `GITHUB_PAT` | 仓库主人的 GitHub 个人令牌，建议用 Fine-grained 令牌：只授权 `GITHUB_REPO` 这一个仓库、Permissions 里 Contents 给读写即可，有效期按需选 |
+
+密码本身只证明身份，读写仓库靠 `GITHUB_PAT`：每次密码登录时，服务器都会拿令牌实测一次 GitHub——令牌主人必须是 `GITHUB_NAME`、且对 `GITHUB_REPO` 有写权限，任一不过都不予登录。密码连续输错 8 次会锁定 15 分钟（计数存平台的配置存储；存储不可用时跳过锁定，不影响正常登录）。密码登录签发的会话没有刷新令牌，由登录中间件定期向 GitHub 验活。
 
 ### 绑定（仅 Cloudflare，在 Pages「设置 → 函数」里添加，不是环境变量）
 
