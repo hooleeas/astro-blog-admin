@@ -1130,7 +1130,7 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
               </div>
             </div>
             <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深色模式">◐</button>
-            <div class="topbar-actions" hidden={!['/posts', '/posts/edit', '/notes', '/images', '/images/manage', '/pages', '/pages/settings', '/data/edit', '/pages/edit'].includes(Astro.url.pathname) && !noteEditor}>
+            <div class="topbar-actions" hidden={!['/posts', '/posts/edit', '/notes', '/images', '/images/manage', '/images/storage', '/pages', '/pages/settings', '/data/edit', '/pages/edit'].includes(Astro.url.pathname) && !noteEditor}>
               <a class="btn" id="new-post-link" href="/posts/new" hidden={Astro.url.pathname !== '/posts'}>
                 新建
               </a>
@@ -1148,6 +1148,9 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
               </button>
               <button class="btn btn-sm glass-button" id="refresh-image-manager" type="button" hidden={Astro.url.pathname !== '/images/manage'}>
                 刷新
+              </button>
+              <button class="btn btn-sm glass-button" id="new-channel" type="button" hidden={Astro.url.pathname !== '/images/storage'}>
+                新建存储
               </button>
               <button class="btn" id="post-save-btn" type="button" hidden={Astro.url.pathname !== '/posts/edit'}>保存</button>
               <button class="link danger note-delete-button" id="post-delete-btn" type="button" hidden={Astro.url.pathname !== '/posts/edit'}>删除</button>
@@ -1628,6 +1631,9 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
       document.getElementById('refresh-image-manager')?.addEventListener('click', () => {
         document.querySelector('.image-manager')?.dispatchEvent(new Event('image-manager-refresh'));
       });
+      document.getElementById('new-channel')?.addEventListener('click', () => {
+        document.querySelector('.storage-page')?.dispatchEvent(new Event('storage-new-channel'));
+      });
 
       const capsule = document.querySelector<HTMLElement>('.nav-capsule');
       const indicator = capsule?.querySelector<HTMLElement>('.navigation-indicator');
@@ -1774,6 +1780,7 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
           const imageStorageLink = document.querySelector<HTMLAnchorElement>('#open-image-storage');
           const imageSettingsButton = document.querySelector<HTMLButtonElement>('#open-image-settings');
           const imageManagerRefreshButton = document.querySelector<HTMLButtonElement>('#refresh-image-manager');
+          const newChannelButton = document.querySelector<HTMLButtonElement>('#new-channel');
           const postSaveButton = document.querySelector<HTMLButtonElement>('#post-save-btn');
           const postDeleteButton = document.querySelector<HTMLButtonElement>('#post-delete-btn');
           const newPageButton = document.querySelector<HTMLButtonElement>('#new-page-toggle');
@@ -1788,6 +1795,7 @@ const homeHref = isSectionLanding ? '/' : sectionParent(currentPath);
           if (imageStorageLink) imageStorageLink.hidden = pathname !== '/images';
           if (imageSettingsButton) imageSettingsButton.hidden = pathname !== '/images';
           if (imageManagerRefreshButton) imageManagerRefreshButton.hidden = pathname !== '/images/manage';
+          if (newChannelButton) newChannelButton.hidden = pathname !== '/images/storage';
           const isPostEditor = pathname === '/posts/edit';
           if (postSaveButton) postSaveButton.hidden = !isPostEditor;
           if (postDeleteButton) postDeleteButton.hidden = !isPostEditor;

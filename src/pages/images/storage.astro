@@ -16,7 +16,6 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
         <h1 class="page-title">存储</h1>
         <p class="hint">管理图床的存储渠道（参数保存在{configStoreLabel}中，不会进入代码仓库）。图床设置里只选择使用哪个渠道；切换渠道不影响已有图片链接。</p>
       </div>
-      <button class="btn" id="new-channel" type="button">新建存储</button>
     </div>
 
     <p id="channel-status" class="channel-status" role="status" aria-live="polite">正在加载存储渠道…</p>
@@ -237,7 +236,6 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
 
       const list = page.querySelector<HTMLElement>('#channel-list')!;
       const status = page.querySelector<HTMLElement>('#channel-status')!;
-      const newBtn = page.querySelector<HTMLButtonElement>('#new-channel')!;
       const dialog = document.querySelector<HTMLDialogElement>('#channel-dialog')!;
       const dialogTitle = dialog.querySelector<HTMLElement>('#channel-dialog-title')!;
       const form = dialog.querySelector<HTMLFormElement>('#channel-form')!;
@@ -309,7 +307,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       function render() {
         list.replaceChildren();
         if (channels.length === 0) {
-          status.textContent = '还没有存储渠道，点右上角「新建存储」添加。';
+          status.textContent = '还没有存储渠道，点「新建存储」添加。';
           status.classList.remove('error');
           return;
         }
@@ -462,7 +460,8 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
         if (!dialog.open) dialog.showModal();
       }
 
-      newBtn.addEventListener('click', () => openEditor(null));
+      // 「新建存储」按钮在顶栏导航旁（布局统一放置），点击时布局给页面派发 storage-new-channel 事件
+      page.addEventListener('storage-new-channel', () => openEditor(null));
       dialog.querySelector('[data-close-channel]')!.addEventListener('click', () => dialog.close());
       dialog.addEventListener('click', (event) => {
         if (event.target === dialog) dialog.close();
