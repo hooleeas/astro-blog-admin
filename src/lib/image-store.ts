@@ -99,12 +99,25 @@ function webdavClient(cfg: WebdavConfig) {
 }
 
 async function webdavEnsureDir(cfg: WebdavConfig): Promise<void> {
+  if (!imageDir(cfg)) return; // 根目录无需创建
   const client = webdavClient(cfg);
   let prefix = '';
   for (const seg of imageDir(cfg).split('/')) {
     prefix += `/${seg}`;
     try { await (client as any).createDirectory(prefix); } catch {}
   }
+}
+
+/** WebDAV 存放目录路径（空目录 = 根目录，避免拼出双斜杠） */
+function davDirPath(cfg: WebdavConfig): string {
+  const d = imageDir(cfg);
+  return d ? `/${d}` : '/';
+}
+
+/** WebDAV 文件路径（空目录 = 根目录直下） */
+function davFilePath(cfg: WebdavConfig, filename: string): string {
+  const d = imageDir(cfg);
+  return d ? `/${d}/${filename}` : `/${filename}`;
 }
 
 /* ---------------- S3 兼容存储（R2 密钥模式与 S3 渠道共用） ---------------- */
@@ -331,7 +344,7 @@ export async function storeFileExists(locals: unknown, cfg: WebdavConfig, filena
     return res.ok;
   }
   const client = webdavClient(cfg);
-  return client.exists(`/${imageDir(cfg)}/${filename}`);
+  return client.exists(davFilePath(cfg, filename));
 }
 
 /** 存图并登记：非 Telegram 渠道存成功后在图片登记表记一条（Telegram 的登记即其清单，分支内已维护） */
@@ -414,7 +427,7 @@ async function storePutFileRaw(locals: unknown, cfg: WebdavConfig, filename: str
   }
   await webdavEnsureDir(cfg);
   const client = webdavClient(cfg);
-  await client.putFileContents(`/${imageDir(cfg)}/${filename}`, data, { overwrite: false });
+  await client.putFileContents(davFilePath(cfg, filename), data, { overwrite: false });
 }
 
 export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename: string): Promise<Uint8Array> {
@@ -460,7 +473,7 @@ export async function storeGetFile(locals: unknown, cfg: WebdavConfig, filename:
     return new Uint8Array(await res.arrayBuffer());
   }
   const client = webdavClient(cfg);
-  const data = await client.getFileContents(`/${imageDir(cfg)}/${filename}`);
+  const data = await client.getFileContents(davFilePath(cfg, filename));
   return data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data as unknown as ArrayLike<number>);
 }
 
@@ -545,7 +558,7 @@ export async function storeListFiles(locals: unknown, cfg: WebdavConfig): Promis
     return s3ListFiles(r2S3Params(cfg), cfg);
   }
   const client = webdavClient(cfg);
-  const directory = `/${imageDir(cfg)}`;
+  const directory = davDirPath(cfg);
   if (!await client.exists(directory)) return [];
   const files = await client.getDirectoryContents(directory);
   return files
@@ -598,5 +611,5 @@ async function storeDeleteFileRaw(locals: unknown, cfg: WebdavConfig, filename: 
     return;
   }
   const client = webdavClient(cfg);
-  await client.deleteFile(`/${imageDir(cfg)}/${filename}`);
+  await client.deleteFile(davFilePath(cfg, filename));
 }

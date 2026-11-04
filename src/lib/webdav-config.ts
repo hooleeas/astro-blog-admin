@@ -88,10 +88,10 @@ export interface WebdavConfigPublic {
   pageTitle: string;
 }
 
-/** 图床默认存放目录（设置页未填 dir 时使用） */
-export const IMG_DIR = 'img';
+/** 图床默认存放目录：根目录（用户定 2026-11-04，此前默认 img） */
+export const IMG_DIR = '';
 
-/** 图床实际存放目录：设置页填了 dir 就用它，留空用默认 img */
+/** 图床实际存放目录：设置页填了 dir 就用它，留空即根目录 */
 export function imageDir(cfg: WebdavConfig): string {
   return cfg.dir || IMG_DIR;
 }

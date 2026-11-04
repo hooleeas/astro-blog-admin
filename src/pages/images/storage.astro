@@ -66,8 +66,8 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
         </label>
         <label class="field" id="ch-dir-field">
           <span class="flabel">上传目录</span>
-          <input class="input" name="chDir" type="text" placeholder="img" />
-          <span class="hint">图片存放于该渠道的该目录下，可填多级路径（如 photos/blog）；留空使用默认 img</span>
+          <input class="input" name="chDir" type="text" placeholder="根目录" />
+          <span class="hint">图片存放于该渠道的该目录下，可填多级路径（如 photos/blog）；留空使用根目录</span>
         </label>
 
         <div id="ch-webdav-fields">
@@ -296,7 +296,7 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       function channelSummary(ch: ChannelPublic): string {
         const parts = [`/${ch.path}`];
         // Telegram 没有目录概念，卡片不显示目录（用户定）
-        if (ch.kind !== 'tg') parts.push(ch.dir ? `目录 ${ch.dir}` : '目录 img');
+        if (ch.kind !== 'tg') parts.push(ch.dir ? `目录 ${ch.dir}` : '根目录');
         if (ch.kind === 'webdav') parts.push(ch.url || '未填写地址');
         else if (ch.kind === 'r2') parts.push(r2Bound ? 'Pages 绑定 IMGS_R2' : 'EdgeOne Blob');
         else if (ch.kind === 's3') parts.push(ch.s3Bucket || '未填写存储桶');
