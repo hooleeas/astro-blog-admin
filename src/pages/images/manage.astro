@@ -247,10 +247,8 @@ const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflar
             channelName: result.data.channelName,
             channelKind: result.data.channelKind,
           });
-          // 与接口一致的排序：先按渠道顺序、再按时间倒序，保证分组不散
-          const order = new Map(channelOptions.map((ch, i) => [ch.id, i]));
-          images.sort((a, b) =>
-            (order.get(a.channelId) ?? 0) - (order.get(b.channelId) ?? 0) || b.lastmod.localeCompare(a.lastmod));
+          // 与接口一致的排序：全部图片只按时间倒序平铺（用户定）
+          images.sort((a, b) => b.lastmod.localeCompare(a.lastmod));
           editDialog.close();
           render();
           (window as any).adminToast?.('已保存');

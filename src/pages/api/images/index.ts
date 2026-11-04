@@ -81,10 +81,8 @@ export const GET: APIRoute = async ({ locals, request }) => {
         }
       }
     }
-    // 渠道内按时间倒序；渠道之间保持渠道列表顺序（前端按渠道分组渲染）
-    const order = new Map(channelList.map((ch, i) => [ch.id, i]));
-    images.sort((a, b) =>
-      (order.get(a.channelId) ?? 0) - (order.get(b.channelId) ?? 0) || b.lastmod.localeCompare(a.lastmod));
+    // 全部图片平铺、只按时间倒序（新图在前），不按渠道分组排序（用户定）
+    images.sort((a, b) => b.lastmod.localeCompare(a.lastmod));
     return json({ ok: true, data: { images, channels: channelList, channelErrors } });
   } catch (error) {
     const status = typeof error === 'object' && error !== null && 'status' in error &&
