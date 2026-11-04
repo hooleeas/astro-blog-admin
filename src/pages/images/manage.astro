@@ -108,8 +108,6 @@ const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflar
     @media (hover: hover) and (pointer: fine) {
       .lightbox-close:hover { background: rgba(255, 255, 255, 0.18); }
     }
-    .image-manager .channel-group-header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; margin-top: 8px; font-size: 14px; font-weight: 700; }
-    .image-manager .channel-group-header .group-meta { color: var(--muted); font-size: 12px; font-weight: 400; }
     .image-edit-dialog {
       width: min(520px, calc(100% - 32px));
       max-height: min(90dvh, 640px);
@@ -311,25 +309,8 @@ const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflar
           return;
         }
         status.textContent = '';
-        // 按渠道分组：渠道顺序与接口返回一致，组内保持时间倒序
-        const groupCounts = new Map<string, number>();
+        // 不再按渠道分组显示标题行：每张卡下方的信息行已标注所属渠道（用户定），全部图片直接成列
         for (const image of visible) {
-          groupCounts.set(image.channelId, (groupCounts.get(image.channelId) ?? 0) + 1);
-        }
-        let lastChannelId = '';
-        for (const image of visible) {
-          if (image.channelId !== lastChannelId) {
-            lastChannelId = image.channelId;
-            const header = document.createElement('div');
-            header.className = 'channel-group-header';
-            const groupName = document.createElement('span');
-            groupName.textContent = image.channelName;
-            const groupMeta = document.createElement('span');
-            groupMeta.className = 'group-meta';
-            groupMeta.textContent = `${KIND_LABELS[image.channelKind] || image.channelKind} · ${groupCounts.get(image.channelId)} 张`;
-            header.append(groupName, groupMeta);
-            grid.appendChild(header);
-          }
           const card = document.createElement('article');
           card.className = 'image-card';
           const selectWrap = document.createElement('label');
