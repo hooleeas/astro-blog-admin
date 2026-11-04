@@ -501,7 +501,9 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       line-height: 1;
       cursor: pointer;
     }
-    .settings-close:hover { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); border-color: color-mix(in srgb, var(--text) 26%, transparent); }
+    @media (hover: hover) and (pointer: fine) {
+      .settings-close:hover { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); border-color: color-mix(in srgb, var(--text) 26%, transparent); }
+    }
     .upload-progress {
       position: fixed;
       top: 0;
@@ -564,7 +566,9 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       cursor: pointer;
       z-index: 1;
     }
-    .lightbox-close:hover { background: rgba(255, 255, 255, 0.18); }
+    @media (hover: hover) and (pointer: fine) {
+      .lightbox-close:hover { background: rgba(255, 255, 255, 0.18); }
+    }
     .settings-inline-open {
       padding: 0;
       color: inherit;

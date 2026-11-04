@@ -272,6 +272,8 @@ export interface StorageChannel {
   enabled: boolean;
   /** 对外连接路径：图片链接形如 /<path>/<文件名>；可多渠道共用，共用时切换存储不影响链接 */
   path: string;
+  /** 历史对外路径：改过路径后，旧路径继续作为别名出图，旧链接不断（用户定） */
+  aliases: string[];
   /** 上传目录（该渠道内的存放目录） */
   dir: string;
   url: string;
@@ -296,6 +298,7 @@ export interface StorageChannelPublic {
   kind: ImageStorageKind;
   enabled: boolean;
   path: string;
+  aliases: string[];
   dir: string;
   url: string;
   username: string;
@@ -346,6 +349,18 @@ function sanitizeChannel(raw: any, locals: unknown): StorageChannel | null {
     kind,
     enabled: raw.enabled !== false,
     path: normalizeLinkPrefix(raw.path) ?? '',
+    // 历史路径别名：规范化、去重、去掉与当前路径相同的，最多留 10 个
+    aliases: (() => {
+      if (!Array.isArray(raw.aliases)) return [];
+      const current = normalizeLinkPrefix(raw.path) ?? '';
+      const out: string[] = [];
+      for (const p of raw.aliases) {
+        const n = normalizeLinkPrefix(p);
+        if (n && n !== current && !out.includes(n)) out.push(n);
+        if (out.length >= 10) break;
+      }
+      return out;
+    })(),
     // Telegram 不是网盘、没有目录概念：TG 渠道的目录恒为空（用户定）
     dir: kind === 'tg' ? '' : String(raw.dir || '').replace(/^\/+|\/+$/g, ''),
     url: typeof raw.url === 'string' ? raw.url.replace(/\/+$/, '') : '',
@@ -396,6 +411,7 @@ export function deriveChannelsState(legacy: WebdavConfig, locals: unknown): Chan
     kind,
     enabled: kind === 'tg' ? legacy.tgEnabled : true,
     path: sharedPath,
+    aliases: [],
     dir: legacy.dir,
     url: legacy.url,
     username: legacy.username,
@@ -564,6 +580,7 @@ export function channelToPublic(ch: StorageChannel): StorageChannelPublic {
     kind: ch.kind,
     enabled: ch.enabled,
     path: ch.path,
+    aliases: ch.aliases ?? [],
     dir: ch.dir,
     url: ch.url,
     username: ch.username,

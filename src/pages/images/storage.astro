@@ -197,7 +197,9 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
       border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
       border-radius: 50%; font-size: 25px; line-height: 1; cursor: pointer;
     }
-    .channel-close:hover { color: var(--text); }
+    @media (hover: hover) and (pointer: fine) {
+      .channel-close:hover { color: var(--text); }
+    }
     @media (max-width: 640px) {
       /* 移动端按钮新开一行独占整行：三个按钮等分整行宽，一行放完不换行、不硬缩 */
       .storage-page .channel-card { flex-wrap: wrap; }

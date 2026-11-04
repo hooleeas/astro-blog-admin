@@ -105,7 +105,9 @@ const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflar
       -webkit-backdrop-filter: blur(12px) saturate(180%); backdrop-filter: blur(12px) saturate(180%);
       border-radius: 50%; font-size: 25px; line-height: 1; cursor: pointer; z-index: 1;
     }
-    .lightbox-close:hover { background: rgba(255, 255, 255, 0.18); }
+    @media (hover: hover) and (pointer: fine) {
+      .lightbox-close:hover { background: rgba(255, 255, 255, 0.18); }
+    }
     .image-manager .channel-group-header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; margin-top: 8px; font-size: 14px; font-weight: 700; }
     .image-manager .channel-group-header .group-meta { color: var(--muted); font-size: 12px; font-weight: 400; }
     .image-edit-dialog {
@@ -132,7 +134,9 @@ const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflar
       border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
       border-radius: 50%; font-size: 25px; line-height: 1; cursor: pointer;
     }
-    .image-edit-close:hover { color: var(--text); }
+    @media (hover: hover) and (pointer: fine) {
+      .image-edit-close:hover { color: var(--text); }
+    }
     #image-edit-channel {
       height: 42px; padding-top: 0; padding-bottom: 0; padding-right: 38px;
       -webkit-appearance: none; appearance: none;

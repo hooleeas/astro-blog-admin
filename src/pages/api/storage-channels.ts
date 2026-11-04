@@ -88,12 +88,21 @@ function buildChannel(
   // Telegram 不是网盘、没有目录概念：TG 渠道不保存目录（用户定）
   if (kind === 'tg') dir = '';
 
+  // 历史路径别名（用户定）：改了对外路径，旧路径留作别名继续出图，旧链接不断；
+  // 别名只由服务端按旧渠道累积，前端传什么都不采信
+  const aliases = (() => {
+    const list = [...(old?.aliases ?? [])];
+    if (old && old.path && old.path !== path) list.push(old.path);
+    return [...new Set(list)].filter((p) => p !== path).slice(-10);
+  })();
+
   const channel: StorageChannel = {
     id: old?.id ?? newChannelId(),
     name,
     kind,
     enabled: body.enabled === undefined ? (old?.enabled ?? true) : body.enabled !== false,
     path,
+    aliases,
     dir,
     url: old?.url ?? '',
     username: old?.username ?? '',

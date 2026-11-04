@@ -1,8 +1,9 @@
 // 注意：不要用默认入口 'webdav'（dist/node，依赖 node-fetch，在 Workers 上跑不起来）。
 // 'webdav/web' 是官方自包含 web 构建（原生 fetch，显式支持 WorkerGlobalScope），
 // 在 Cloudflare Pages Functions / workerd 里可直接运行。
-import { getWebdavConfig } from './webdav-config';
+import { getWebdavConfig, getChannelsState, channelToConfig, readImghubLevel, type WebdavConfig } from './webdav-config';
 import { storeFileExists, storePutFile } from './image-store';
+import { registryGet } from './image-registry';
 import { getImageUrl, isImageFilename } from './image-assets';
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
@@ -57,10 +58,30 @@ export async function processImageUpload(locals: unknown, requestUrl: string, fi
 
   const cfg = await getWebdavConfig(locals);
   const data = await file.arrayBuffer();
-  // 存放位置取设置页的 dir（留空用默认 img）；存储方式（WebDAV / Cloudflare R2）由存储层按设置分发
-  // 重名自动改名：原名已被占用时在扩展名前加 _1、_2… 找空位，原文件不覆盖、不动
+  // 存放位置取渠道的 dir（留空为根目录）；存储方式（WebDAV / R2 / S3 / Telegram）由存储层按渠道分发
+  // 重名查重范围（用户定）：与当前渠道共用同一对外路径的全部启用渠道——同一链接路径下
+  // 文件名必须唯一（登记表记着的、存储里实际有的都算占用）；重名了在扩展名前加 _1、_2…
+  // 纯数字递增找空位，原文件不覆盖、不动
+  const groupCfgs: WebdavConfig[] = [cfg];
+  try {
+    const state = await getChannelsState(locals);
+    const level = await readImghubLevel(locals);
+    const active = state?.channels.find((ch) => ch.id === cfg.channelId);
+    const sharedPath = active?.path ?? cfg.linkPrefix;
+    for (const ch of state?.channels ?? []) {
+      if (!ch.enabled || ch.path !== sharedPath || ch.id === active?.id) continue;
+      groupCfgs.push(channelToConfig(ch, level));
+    }
+  } catch {}
   const taken = async (name: string) => {
-    try { return await storeFileExists(locals, cfg, name); } catch { return false; }
+    for (const c of groupCfgs) {
+      if (c.channelId) {
+        const rec = await registryGet(locals, c.channelId, name).catch(() => null);
+        if (rec) return true;
+      }
+      try { if (await storeFileExists(locals, c, name)) return true; } catch {}
+    }
+    return false;
   };
   if (await taken(filename)) {
     const dot = filename.lastIndexOf('.');

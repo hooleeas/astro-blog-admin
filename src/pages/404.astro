@@ -89,7 +89,9 @@ if ((Astro.locals as { githubToken?: string }).githubToken) {
         font-size: 0.95rem; font-weight: 700; text-decoration: none;
         transition: transform 0.2s ease, filter 0.2s ease;
       }
-      .not-found-home:hover { transform: translateY(-2px); filter: brightness(1.08); }
+      @media (hover: hover) and (pointer: fine) {
+        .not-found-home:hover { transform: translateY(-2px); filter: brightness(1.08); }
+      }
       .not-found-home:focus-visible { outline: 3px solid var(--text); outline-offset: 4px; }
       .not-found-home span { font-size: 1.15rem; }
 

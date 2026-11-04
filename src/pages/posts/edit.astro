@@ -852,7 +852,9 @@ const key = Astro.url.searchParams.get('key') ?? '';
     }
     .editor-card-heading { margin-bottom: 20px; }
     .editor-delete-lang { flex: 0 0 auto; color: var(--danger); }
-    .editor-delete-lang:hover { color: var(--text); }
+    @media (hover: hover) and (pointer: fine) {
+      .editor-delete-lang:hover { color: var(--text); }
+    }
     .editor-fields {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));

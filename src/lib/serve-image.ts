@@ -46,9 +46,12 @@ export async function serveImageByPath(locals: unknown, path: string, filename: 
   const state = await getChannelsState(locals).catch(() => null);
   if (!state || !state.channels.length) return null;
   const level = await readImghubLevel(locals);
+  // 当前路径命中的渠道优先，其次是把该路径留作历史别名的渠道（改路径后旧链接不断，用户定）；组内当前渠道优先
   const candidates = state.channels
-    .filter((ch) => ch.enabled && ch.path === path)
-    .sort((a, b) => (a.id === state.activeId ? 0 : 1) - (b.id === state.activeId ? 0 : 1));
+    .filter((ch) => ch.enabled && (ch.path === path || (ch.aliases ?? []).includes(path)))
+    .sort((a, b) =>
+      ((a.path === path ? 0 : 1) - (b.path === path ? 0 : 1))
+      || ((a.id === state.activeId ? 0 : 1) - (b.id === state.activeId ? 0 : 1)));
   if (!candidates.length) return null;
 
   // 1) 登记表定位
