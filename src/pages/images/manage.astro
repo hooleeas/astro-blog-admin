@@ -15,7 +15,7 @@ const objectStorageLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : 'Cloudflar
           <h1 class="page-title">图片管理</h1>
           <span id="image-count" class="hint" aria-live="polite"></span>
         </div>
-        <p class="hint">管理图床中已上传的图片（全部存储渠道，按渠道分组）。删除会从图片所在渠道中永久移除，无法恢复。</p>
+        <p class="hint">管理图床中已上传的图片（全部存储渠道，按时间排序）。删除会从图片所在渠道中永久移除，无法恢复。</p>
       </div>
       <label class="search-label">
         <span class="sr-only">搜索图片</span>
