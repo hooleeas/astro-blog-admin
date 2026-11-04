@@ -169,18 +169,13 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
             channelSelect.appendChild(opt);
           }
           if (d.activeChannelId) channelSelect.value = d.activeChannelId;
-          // 数据存储：接口在 EdgeOne 返回 null（固定 Blob）就不显示这一项；
-          // Cloudflare 未检测到 D1 绑定时整项禁用，只有绑定了才能选（用户定）
-          if (d.dataStore && datastoreField && datastoreSelect && datastoreHint) {
+          // 数据存储：只有检测到 D1 绑定时才显示这一项，没检测到整项不出现（用户定）；
+          // 接口在 EdgeOne 返回 null（固定 Blob），同样不显示
+          if (d.dataStore && d.dataStore.d1Bound && datastoreField && datastoreSelect && datastoreHint) {
             datastoreField.hidden = false;
             datastoreActive = d.dataStore.active === 'd1' ? 'd1' : 'kv';
             datastoreSelect.value = datastoreActive;
-            if (!d.dataStore.d1Bound) {
-              datastoreSelect.disabled = true;
-              datastoreHint.textContent = '图床的配置与图片登记存放位置。未检测到 D1 绑定（ADMIN_D1），在 Cloudflare Pages 里绑定 D1 数据库后才能选择。';
-            } else {
-              datastoreHint.textContent = '图床的配置与图片登记存放位置；切换时把数据整体搬过去，并清空原位置，只留一份。';
-            }
+            datastoreHint.textContent = '图床的配置与图片登记存放位置；切换时把数据整体搬过去，并清空原位置，只留一份。';
           }
         }
       }).catch(() => setSettingsMsg('读取设置失败：网络错误', false));
@@ -197,7 +192,6 @@ const configStoreLabel = isEdgeOne(Astro.locals) ? 'EdgeOne Blob' : '服务器 K
           datastoreSelect &&
           datastoreField &&
           !datastoreField.hidden &&
-          !datastoreSelect.disabled &&
           datastoreSelect.value !== datastoreActive
         ) {
           body.dataStore = datastoreSelect.value;
