@@ -1,6 +1,6 @@
 # astro-blog-admin
 
-Astro 博客内容仓库的管理后台：管理文章、随记、页面、站点设置，并**内置一个完整的图床**——双存储可切换、带免登录的公开上传页、图片链接用不依赖域名的相对路径（详见下文「图床」一节）。内容仓库不写死在代码里，必须通过环境变量 `GITHUB_REPO` 指定（见下表）。
+Astro 博客内容仓库的管理后台——**[astro-blog](https://github.com/hooleeas/astro-blog)** 的配套项目：管理文章、随记、页面、站点设置，并**内置一个完整的图床**——双存储可切换、带免登录的公开上传页、图片链接用不依赖域名的相对路径（详见下文「图床」一节）。内容仓库不写死在代码里，必须通过环境变量 `GITHUB_REPO` 指定（见下表）。
 
 - 框架：Astro 5，SSR
 - 云端部署：同一仓库可同时部署到 Cloudflare Pages 与 EdgeOne Pages，两边构建命令相同（`npm run build`），构建时按环境特征自动识别平台并选用对应 adapter（`@astrojs/cloudflare` / `@edgeone/astro`），业务代码不感知平台；一般无需手动设置，特殊情况可用环境变量 `PLATFORM=cloudflare` / `PLATFORM=edgeone` 显式覆盖
