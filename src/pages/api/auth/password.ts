@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getEnv } from '../../../lib/env';
-import { getKVStore } from '../../../lib/platform';
+import { getMetaStore } from '../../../lib/platform';
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
@@ -89,7 +89,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const password = body.password || '';
 
   // 失败锁定（KV 尽力而为：读不到/写不进都不阻断正常登录）
-  const kv = await getKVStore(locals).catch(() => null);
+  // 失败计数走账本存储（数据存储选了哪边就存哪边，不在另一边留痕）
+  const kv = await getMetaStore(locals).catch(() => null);
   let lock: { fails: number; until: number } = { fails: 0, until: 0 };
   if (kv) {
     try {
